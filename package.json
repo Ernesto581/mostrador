@@ -1,0 +1,25 @@
+{
+  "name": "mostrador",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Mostrador - Sistema de ventas, inventario y contabilidad para punto de venta y tienda",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "fast-check": "^3.23.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}

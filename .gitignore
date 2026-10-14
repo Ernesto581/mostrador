@@ -1,0 +1,47 @@
+# Dependencias
+node_modules/
+
+# Compilados
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Registros
+*.log
+npm-debug.log*
+
+# Bases de datos locales
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Android (app movil)
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/build/
+*.apk
+*.aab
+
+# Firmas: NUNCA se suben al repositorio
+*.keystore
+*.jks
+
+# Herramientas
+.vite/
+.turbo/
+.idea/
+.vscode/*
+!.vscode/extensions.json

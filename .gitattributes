@@ -1,0 +1,17 @@
+# Normaliza los finales de linea en todo el repositorio
+* text=auto eol=lf
+
+# Binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.apk binary
+*.aab binary
+*.keystore binary
+*.jks binary
+*.db binary
+*.sqlite3 binary
