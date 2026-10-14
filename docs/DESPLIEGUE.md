@@ -100,10 +100,12 @@ git push -u origin main
 
 1. Entra a Vercel y elige **Add New → Project**.
 2. **Import Git Repository** y elige el repositorio que acabas de subir.
-3. En la configuracion del proyecto:
-   - **Framework Preset:** `Other`
-   - **Root Directory:** dejalo en la raiz (`./`)
-   - **Build Command** y **Output Directory:** dejalo como esta; Vercel lee `vercel.json`.
+3. Vercel detecta dos aplicaciones (el API y el punto de venta) y te pide agruparlas:
+   - En **Application Preset** elige **`Services`**.
+   - Confirma que aparezcan los dos servicios: **`api` → Fastify** y **`pos` → Vite`.
+   - **Root Directory:** dejalo en la raiz (`./`).
+   - **NO** las despliegues por separado: agrupadas quedan en **una sola direccion**,
+     sin problemas de CORS y con las variables compartidas.
 4. Abre **Environment Variables** y agrega estas cuatro (marcando Production, Preview
    y Development):
 
@@ -111,8 +113,12 @@ git push -u origin main
 |---|---|
 | `DATABASE_URL` | La cadena del **Transaction pooler (6543)**, con `?pgbouncer=true` |
 | `JWT_SECRET` | Una cadena larga y secreta (abajo te digo como generarla) |
-| `NODE_ENV` | `production` |
 | `MIGRAR_AL_ARRANCAR` | `false` |
+
+> **NO agregues `NODE_ENV=production`.** Vercel ya lo pone solo cuando la aplicacion
+> corre, y al ponerlo como variable del proyecto tambien afecta al momento de instalar:
+> `npm` **se salta las herramientas de desarrollo** (TypeScript, Vite) y la compilacion
+> falla con `tsc: command not found`.
 
 Genera el `JWT_SECRET` con:
 
@@ -122,6 +128,21 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 5. **Deploy** y espera. Al terminar te da una direccion como
    `https://mostrador-tuusuario.vercel.app`.
+
+### Como queda repartido
+
+Vercel lee `vercel.json` y reparte el trafico asi:
+
+| Peticion | Va a | Por que |
+|---|---|---|
+| `/api/v1/...` | servicio `api` (Fastify) | El primer rewrite es el mas especifico |
+| Todo lo demas | servicio `pos` (Vite) | El segundo rewrite es el comodin |
+
+El API **no cambia nada**: la documentacion de Vercel confirma que el servicio recibe
+**la ruta original**, asi que `/api/v1/products` llega tal cual.
+
+El punto de entrada del API es `apps/api/src/index.ts`, y **ese nombre es justo uno de
+los que Vercel reconoce** (`src/index.ts`). No hay que configurar nada mas.
 
 ---
 
@@ -163,6 +184,8 @@ otro administrador (la base admite varios usuarios).
 |---|---|
 | "No hay conexion con el servidor" | `DATABASE_URL` mal copiada. Debe ser la del **6543** |
 | El API responde 500 | Revisa **Deployments → Functions** en Vercel, ahi sale el error real |
+| `tsc: command not found` al construir | Pusiste `NODE_ENV=production` en las variables. Quitala |
+| "Cannot find module @mostrador/db-cloud" | La instalacion no compilo los paquetes; revisa el `installCommand` |
 | Nada responde tras unos dias | El proyecto de Supabase se pauso. Reactivalo |
 | "Contrasena incorrecta" y estas seguro | Vuelve a correr el seed del Paso 2 |
 | La migracion falla sin decir nada | La cadena traia `sslmode=require`. Quitalo (o usa una version del codigo que ya lo descarta solo) |
