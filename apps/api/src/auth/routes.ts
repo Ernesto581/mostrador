@@ -55,6 +55,16 @@ export async function rutasAuth(app: FastifyInstance) {
       throw new ErrorDeAutenticacion('La sesion ya no es valida');
     }
 
+    const [empresa] = await app.db
+      .select({
+        nombre: schema.companies.name,
+        moneda: schema.companies.currency,
+        preciosConImpuestoIncluido: schema.companies.pricesIncludeTax,
+      })
+      .from(schema.companies)
+      .where(eq(schema.companies.id, usuario.companyId))
+      .limit(1);
+
     const filasRoles = await app.db
       .select({ codigo: roles.code, nombre: roles.name, permisos: roles.permissions })
       .from(userRoles)
@@ -73,6 +83,11 @@ export async function rutasAuth(app: FastifyInstance) {
       .where(eq(userBranchAccess.userId, usuario.id));
 
     return {
+      empresa: {
+        nombre: empresa?.nombre ?? '',
+        moneda: empresa?.moneda ?? 'MXN',
+        preciosConImpuestoIncluido: empresa?.preciosConImpuestoIncluido ?? true,
+      },
       usuario: {
         id: usuario.id,
         username: usuario.username,

@@ -12,6 +12,8 @@ const EsquemaConfig = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   /** Directorio de PGlite. Sin valor, la base vive en memoria. */
   PGLITE_DIR: z.string().min(1).optional(),
+  /** Origenes permitidos para el navegador, separados por coma. Vacio = todos. */
+  CORS_ORIGIN: z.string().optional(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres').optional(),
   JWT_EXPIRA: z.string().min(1).default('12h'),
 });
@@ -23,6 +25,7 @@ export interface Config {
   LOG_LEVEL: (typeof NIVELES_LOG)[number];
   DATABASE_URL?: string;
   PGLITE_DIR?: string;
+  CORS_ORIGIN?: string;
   JWT_SECRET: string;
   JWT_EXPIRA: string;
 }
@@ -54,5 +57,6 @@ export function cargarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     JWT_EXPIRA: datos.JWT_EXPIRA,
     ...(datos.DATABASE_URL !== undefined ? { DATABASE_URL: datos.DATABASE_URL } : {}),
     ...(datos.PGLITE_DIR !== undefined ? { PGLITE_DIR: datos.PGLITE_DIR } : {}),
+    ...(datos.CORS_ORIGIN !== undefined ? { CORS_ORIGIN: datos.CORS_ORIGIN } : {}),
   };
 }

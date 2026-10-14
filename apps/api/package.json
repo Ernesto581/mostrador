@@ -15,6 +15,7 @@
     "db:seed": "tsx src/scripts/seed.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.3.1",
     "@fastify/jwt": "^10.2.4",
     "@mostrador/db-cloud": "^0.0.1",
     "@mostrador/domain": "^0.0.1",

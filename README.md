@@ -14,9 +14,9 @@ Sistema de **ventas, inventario y contabilidad** para un punto de venta y una ti
 ```
 mostrador/
   apps/
-    mobile/        App del vendedor (Android + web para iPhone)
+    pos/           Punto de venta: vender, cobrar y devolver
+    api/           API en la nube (catalogo, inventario, ventas)
     web/           Panel de administracion, contabilidad y reportes
-    api/           API en la nube (sincronizacion, catalogo, inventario)
   packages/
     domain/        Reglas de negocio compartidas (dinero, impuestos, ventas, cobros, kardex)
     db-cloud/      Modelo de datos de la nube (PostgreSQL) y cliente de base de datos
@@ -25,6 +25,7 @@ mostrador/
   docs/
     PLAN-MAESTRO.md
     MODELO-DATOS.md
+    API.md
 ```
 
 ## Estado actual
@@ -35,13 +36,33 @@ En construccion. Fase 0 (diseno) y base del proyecto.
 |---|---|
 | `@mostrador/domain` | Reglas de nucleo implementadas con pruebas |
 | `@mostrador/db-cloud` | Modelo de datos completo (37 tablas) con migraciones y pruebas |
-| `apps/api` | Servidor con autenticacion, sesion, roles y permisos |
+| `apps/api` | Catalogo, inventario (kardex) y ventas con cobro mixto |
+| `apps/pos` | Punto de venta funcionando en el navegador |
 | `@mostrador/storage` | Pendiente |
 | `@mostrador/sync` | Pendiente |
 | `apps/web` | Pendiente |
-| `apps/mobile` | Pendiente |
 
 Ver tambien `docs/MODELO-DATOS.md` y `docs/API.md`.
+
+## Probar el punto de venta
+
+Necesitas dos terminales. En la primera, el API; en la segunda, la aplicacion.
+
+```powershell
+cd "G:\Cosas Ernesto\((Trabajo\(((mios\Gestion inventario"
+
+# Terminal 1: crear los datos de ejemplo (solo la primera vez) y levantar el API
+$env:PGLITE_DIR='./.data/pglite'; npm run db:seed -w @mostrador/api
+$env:PGLITE_DIR='./.data/pglite'; npm run dev -w @mostrador/api
+
+# Terminal 2: levantar el punto de venta
+npm run dev -w @mostrador/pos
+```
+
+Abre <http://127.0.0.1:5173> y entra con **admin / mostrador123**.
+
+Atajos del mostrador: **F2** busca, **F4** va al cobro, **Enter** agrega el unico
+resultado de la busqueda (asi funciona el lector de codigos), **Esc** limpia el cobro.
 
 ## Requisitos
 

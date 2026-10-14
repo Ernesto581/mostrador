@@ -1,3 +1,4 @@
+import cors from '@fastify/cors';
 import Fastify, { type FastifyError } from 'fastify';
 import { ZodError } from 'zod';
 import { pluginAuth } from './auth/plugin.js';
@@ -86,6 +87,11 @@ export async function construirServidor() {
     }),
   );
 
+  await app.register(cors, {
+    origin: config.CORS_ORIGIN
+      ? config.CORS_ORIGIN.split(',').map((origen) => origen.trim())
+      : true,
+  });
   await app.register(pluginBaseDeDatos);
   await app.register(pluginAuth);
   await app.register(rutasSalud, { prefix: '/api/v1' });
