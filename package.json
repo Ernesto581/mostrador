@@ -14,7 +14,9 @@
   "scripts": {
     "test": "npm run build --workspaces --if-present && npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run build --workspaces --if-present && npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run build --workspaces --if-present && npm run typecheck --workspaces --if-present && tsc -p api/tsconfig.json",
+    "db:migrate": "npm run db:migrate -w @mostrador/db-cloud",
+    "db:seed": "npm run db:seed -w @mostrador/api"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

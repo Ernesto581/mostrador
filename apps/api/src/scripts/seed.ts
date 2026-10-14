@@ -16,16 +16,24 @@ import { sembrarDatosIniciales } from '../db/seed.js';
  */
 const config = cargarConfig();
 
+/** Permite elegir el usuario y la contrasena desde el entorno, sin editar codigo. */
+const opcionesSemilla = {
+  ...(process.env.SEED_EMPRESA ? { nombreEmpresa: process.env.SEED_EMPRESA } : {}),
+  ...(process.env.SEED_USUARIO ? { usuario: process.env.SEED_USUARIO } : {}),
+  ...(process.env.SEED_PASSWORD ? { password: process.env.SEED_PASSWORD } : {}),
+  ...(process.env.SEED_SIN_PRODUCTOS === 'true' ? { conProductosEjemplo: false } : {}),
+};
+
 if (config.DATABASE_URL) {
   const db = crearDbPostgres(config.DATABASE_URL);
   await migrarDbPostgres(db);
-  const resultado = await sembrarDatosIniciales(db as unknown as Db);
+  const resultado = await sembrarDatosIniciales(db as unknown as Db, opcionesSemilla);
   imprimir(resultado.usuario, resultado.password, 'PostgreSQL');
   await db.$client.end();
 } else {
   const db = await crearDbPglite(config.PGLITE_DIR);
   await migrarDbPglite(db);
-  const resultado = await sembrarDatosIniciales(db);
+  const resultado = await sembrarDatosIniciales(db, opcionesSemilla);
   imprimir(
     resultado.usuario,
     resultado.password,

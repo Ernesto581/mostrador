@@ -27,7 +27,10 @@ export function Acceso({ onEntrar }: { onEntrar: (sesion: Sesion) => void }) {
   return (
     <div className="acceso">
       <form className="acceso__caja" onSubmit={entrar}>
-        <h1 className="acceso__marca">Mostrador</h1>
+        <h1 className="acceso__marca">
+          <span className="acceso__punto" aria-hidden="true" />
+          Mostrador
+        </h1>
         <p className="acceso__lema">Ventas · Inventario · Contabilidad</p>
 
         {error ? <p className="aviso" role="alert">{error}</p> : null}

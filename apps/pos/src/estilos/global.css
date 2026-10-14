@@ -242,11 +242,23 @@ button {
 }
 
 .acceso__marca {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
   font-weight: 800;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-size: 1.5rem;
   margin: 0;
+}
+
+.acceso__punto {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--acento);
+  box-shadow: 0 0 0 5px rgba(228, 87, 46, 0.16);
+  flex-shrink: 0;
 }
 
 .acceso__lema {
@@ -927,6 +939,9 @@ button {
 
 .sello {
   position: absolute;
+  /* El ticket tambien es "relative" y va despues en el documento: sin z-index el
+     sello quedaria pintado debajo del papel. */
+  z-index: 2;
   top: 5.4rem;
   right: 1rem;
   transform: rotate(-11deg) scale(1);

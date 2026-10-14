@@ -131,4 +131,57 @@ describe('autenticacion', () => {
 
     expect(respuesta.statusCode).toBe(401);
   });
+
+  it('rechaza el cambio de contrasena si la actual no coincide', async () => {
+    const token = await iniciarSesion();
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { actual: 'no-es-la-correcta', nueva: 'otra-clave-123' },
+    });
+
+    expect(respuesta.statusCode).toBe(401);
+  });
+
+  it('exige una contrasena nueva de al menos 8 caracteres', async () => {
+    const token = await iniciarSesion();
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { actual: password, nueva: 'corta' },
+    });
+
+    expect(respuesta.statusCode).toBe(422);
+  });
+
+  it('cambia la contrasena y deja de aceptar la anterior', async () => {
+    const token = await iniciarSesion();
+    const nueva = 'nueva-clave-123';
+
+    const cambio = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { actual: password, nueva },
+    });
+    expect(cambio.statusCode).toBe(200);
+
+    const conNueva = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { username: usuario, password: nueva },
+    });
+    expect(conNueva.statusCode).toBe(200);
+
+    const conVieja = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { username: usuario, password },
+    });
+    expect(conVieja.statusCode).toBe(401);
+
+    password = nueva;
+  });
 });

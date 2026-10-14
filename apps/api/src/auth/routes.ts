@@ -3,12 +3,17 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ErrorDeAutenticacion, validar } from '../errors.js';
-import { verificarSecreto } from './password.js';
+import { hashearSecreto, verificarSecreto } from './password.js';
 import { autenticar } from './plugin.js';
 
 const EsquemaLogin = z.object({
   username: z.string().trim().min(1, 'Escribe tu usuario').max(64),
   password: z.string().min(1, 'Escribe tu contrasena').max(200),
+});
+
+const EsquemaCambioPassword = z.object({
+  actual: z.string().min(1, 'Escribe tu contrasena actual').max(200),
+  nueva: z.string().min(8, 'La contrasena nueva necesita al menos 8 caracteres').max(200),
 });
 
 export async function rutasAuth(app: FastifyInstance) {
@@ -42,6 +47,32 @@ export async function rutasAuth(app: FastifyInstance) {
         nombre: usuario.fullName,
       },
     };
+  });
+
+  app.post('/password', { preHandler: [autenticar] }, async (request) => {
+    const { actual, nueva } = validar(EsquemaCambioPassword, request.body);
+
+    const [usuario] = await app.db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, request.user.sub), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!usuario) {
+      throw new ErrorDeAutenticacion('La sesion ya no es valida');
+    }
+
+    const coincide = await verificarSecreto(actual, usuario.passwordHash);
+    if (!coincide) {
+      throw new ErrorDeAutenticacion('La contrasena actual no es correcta');
+    }
+
+    await app.db
+      .update(users)
+      .set({ passwordHash: await hashearSecreto(nueva), updatedAt: new Date() })
+      .where(eq(users.id, usuario.id));
+
+    return { actualizado: true };
   });
 
   app.get('/me', { preHandler: [autenticar] }, async (request) => {

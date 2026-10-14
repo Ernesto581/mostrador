@@ -8,4 +8,8 @@ export default defineConfig({
   casing: 'snake_case',
   strict: false,
   verbose: true,
+  dbCredentials: {
+    // Solo se usa para `db:migrate` y `db:push`, nunca para generar migraciones.
+    url: process.env.DATABASE_URL ?? '',
+  },
 });

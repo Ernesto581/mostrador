@@ -43,6 +43,7 @@ apps/mobile/android/build/
 # Herramientas
 .vite/
 .turbo/
+.vercel/
 .idea/
 .vscode/*
 !.vscode/extensions.json

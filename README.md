@@ -27,6 +27,7 @@ mostrador/
     MODELO-DATOS.md
     API.md
     PUNTO-DE-VENTA.md
+    DESPLIEGUE.md
 ```
 
 ## Estado actual
@@ -44,6 +45,11 @@ En construccion. Fase 0 (diseno) y base del proyecto.
 | `apps/web` | Pendiente |
 
 Ver tambien `docs/MODELO-DATOS.md` y `docs/API.md`.
+
+## Publicar en internet (gratis)
+
+Con **Vercel + Supabase** la aplicacion y el API quedan en una sola direccion publica,
+sin pagar nada. Los pasos completos estan en **`docs/DESPLIEGUE.md`**.
 
 ## Probar el punto de venta
 

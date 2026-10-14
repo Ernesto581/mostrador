@@ -14,6 +14,17 @@ const EsquemaConfig = z.object({
   PGLITE_DIR: z.string().min(1).optional(),
   /** Origenes permitidos para el navegador, separados por coma. Vacio = todos. */
   CORS_ORIGIN: z.string().optional(),
+  /**
+   * Aplica las migraciones al arrancar.
+   *
+   * En local conviene (true). En un servidor sin estado (Vercel) NO: cada arranque
+   * intentaria migrar y varias instancias podrian pisarse. Ahi se migra desde la
+   * maquina de desarrollo con `npm run db:migrate`.
+   */
+  MIGRAR_AL_ARRANCAR: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((valor) => valor === 'true'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres').optional(),
   JWT_EXPIRA: z.string().min(1).default('12h'),
 });
@@ -26,6 +37,7 @@ export interface Config {
   DATABASE_URL?: string;
   PGLITE_DIR?: string;
   CORS_ORIGIN?: string;
+  MIGRAR_AL_ARRANCAR: boolean;
   JWT_SECRET: string;
   JWT_EXPIRA: string;
 }
@@ -43,7 +55,8 @@ export function cargarConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
 
   const datos = resultado.data;
-  const secreto = datos.JWT_SECRET ?? (datos.NODE_ENV === 'production' ? undefined : SECRETO_SOLO_DESARROLLO);
+  const secreto =
+    datos.JWT_SECRET ?? (datos.NODE_ENV === 'production' ? undefined : SECRETO_SOLO_DESARROLLO);
   if (!secreto) {
     throw new Error('Falta JWT_SECRET: es obligatorio en produccion');
   }
@@ -53,6 +66,7 @@ export function cargarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     PORT: datos.PORT,
     HOST: datos.HOST,
     LOG_LEVEL: datos.LOG_LEVEL,
+    MIGRAR_AL_ARRANCAR: datos.MIGRAR_AL_ARRANCAR,
     JWT_SECRET: secreto,
     JWT_EXPIRA: datos.JWT_EXPIRA,
     ...(datos.DATABASE_URL !== undefined ? { DATABASE_URL: datos.DATABASE_URL } : {}),

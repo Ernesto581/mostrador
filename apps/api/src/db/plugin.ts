@@ -20,12 +20,14 @@ export const pluginBaseDeDatos = fp(
 
     if (DATABASE_URL) {
       const db = crearDbPostgres(DATABASE_URL);
-      await migrarDbPostgres(db);
+      if (app.config.MIGRAR_AL_ARRANCAR) {
+        await migrarDbPostgres(db);
+      }
       app.decorate('db', db as unknown as Db);
       app.addHook('onClose', async () => {
         await db.$client.end();
       });
-      app.log.info('Base de datos: PostgreSQL');
+      app.log.info({ migrado: app.config.MIGRAR_AL_ARRANCAR }, 'Base de datos: PostgreSQL');
       return;
     }
 
