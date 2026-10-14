@@ -1,4 +1,5 @@
 import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres';
+import { mkdir } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { fileURLToPath } from 'node:url';
 import * as schema from './schema/index.js';
@@ -23,6 +24,9 @@ export type DbPostgres = ReturnType<typeof crearDbPostgres>;
  * asi que no pesa en el despliegue de la nube.
  */
 export async function crearDbPglite(directorio?: string) {
+  if (directorio) {
+    await mkdir(directorio, { recursive: true });
+  }
   const { PGlite } = await import('@electric-sql/pglite');
   const { drizzle } = await import('drizzle-orm/pglite');
   const cliente = new PGlite(directorio);
@@ -30,6 +34,15 @@ export async function crearDbPglite(directorio?: string) {
 }
 
 export type DbPglite = Awaited<ReturnType<typeof crearDbPglite>>;
+
+/**
+ * Tipo de base de datos usado en todo el proyecto.
+ *
+ * PGlite y node-postgres hablan el mismo dialecto, pero exponen tipos de driver
+ * distintos. Se toma el de PGlite como tipo comun; la conexion de produccion se
+ * convierte a este tipo en un unico punto (ver `apps/api/src/db/plugin.ts`).
+ */
+export type Db = DbPglite;
 
 /** Ruta de las migraciones generadas por drizzle-kit. */
 export function carpetaMigraciones(): string {
@@ -39,6 +52,12 @@ export function carpetaMigraciones(): string {
 /** Aplica las migraciones pendientes sobre una base PGlite. */
 export async function migrarDbPglite(db: DbPglite): Promise<void> {
   const { migrate } = await import('drizzle-orm/pglite/migrator');
+  await migrate(db, { migrationsFolder: carpetaMigraciones() });
+}
+
+/** Aplica las migraciones pendientes sobre un PostgreSQL real. */
+export async function migrarDbPostgres(db: DbPostgres): Promise<void> {
+  const { migrate } = await import('drizzle-orm/node-postgres/migrator');
   await migrate(db, { migrationsFolder: carpetaMigraciones() });
 }
 

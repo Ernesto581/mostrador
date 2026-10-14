@@ -35,13 +35,13 @@ En construccion. Fase 0 (diseno) y base del proyecto.
 |---|---|
 | `@mostrador/domain` | Reglas de nucleo implementadas con pruebas |
 | `@mostrador/db-cloud` | Modelo de datos completo (37 tablas) con migraciones y pruebas |
+| `apps/api` | Servidor con autenticacion, sesion, roles y permisos |
 | `@mostrador/storage` | Pendiente |
 | `@mostrador/sync` | Pendiente |
-| `apps/api` | Pendiente |
 | `apps/web` | Pendiente |
 | `apps/mobile` | Pendiente |
 
-Ver tambien `docs/MODELO-DATOS.md`.
+Ver tambien `docs/MODELO-DATOS.md` y `docs/API.md`.
 
 ## Requisitos
 
