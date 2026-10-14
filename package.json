@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "build:libs": "npm run build -w @mostrador/domain && npm run build -w @mostrador/db-cloud",
