@@ -19,10 +19,12 @@ mostrador/
     api/           API en la nube (sincronizacion, catalogo, inventario)
   packages/
     domain/        Reglas de negocio compartidas (dinero, impuestos, ventas, cobros, kardex)
+    db-cloud/      Modelo de datos de la nube (PostgreSQL) y cliente de base de datos
     storage/       Adaptador de almacenamiento local (SQLite nativo / web)
     sync/          Protocolo de sincronizacion (cola, cursores, conflictos)
   docs/
     PLAN-MAESTRO.md
+    MODELO-DATOS.md
 ```
 
 ## Estado actual
@@ -32,11 +34,14 @@ En construccion. Fase 0 (diseno) y base del proyecto.
 | Paquete | Estado |
 |---|---|
 | `@mostrador/domain` | Reglas de nucleo implementadas con pruebas |
+| `@mostrador/db-cloud` | Modelo de datos completo (37 tablas) con migraciones y pruebas |
 | `@mostrador/storage` | Pendiente |
 | `@mostrador/sync` | Pendiente |
 | `apps/api` | Pendiente |
 | `apps/web` | Pendiente |
 | `apps/mobile` | Pendiente |
+
+Ver tambien `docs/MODELO-DATOS.md`.
 
 ## Requisitos
 
