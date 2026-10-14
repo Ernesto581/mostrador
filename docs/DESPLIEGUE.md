@@ -47,6 +47,12 @@ Necesitas tres cuentas gratis y el proyecto ya en tu PC.
 
    A la del **6543** agregale `?pgbouncer=true` al final si no lo trae.
 
+> **Sobre `sslmode`.** Si tu cadena trae `?sslmode=require`, dejalo o quitalo: da igual,
+> el sistema lo descarta solo. Node-postgres interpreta ese parametro como "verificar el
+> certificado a fondo" y la conexion falla. El SSL se pide de forma explicita en el
+> codigo, asi que la conexion **siempre va cifrada** sin depender de los certificados de
+> la maquina.
+
 ---
 
 ## Paso 2 — Crear las tablas y los datos (desde tu PC, una sola vez)
@@ -159,6 +165,10 @@ otro administrador (la base admite varios usuarios).
 | El API responde 500 | Revisa **Deployments → Functions** en Vercel, ahi sale el error real |
 | Nada responde tras unos dias | El proyecto de Supabase se pauso. Reactivalo |
 | "Contrasena incorrecta" y estas seguro | Vuelve a correr el seed del Paso 2 |
+| La migracion falla sin decir nada | La cadena traia `sslmode=require`. Quitalo (o usa una version del codigo que ya lo descarta solo) |
+
+> **Si la conexion funciona pero quieres comprobar que va cifrada**, consulta
+> `select ssl from pg_stat_ssl where pid = pg_backend_pid()`. Debe decir `true`.
 
 ---
 

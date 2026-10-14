@@ -6,9 +6,43 @@ import * as schema from './schema/index.js';
 
 export { schema };
 
-/** Base de datos real de la nube (produccion). */
+/**
+ * Quita el parametro `sslmode` de la direccion de conexion.
+ *
+ * node-postgres interpreta `sslmode=require` como "verificar el certificado a
+ * fondo" y la conexion falla. El SSL se pide de forma explicita mas abajo, asi
+ * que ese parametro estorba.
+ */
+function sinSslmode(cadena: string): string {
+  const indice = cadena.indexOf('?');
+  if (indice === -1) {
+    return cadena;
+  }
+  const base = cadena.slice(0, indice);
+  const parametros = new URLSearchParams(cadena.slice(indice + 1));
+  parametros.delete('sslmode');
+  const resto = parametros.toString();
+  return resto ? `${base}?${resto}` : base;
+}
+
+/**
+ * Base de datos real de la nube (produccion).
+ *
+ * Supabase exige conexion cifrada, asi que se pide SSL de forma explicita y sin
+ * validar el certificado: el trafico va cifrado igual, pero no dependemos del
+ * almacen de certificados de la maquina (fuente habitual de fallos en Windows).
+ * En un servidor local (localhost) no se pide SSL.
+ *
+ * Ojo: sin esto, PostgreSQL acepta la conexion SIN cifrar.
+ */
 export function crearDbPostgres(cadenaConexion: string) {
-  const pool = new Pool({ connectionString: cadenaConexion });
+  const cadena = sinSslmode(cadenaConexion);
+  const esLocal = /@(localhost|127\.0\.0\.1|\[::1\])(:|\/)/.test(cadena);
+
+  const pool = new Pool({
+    connectionString: cadena,
+    ...(esLocal ? {} : { ssl: { rejectUnauthorized: false } }),
+  });
   return drizzlePostgres(pool, { schema, casing: 'snake_case' });
 }
 
