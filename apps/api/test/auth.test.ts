@@ -114,8 +114,11 @@ describe('autenticacion', () => {
     expect(cuerpo.roles).toContain('administrador');
     expect(cuerpo.permisos).toContain('sale.sell');
     expect(cuerpo.permisos).toContain('devices.approve');
-    expect(cuerpo.sucursales).toHaveLength(1);
-    expect(cuerpo.sucursales[0].codigo).toBe('CENTRO');
+    expect(cuerpo.sucursales).toHaveLength(2);
+    expect(cuerpo.sucursales.map((s: { codigo: string }) => s.codigo).sort()).toEqual([
+      'BODEGA',
+      'CENTRO',
+    ]);
     expect(cuerpo.usuario).not.toHaveProperty('passwordHash');
   });
 

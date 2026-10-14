@@ -18,7 +18,7 @@ export interface PagoEntrada {
   metodo: MetodoPago;
   monto: Centavos;
   /** Referencia de la terminal, autorizacion o folio de la transferencia. */
-  referencia?: string;
+  referencia?: string | undefined;
 }
 
 export interface ResultadoCobro {

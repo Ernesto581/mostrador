@@ -48,3 +48,42 @@ export function validar<T>(esquema: ZodType<T>, datos: unknown): T {
   }
   return resultado.data;
 }
+
+/**
+ * Busca el codigo de error de PostgreSQL dentro de la cadena de causas.
+ *
+ * Drizzle envuelve los errores del driver, asi que el codigo (`23505` duplicado,
+ * `23503` referencia invalida) no siempre esta en el error de arriba.
+ */
+export function codigoDePostgres(error: unknown): string | undefined {
+  let actual: unknown = error;
+  for (let nivel = 0; nivel < 6 && actual instanceof Error; nivel += 1) {
+    const codigo = (actual as { code?: unknown }).code;
+    if (typeof codigo === 'string') {
+      return codigo;
+    }
+    actual = (actual as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
+
+/**
+ * Envuelve una regla de negocio del dominio.
+ *
+ * Las reglas lanzan errores simples ("Pago insuficiente", "El descuento no puede
+ * superar..."). Aqui se convierten en un error con codigo HTTP 422, para que el
+ * cliente reciba una explicacion clara en vez de un "error interno".
+ */
+export function envolverRegla<T>(fn: () => T): T {
+  try {
+    return fn();
+  } catch (error) {
+    if (error instanceof ErrorDeAplicacion) {
+      throw error;
+    }
+    if (error instanceof Error) {
+      throw new ErrorDeAplicacion(error.message, 422, 'DATOS_INVALIDOS');
+    }
+    throw error;
+  }
+}

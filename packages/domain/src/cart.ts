@@ -21,9 +21,9 @@ export interface LineaVentaEntrada {
   /** Tasa de impuesto en porcentaje (0 = exento, 16 = 16%). */
   tasaImpuesto: number;
   /** Descuento en porcentaje (0 a 100). */
-  descuentoPorcentaje?: number;
+  descuentoPorcentaje?: number | undefined;
   /** Descuento en monto fijo. Tiene prioridad sobre el porcentaje. */
-  descuentoMonto?: Centavos;
+  descuentoMonto?: Centavos | undefined;
 }
 
 export interface LineaVentaCalculada {

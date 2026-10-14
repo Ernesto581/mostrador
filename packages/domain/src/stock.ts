@@ -48,10 +48,10 @@ export interface MovimientoInventario {
   /** Cantidad siempre positiva; el signo lo determina el tipo. */
   cantidad: number;
   /** Costo unitario en el momento del movimiento (valorizacion y utilidad). */
-  costoUnitario?: Centavos;
+  costoUnitario?: Centavos | undefined;
   fecha: Date;
   /** Folio o identificador del documento que origino el movimiento. */
-  documento?: string;
+  documento?: string | undefined;
 }
 
 export interface FiltroStock {

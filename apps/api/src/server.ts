@@ -4,7 +4,10 @@ import { pluginAuth } from './auth/plugin.js';
 import { rutasAuth } from './auth/routes.js';
 import { cargarConfig } from './config.js';
 import { pluginBaseDeDatos } from './db/plugin.js';
-import { ErrorDeAplicacion, ErrorDeValidacion } from './errors.js';
+import { ErrorDeAplicacion, ErrorDeValidacion, codigoDePostgres } from './errors.js';
+import { rutasCatalogo } from './modules/catalogo/rutas.js';
+import { rutasInventario } from './modules/inventario/rutas.js';
+import { rutasVentas } from './modules/ventas/rutas.js';
 import { rutasSalud } from './routes/health.js';
 import './tipos.js';
 
@@ -44,6 +47,24 @@ export async function construirServidor() {
       });
     }
 
+    const codigoPostgres = codigoDePostgres(error);
+    if (codigoPostgres === '23505') {
+      return reply.status(409).send({
+        error: {
+          codigo: 'DUPLICADO',
+          mensaje: 'Ese dato ya existe (por ejemplo, un codigo de barras o un SKU repetido)',
+        },
+      });
+    }
+    if (codigoPostgres === '23503') {
+      return reply.status(409).send({
+        error: {
+          codigo: 'REFERENCIA_INVALIDA',
+          mensaje: 'El dato hace referencia a algo que no existe',
+        },
+      });
+    }
+
     const status = error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
     if (status >= 500) {
       request.log.error(error);
@@ -69,6 +90,9 @@ export async function construirServidor() {
   await app.register(pluginAuth);
   await app.register(rutasSalud, { prefix: '/api/v1' });
   await app.register(rutasAuth, { prefix: '/api/v1/auth' });
+  await app.register(rutasCatalogo, { prefix: '/api/v1' });
+  await app.register(rutasInventario, { prefix: '/api/v1' });
+  await app.register(rutasVentas, { prefix: '/api/v1' });
 
   return app;
 }
