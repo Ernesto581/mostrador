@@ -26,6 +26,7 @@ mostrador/
     PLAN-MAESTRO.md
     MODELO-DATOS.md
     API.md
+    PUNTO-DE-VENTA.md
 ```
 
 ## Estado actual
