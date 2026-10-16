@@ -272,6 +272,40 @@ describe('inventario', () => {
     expect(respuesta.statusCode).toBe(422);
   });
 
+  it('rechaza una merma mayor a la existencia', async () => {
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/movements',
+      headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        productoId: producto('ABA-005').id,
+        tipo: 'merma',
+        cantidad: 9999,
+        motivo: 'Prueba de cantidad imposible',
+      },
+    });
+
+    expect(respuesta.statusCode).toBe(409);
+    expect(respuesta.json().error.codigo).toBe('SIN_EXISTENCIA');
+  });
+
+  it('rechaza transferir mas de lo que hay en el origen', async () => {
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/transfers',
+      headers: auth(),
+      payload: {
+        origenSucursalId: semilla.sucursalId,
+        destinoSucursalId: semilla.sucursalSecundariaId,
+        lineas: [{ productoId: producto('ABA-002').id, cantidad: 9999 }],
+      },
+    });
+
+    expect(respuesta.statusCode).toBe(409);
+    expect(respuesta.json().error.codigo).toBe('SIN_EXISTENCIA');
+  });
+
   it('el inventario general muestra el total y el reparto por sucursal', async () => {
     const azucar = producto('ABA-004');
 
@@ -414,7 +448,7 @@ describe('ventas', () => {
     expect(respuesta.json().error.codigo).toBe('DATOS_INVALIDOS');
   });
 
-  it('advierte cuando no hay stock suficiente, pero permite vender', async () => {
+  it('rechaza vender mas de lo que hay: nada puede quedar en negativo', async () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/sales',
@@ -426,10 +460,20 @@ describe('ventas', () => {
       },
     });
 
-    expect(respuesta.statusCode).toBe(201);
-    const { venta } = respuesta.json();
-    expect(venta.advertencias).toHaveLength(1);
-    expect(venta.advertencias[0]).toMatch(/existencia/i);
+    expect(respuesta.statusCode).toBe(409);
+    expect(respuesta.json().error.codigo).toBe('SIN_EXISTENCIA');
+    expect(respuesta.json().error.mensaje).toMatch(/existencia/i);
+
+    // Y no se creo ninguna venta a medias.
+    const listado = await app.inject({
+      method: 'GET',
+      url: `/api/v1/sales?sucursalId=${semilla.sucursalId}`,
+      headers: auth(),
+    });
+    const conCincuenta = (listado.json().ventas as { total: number }[]).find(
+      (venta) => venta.total === 80000,
+    );
+    expect(conCincuenta).toBeUndefined();
   });
 
   it('la venta aparece en el listado y en su detalle', async () => {

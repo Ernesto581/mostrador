@@ -1,0 +1,1 @@
+ALTER TABLE "stock_balances" ADD CONSTRAINT "stock_balances_no_negativo" CHECK ("stock_balances"."quantity" >= 0);

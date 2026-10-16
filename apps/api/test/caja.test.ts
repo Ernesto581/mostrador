@@ -112,6 +112,24 @@ describe('caja y cierre de turno', () => {
     expect(tarjeta.statusCode).toBe(201);
   });
 
+  it('no deja sacar mas efectivo del que hay en la caja', async () => {
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/cash-movements',
+      headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        turnoId,
+        tipo: 'retiro',
+        monto: 99999999,
+        motivo: 'Retiro imposible',
+      },
+    });
+
+    expect(respuesta.statusCode).toBe(409);
+    expect(respuesta.json().error.codigo).toBe('CAJA_INSUFICIENTE');
+  });
+
   it('registra un retiro de efectivo de la caja', async () => {
     const respuesta = await app.inject({
       method: 'POST',

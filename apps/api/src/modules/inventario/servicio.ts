@@ -3,7 +3,7 @@ import type { TipoMovimientoInventario } from '@mostrador/db-cloud/schema';
 import { type Centavos, type TipoMovimiento, signoMovimiento } from '@mostrador/domain';
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { BaseDatos } from '../../db/tipos.js';
-import { ErrorNoEncontrado } from '../../errors.js';
+import { ErrorDeAplicacion, ErrorNoEncontrado } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
 
 export interface EntradaMovimiento {
@@ -31,6 +31,28 @@ export interface MovimientoAplicado {
   cantidad: number;
   cantidadConSigno: number;
   saldoResultante: number;
+}
+
+/** Saldo actual de un producto en un almacen concreto. */
+async function leerSaldo(
+  base: BaseDatos,
+  productoId: string,
+  sucursalId: string,
+  almacenId: string,
+): Promise<number> {
+  const [fila] = await base
+    .select({ cantidad: schema.stockBalances.quantity })
+    .from(schema.stockBalances)
+    .where(
+      and(
+        eq(schema.stockBalances.productId, productoId),
+        eq(schema.stockBalances.branchId, sucursalId),
+        eq(schema.stockBalances.warehouseId, almacenId),
+      ),
+    )
+    .limit(1);
+
+  return Number(fila?.cantidad ?? 0);
 }
 
 /** Almacen principal de la sucursal: donde cae el stock si no se indica otro. */
@@ -88,6 +110,18 @@ export async function aplicarMovimiento(
   const cantidadConSigno = signo * entrada.cantidad;
   const id = nuevoId();
 
+  // Nada puede quedar en negativo: si el movimiento resta, se comprueba antes.
+  if (cantidadConSigno < 0) {
+    const disponible = await leerSaldo(base, entrada.productoId, entrada.sucursalId, almacenId);
+    if (disponible + cantidadConSigno < 0) {
+      throw new ErrorDeAplicacion(
+        `No hay suficiente existencia: hay ${disponible} y se intentan mover ${entrada.cantidad}`,
+        409,
+        'SIN_EXISTENCIA',
+      );
+    }
+  }
+
   await base.insert(schema.inventoryMovements).values({
     id,
     companyId: entrada.empresaId,
@@ -112,7 +146,11 @@ export async function aplicarMovimiento(
       productId: entrada.productoId,
       branchId: entrada.sucursalId,
       warehouseId: almacenId,
-      quantity: cantidadConSigno,
+      // Se propone un valor nunca negativo: PostgreSQL evalua la restriccion sobre el
+      // valor del INSERT aunque despues el conflicto lo convierta en una suma. Si la
+      // fila ya existe esto no se usa; y si no existe y el movimiento resta, la
+      // comprobacion de arriba ya lo habria rechazado.
+      quantity: cantidadConSigno > 0 ? cantidadConSigno : 0,
     })
     .onConflictDoUpdate({
       target: [

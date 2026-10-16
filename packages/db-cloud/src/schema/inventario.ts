@@ -1,4 +1,5 @@
-import { index, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, pgTable, primaryKey, text, timestamp, check } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { columnasSync, importe, piezas } from './comun.js';
 import { products } from './catalogo.js';
 import { branches, companies, users, warehouses } from './organizacion.js';
@@ -75,7 +76,11 @@ export const stockBalances = pgTable(
     quantity: piezas().notNull().default(0),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (tabla) => [primaryKey({ columns: [tabla.productId, tabla.branchId, tabla.warehouseId] })],
+  (tabla) => [
+    primaryKey({ columns: [tabla.productId, tabla.branchId, tabla.warehouseId] }),
+    // El stock NUNCA puede quedar en negativo: lo garantiza la propia base de datos.
+    check('stock_balances_no_negativo', sql`${tabla.quantity} >= 0`),
+  ],
 );
 
 /** Regla de stock minimo. `branchId` nulo significa "aplica a todas las sucursales". */

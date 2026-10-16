@@ -215,6 +215,18 @@ export async function registrarMovimientoCaja(
     throw new ErrorDeAplicacion('El turno no es de esa sucursal', 422, 'TURNO_AJENO');
   }
 
+  // De la caja no se puede sacar mas de lo que hay.
+  if (datos.tipo !== 'ingreso') {
+    const resumen = await resumenTurno(db, datos.turnoId);
+    if (datos.monto > resumen.efectivoEsperado) {
+      throw new ErrorDeAplicacion(
+        `En la caja hay ${(resumen.efectivoEsperado / 100).toFixed(2)} y se intentan sacar ${(datos.monto / 100).toFixed(2)}`,
+        409,
+        'CAJA_INSUFICIENTE',
+      );
+    }
+  }
+
   const id = nuevoId();
   await db.insert(schema.cashMovements).values({
     id,

@@ -151,9 +151,9 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
       ),
     );
 
-    // Politica acordada: se advierte y se permite. La sobreventa se reporta.
+    // No se vende mas de lo que hay: el inventario nunca queda en negativo.
     const stock = await stockDeProductos(tx, entrada.sucursalId, idsProductos);
-    const advertencias: string[] = [];
+    const faltantes: string[] = [];
     for (const linea of totales.lineas) {
       const producto = porId.get(linea.productoId)!;
       if (producto.esServicio) {
@@ -161,11 +161,21 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
       }
       const disponible = stock.get(linea.productoId) ?? 0;
       if (disponible < linea.cantidad) {
-        advertencias.push(
-          `${producto.nombre}: hay ${disponible} en existencia y se vendieron ${linea.cantidad}`,
+        faltantes.push(
+          `${producto.nombre}: hay ${disponible} y se intentan vender ${linea.cantidad}`,
         );
       }
     }
+
+    if (faltantes.length > 0) {
+      throw new ErrorDeAplicacion(
+        `No hay existencia suficiente. ${faltantes.join('. ')}`,
+        409,
+        'SIN_EXISTENCIA',
+      );
+    }
+
+    const advertencias: string[] = [];
 
     const vendidoEn = entrada.vendidoEn ?? new Date();
     const folio = entrada.folio ?? (await siguienteFolioVenta(tx, entrada.sucursalId, vendidoEn));
