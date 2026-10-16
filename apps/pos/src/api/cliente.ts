@@ -63,13 +63,36 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
   }
 
   const texto = await respuesta.text();
-  const datos: unknown = texto ? JSON.parse(texto) : null;
+  let datos: unknown = null;
+  let esJson = true;
+
+  if (texto) {
+    try {
+      datos = JSON.parse(texto);
+    } catch {
+      esJson = false;
+    }
+  }
 
   if (!respuesta.ok) {
-    const error = (datos as { error?: { codigo?: string; mensaje?: string } } | null)?.error;
+    const error = esJson
+      ? (datos as { error?: { codigo?: string; mensaje?: string } } | null)?.error
+      : undefined;
+
     throw new ErrorApi(
-      error?.mensaje ?? 'No se pudo completar la operacion',
+      error?.mensaje ??
+        (esJson
+          ? 'No se pudo completar la operacion'
+          : `El servidor respondio una pagina en vez de datos (HTTP ${respuesta.status}). El API no esta publicado en esta direccion.`),
       error?.codigo ?? 'ERROR',
+      respuesta.status,
+    );
+  }
+
+  if (!esJson) {
+    throw new ErrorApi(
+      `El servidor respondio una pagina en vez de datos (HTTP ${respuesta.status}). El API no esta publicado en esta direccion.`,
+      'RESPUESTA_INVALIDA',
       respuesta.status,
     );
   }
