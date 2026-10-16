@@ -76,17 +76,18 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
 
   if (!respuesta.ok) {
     const error = esJson
-      ? (datos as { error?: { codigo?: string; mensaje?: string } } | null)?.error
+      ? (datos as { error?: { codigo?: string; mensaje?: string; detalle?: string } } | null)?.error
       : undefined;
 
-    throw new ErrorApi(
-      error?.mensaje ??
-        (esJson
-          ? 'No se pudo completar la operacion'
-          : `El servidor respondio una pagina en vez de datos (HTTP ${respuesta.status}). El API no esta publicado en esta direccion.`),
-      error?.codigo ?? 'ERROR',
-      respuesta.status,
-    );
+    // Se muestra el detalle cuando lo hay: es la diferencia entre "algo fallo" y
+    // saber exactamente que fallo.
+    const mensaje = error
+      ? [error.mensaje, error.detalle].filter(Boolean).join(' — ')
+      : esJson
+        ? 'No se pudo completar la operacion'
+        : `El servidor respondio una pagina en vez de datos (HTTP ${respuesta.status}). El API no esta publicado en esta direccion.`;
+
+    throw new ErrorApi(mensaje, error?.codigo ?? 'ERROR', respuesta.status);
   }
 
   if (!esJson) {
