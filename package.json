@@ -12,10 +12,11 @@
     "node": "22.x"
   },
   "scripts": {
+    "postinstall": "npm run build:libs",
     "build:libs": "npm run build -w @mostrador/domain && npm run build -w @mostrador/db-cloud",
     "build": "npm run build:libs && npm run build -w @mostrador/api && npm run build -w @mostrador/pos",
     "test": "npm run build && npm run test --workspaces --if-present",
-    "typecheck": "npm run build && npm run typecheck --workspaces --if-present && tsc -p api/tsconfig.json",
+    "typecheck": "npm run build && npm run typecheck --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w @mostrador/db-cloud",
     "db:seed": "npm run db:seed -w @mostrador/api"
   },

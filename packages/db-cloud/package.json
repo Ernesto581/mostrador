@@ -26,8 +26,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "prepare": "npm run build"
+    "db:migrate": "drizzle-kit migrate"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.9",

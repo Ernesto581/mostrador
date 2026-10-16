@@ -144,6 +144,26 @@ El API **no cambia nada**: la documentacion de Vercel confirma que el servicio r
 El punto de entrada del API es `apps/api/src/index.ts`, y **ese nombre es justo uno de
 los que Vercel reconoce** (`src/index.ts`). No hay que configurar nada mas.
 
+### Detalles que ya estan resueltos (no los cambies sin leer esto)
+
+**1. `installCommand` con dos ramas.** Dentro de un repositorio con workspaces, ejecutar
+`npm install` **dentro de la carpeta de un paquete** (por ejemplo `apps/api`) instala
+solo las dependencias de produccion: **no instala las herramientas de la raiz**
+(TypeScript, Vite). Por eso el comando comprueba donde esta y **siempre instala desde
+la raiz del repositorio**:
+
+```
+if [ -f apps/api/package.json ]; then npm install --include=dev; else cd ../.. && npm install --include=dev; fi
+```
+
+**2. `postinstall` en la raiz.** Compila `@mostrador/domain` y `@mostrador/db-cloud`
+en cuanto termina la instalacion. Asi, cuando Vercel compila el API o la aplicacion,
+los paquetes que usan **ya estan listos** y el orden de compilacion deja de importar.
+
+**3. Nada de `NODE_ENV=production` en las variables del proyecto.** Vercel ya lo pone
+cuando la aplicacion corre; si lo pones tu, tambien afecta al momento de instalar y
+`npm` se salta las herramientas de desarrollo.
+
 ---
 
 ## Paso 5 — Entrar
