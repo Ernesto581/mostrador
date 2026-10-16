@@ -1230,6 +1230,48 @@ button {
   flex-wrap: wrap;
 }
 
+.rejilla-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.7rem;
+}
+
+.cifra-grande {
+  margin: 0.25rem 0;
+  font-family: var(--fuente-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tarjeta--destacada {
+  border-color: rgba(47, 128, 96, 0.55);
+  background: linear-gradient(180deg, rgba(47, 128, 96, 0.1), transparent 70%);
+}
+
+.columnas-dos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.7rem;
+}
+
+.fila-dato {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  font-size: 0.86rem;
+  border-bottom: 1px dotted rgba(59, 49, 41, 0.6);
+}
+
+.fila-dato:last-child {
+  border-bottom: none;
+}
+
+.fila-dato > span:first-child {
+  color: var(--texto-tenue);
+}
+
 .insignia {
   font-family: var(--fuente-mono);
   font-size: 0.64rem;

@@ -8,6 +8,7 @@ import { PanelCobro } from '../componentes/PanelCobro';
 import { Ticket } from '../componentes/Ticket';
 import { DESCUENTOS, type LineaCarrito, type PagoLocal } from '../tipos';
 import { aCentavos } from '../util/dinero';
+import { useCarga } from '../util/pantalla';
 
 interface Props {
   sesion: Sesion;
@@ -26,6 +27,32 @@ export function Vender({ sesion, sucursalId }: Props) {
   const [venta, setVenta] = useState<VentaRespuesta | null>(null);
 
   const ultimaBusqueda = useRef(0);
+
+  /* Turno de caja: para vender hace falta uno abierto. */
+  const {
+    datos: datosTurno,
+    cargando: cargandoTurno,
+    recargar: recargarTurno,
+  } = useCarga(() => api.turnoActual(sucursalId), [sucursalId]);
+
+  const turno = datosTurno?.turno ?? null;
+  const [fondoTurno, setFondoTurno] = useState('200.00');
+  const [abriendoTurno, setAbriendoTurno] = useState(false);
+  const [errorTurno, setErrorTurno] = useState<string | null>(null);
+
+  async function abrirTurno(): Promise<void> {
+    setAbriendoTurno(true);
+    setErrorTurno(null);
+
+    try {
+      await api.abrirTurno({ sucursalId, fondoInicial: aCentavos(fondoTurno) });
+      await recargarTurno();
+    } catch (fallo) {
+      setErrorTurno(fallo instanceof ErrorApi ? fallo.message : 'No se pudo abrir el turno');
+    } finally {
+      setAbriendoTurno(false);
+    }
+  }
 
   const buscar = useCallback(
     async (termino: string): Promise<Producto[]> => {
@@ -195,6 +222,10 @@ export function Vender({ sesion, sucursalId }: Props) {
     if (!totales) {
       return;
     }
+    if (!turno) {
+      setAviso('Abre tu turno de caja antes de cobrar.');
+      return;
+    }
 
     const pagosEnviar = pagos
       .map((pago) => ({ metodo: pago.metodo, monto: aCentavos(pago.monto) }))
@@ -211,6 +242,7 @@ export function Vender({ sesion, sucursalId }: Props) {
     try {
       const { venta: registrada } = await api.registrarVenta({
         sucursalId,
+        turnoId: turno.id,
         lineas: carrito.map((linea) => ({
           productoId: linea.producto.id,
           cantidad: linea.cantidad,
@@ -234,7 +266,53 @@ export function Vender({ sesion, sucursalId }: Props) {
 
   return (
     <>
-      <main className="mostrador">
+      {cargandoTurno ? (
+        <div className="cargando">
+          <div className="cargando__rueda" />
+          <p className="cargando__texto">Revisando la caja</p>
+        </div>
+      ) : null}
+
+      {!cargandoTurno && !turno ? (
+        <div className="panel" style={{ maxWidth: '32rem', margin: '3rem auto' }}>
+          <div className="tarjeta">
+            <h2 className="panel__titulo">Abre tu turno para vender</h2>
+            <p className="panel__nota">
+              Cuenta el efectivo con el que arranca la caja y escribelo. Al cerrar el turno
+              el sistema te dira cuanto deberia haber, para que compares.
+            </p>
+
+            <label className="campo-ancho" style={{ marginTop: '0.9rem' }}>
+              <span>Fondo inicial en la caja</span>
+              <input
+                className="entrada entrada--numero"
+                inputMode="decimal"
+                value={fondoTurno}
+                onChange={(evento) => setFondoTurno(evento.target.value)}
+              />
+            </label>
+
+            {errorTurno ? (
+              <p className="aviso" role="alert" style={{ marginTop: '0.9rem' }}>
+                {errorTurno}
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              className="cobrar"
+              style={{ marginTop: '0.9rem' }}
+              onClick={() => void abrirTurno()}
+              disabled={abriendoTurno}
+            >
+              {abriendoTurno ? 'Abriendo…' : 'Abrir turno'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {!cargandoTurno && turno ? (
+        <main className="mostrador">
         <section>
           <Buscador
             resultados={resultados}
@@ -285,6 +363,7 @@ export function Vender({ sesion, sucursalId }: Props) {
           </div>
         </aside>
       </main>
+      ) : null}
 
       {venta ? (
         <Comprobante

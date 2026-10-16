@@ -1,14 +1,18 @@
 import type {
   Categoria,
+  CierreCaja,
   DetalleVenta,
   FilaStock,
   FilaStockGeneral,
   MetodoPago,
   Movimiento,
   Producto,
+  ResumenTurno,
   Rol,
   Sesion,
   Sucursal,
+  Turno,
+  TurnoAbiertoResumen,
   UsuarioDelPanel,
   VentaResumen,
   VentaRespuesta,
@@ -150,6 +154,8 @@ export const api = {
 
   registrarVenta: (cuerpo: {
     sucursalId: string;
+    /** Turno de caja al que pertenece la venta (para el cierre). */
+    turnoId?: string;
     lineas: { productoId: string; cantidad: number; descuentoPorcentaje?: number }[];
     pagos: { metodo: MetodoPago; monto: number; referencia?: string }[];
   }) => pedir<{ venta: VentaRespuesta }>('/sales', { metodo: 'POST', cuerpo }),
@@ -293,4 +299,35 @@ export const api = {
       metodo: 'POST',
       cuerpo: { password },
     }),
+
+  /* ---------- Caja y turnos ---------- */
+
+  turnoActual: (sucursalId: string) =>
+    pedir<{ turno: Turno | null; resumen: ResumenTurno | null }>(
+      `/shifts/actual${parametros({ sucursalId })}`,
+    ),
+
+  abrirTurno: (cuerpo: { sucursalId: string; fondoInicial: number; notas?: string }) =>
+    pedir<{ turno: Turno }>('/shifts', { metodo: 'POST', cuerpo }),
+
+  resumenTurno: (id: string) => pedir<{ resumen: ResumenTurno }>(`/shifts/${id}/resumen`),
+
+  cerrarTurno: (id: string, cuerpo: { contado: number; notas?: string }) =>
+    pedir<{
+      cierre: { id: string; folio: string; esperado: number; contado: number; diferencia: number };
+      resumen: ResumenTurno;
+    }>(`/shifts/${id}/cerrar`, { metodo: 'POST', cuerpo }),
+
+  registrarMovimientoCaja: (cuerpo: {
+    sucursalId: string;
+    turnoId: string;
+    tipo: 'ingreso' | 'retiro' | 'gasto';
+    monto: number;
+    motivo: string;
+  }) => pedir<{ movimiento: { id: string } }>('/cash-movements', { metodo: 'POST', cuerpo }),
+
+  cierres: (filtros: { sucursalId?: string; desde?: string; hasta?: string; limite?: number }) =>
+    pedir<{ cierres: CierreCaja[] }>(`/cash-closures${parametros(filtros)}`),
+
+  turnosAbiertos: () => pedir<{ turnos: TurnoAbiertoResumen[] }>('/shifts/abiertos'),
 };

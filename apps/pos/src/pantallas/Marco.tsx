@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import type { Sesion } from '../api/tipos';
+import { Caja } from './Caja';
 import { Inventario } from './Inventario';
 import { Productos } from './Productos';
 import { Usuarios } from './Usuarios';
 import { Vender } from './Vender';
 import { Ventas } from './Ventas';
 
-type Pestana = 'mostrador' | 'productos' | 'inventario' | 'ventas' | 'usuarios';
+type Pestana = 'mostrador' | 'caja' | 'productos' | 'inventario' | 'ventas' | 'usuarios';
 
 interface Props {
   sesion: Sesion;
@@ -27,6 +28,7 @@ export function Marco({ sesion, onSalir }: Props) {
   const permisos = new Set(sesion.permisos);
   const opciones: { id: Pestana; etiqueta: string }[] = [
     { id: 'mostrador', etiqueta: 'Mostrador' },
+    ...(permisos.has('cash.close') ? [{ id: 'caja' as Pestana, etiqueta: 'Caja' }] : []),
     ...(permisos.has('catalog.manage') ? [{ id: 'productos' as Pestana, etiqueta: 'Productos' }] : []),
     ...(permisos.has('inventory.adjust') ? [{ id: 'inventario' as Pestana, etiqueta: 'Inventario' }] : []),
     ...(permisos.has('sale.void') ? [{ id: 'ventas' as Pestana, etiqueta: 'Ventas' }] : []),
@@ -84,6 +86,7 @@ export function Marco({ sesion, onSalir }: Props) {
       </header>
 
       {pestana === 'mostrador' ? <Vender sesion={sesion} sucursalId={sucursalId} /> : null}
+      {pestana === 'caja' ? <Caja sesion={sesion} sucursalId={sucursalId} /> : null}
       {pestana === 'productos' ? <Productos sesion={sesion} sucursalId={sucursalId} /> : null}
       {pestana === 'inventario' ? <Inventario sesion={sesion} sucursalId={sucursalId} /> : null}
       {pestana === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}

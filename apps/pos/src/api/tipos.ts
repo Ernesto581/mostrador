@@ -214,3 +214,49 @@ export interface UsuarioDelPanel {
   rolNombres: string[];
   sucursales: Sucursal[];
 }
+
+/* ---------- Caja y turnos ---------- */
+
+export interface Turno {
+  id: string;
+  sucursalId: string;
+  abiertoPor: string;
+  abiertoEn: string;
+  /** Fondo con el que arranco la caja, en centavos. */
+  fondoInicial: number;
+  estado: string;
+  notas: string | null;
+}
+
+export interface ResumenTurno {
+  turno: Turno;
+  ventas: { cantidad: number; articulos: number; total: number; cambio: number };
+  porMetodo: Record<string, number>;
+  movimientos: { ingresos: number; retiros: number; gastos: number };
+  /** Efectivo que deberia haber en la caja. */
+  efectivoEsperado: number;
+}
+
+export interface CierreCaja {
+  id: string;
+  alcance: string;
+  fecha: string;
+  sucursalId: string;
+  sucursal: string;
+  ventasTotal: number;
+  esperado: number;
+  contado: number;
+  diferencia: number;
+  cerradoEn: string;
+  cerradoPor: string;
+  notas: string | null;
+}
+
+export interface TurnoAbiertoResumen {
+  id: string;
+  sucursalId: string;
+  sucursal: string;
+  abiertoEn: string;
+  fondoInicial: number;
+  abiertoPor: string;
+}
