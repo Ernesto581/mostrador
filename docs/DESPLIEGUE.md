@@ -3,17 +3,17 @@
 Como queda todo funcionando en internet sin pagar nada:
 
 ```
-Navegador  ->  https://tu-app.vercel.app
-                |
-                +-- la aplicacion (React, sitio estatico)
-                +-- /api/v1/...  ->  una funcion que ejecuta el API
-                                          |
-                                          v
+Navegador  →  https://tu-app.vercel.app
+                ├── la aplicacion (React, sitio estatico)
+                ├── /estado.html      (estado del API y de la base de datos)
+                └── /api/v1/...  →    una funcion que ejecuta el API
+                                          │
+                                          ▼
                                     Supabase (PostgreSQL)
 ```
 
-Una sola direccion para todo: la aplicacion y el API viven juntos, asi que **no hay
-problemas de CORS**. La base de datos esta en Supabase.
+**Un solo proyecto, una sola direccion.** La aplicacion y el API viven juntos, asi que
+**no hay problemas de CORS** y no hay que configurar direcciones entre ellos.
 
 **Costo: 0.** Vercel gratis (sitio + funciones) y Supabase gratis (500 MB de base).
 
@@ -21,11 +21,11 @@ problemas de CORS**. La base de datos esta en Supabase.
 
 ## Antes de empezar
 
-Necesitas tres cuentas gratis y el proyecto ya en tu PC.
+Necesitas tres cuentas gratis:
 
-- [GitHub](https://github.com) — para guardar el codigo
+- [GitHub](https://github.com) — guarda el codigo
 - [Supabase](https://supabase.com) — la base de datos
-- [Vercel](https://vercel.com) — donde se publica
+- [Vercel](https://vercel.com) — publica todo
 
 ---
 
@@ -33,25 +33,20 @@ Necesitas tres cuentas gratis y el proyecto ya en tu PC.
 
 1. Entra a Supabase y elige **New project**.
    - **Name:** `mostrador`
-   - **Database Password:** genera una larga y **guardala en un lugar seguro**.
-   - **Region:** la mas cercana a ti.
-   - Espera a que termine de crearse (1-2 minutos).
+   - **Database Password:** genera una larga y **guardala**.
+   - **Region:** la mas cercana.
+2. En **Project Settings → Database → Connection string** copia **dos** cadenas y
+   reemplaza `[YOUR-PASSWORD]` por tu contrasena:
 
-2. En el panel del proyecto, ve a **Project Settings → Database → Connection string**.
-   Copia **dos** cadenas y en cada una reemplaza `[YOUR-PASSWORD]` por tu contrasena:
-
-   | Cadena | Puerto | Para que sirve |
+   | Cadena | Puerto | Para que |
    |---|---|---|
-   | **Transaction pooler** | `6543` | La usa la aplicacion en Vercel |
-   | **Session pooler** | `5432` | La usas tu, para crear las tablas |
+   | **Session pooler** | `5432` | Crear las tablas (desde tu PC) |
+   | **Transaction pooler** | `6543` | La aplicacion en Vercel |
 
-   A la del **6543** agregale `?pgbouncer=true` al final si no lo trae.
-
-> **Sobre `sslmode`.** Si tu cadena trae `?sslmode=require`, dejalo o quitalo: da igual,
-> el sistema lo descarta solo. Node-postgres interpreta ese parametro como "verificar el
-> certificado a fondo" y la conexion falla. El SSL se pide de forma explicita en el
-> codigo, asi que la conexion **siempre va cifrada** sin depender de los certificados de
-> la maquina.
+> **Sobre `sslmode`.** Si la cadena trae `?sslmode=require`, da igual: el sistema lo
+> descarta solo. Node-postgres interpreta ese parametro como "verificar el certificado
+> a fondo" y la conexion falla. El cifrado se pide de forma explicita en el codigo, asi
+> que la conexion **siempre va cifrada**.
 
 ---
 
@@ -64,28 +59,24 @@ cd "G:\Cosas Ernesto\((Trabajo\(((mios\Gestion inventario"
 $env:DATABASE_URL='postgresql://postgres.tuproyecto:TU_PASSWORD@aws-0-xx.pooler.supabase.com:5432/postgres'
 npm run db:migrate
 
-# 2) Crear la empresa, las sucursales, los roles y el administrador.
-#    Aqui eliges tu usuario y tu contrasena de verdad.
+# 2) Crear la empresa, sucursales, roles y el administrador.
 $env:SEED_EMPRESA='Mi Tienda'
 $env:SEED_USUARIO='admin'
 $env:SEED_PASSWORD='pon-aqui-una-contrasena-larga'
 npm run db:seed
 ```
 
-Si no quieres los 20 productos de ejemplo, agrega `$env:SEED_SIN_PRODUCTOS='true'`.
+Si no quieres los 20 productos de ejemplo: `$env:SEED_SIN_PRODUCTOS='true'`.
 
-**Comprobar:** en Supabase, abre **Table Editor** y veras las 37 tablas con datos en
+**Comprobar:** en Supabase → **Table Editor** deben aparecer las tablas con datos en
 `products`, `branches` y `users`.
 
 > Las migraciones **nunca** se corren desde Vercel. Se corren desde tu PC, que es la
-> unica que tiene la cadena de administracion. Asi no hay dos instancias peleando.
+> unica con la cadena de administracion.
 
 ---
 
 ## Paso 3 — Subir el codigo a GitHub
-
-1. En GitHub, crea un repositorio **privado** y **vacio** (sin README ni .gitignore).
-2. En tu PC:
 
 ```powershell
 cd "G:\Cosas Ernesto\((Trabajo\(((mios\Gestion inventario"
@@ -96,18 +87,16 @@ git push -u origin main
 
 ---
 
-## Paso 4 — Publicar en Vercel
+## Paso 4 — Publicar en Vercel (un solo proyecto)
 
-1. Entra a Vercel y elige **Add New → Project**.
-2. **Import Git Repository** y elige el repositorio que acabas de subir.
-3. Vercel detecta dos aplicaciones (el API y el punto de venta) y te pide agruparlas:
-   - En **Application Preset** elige **`Services`**.
-   - Confirma que aparezcan los dos servicios: **`api` → Fastify** y **`pos` → Vite`.
-   - **Root Directory:** dejalo en la raiz (`./`).
-   - **NO** las despliegues por separado: agrupadas quedan en **una sola direccion**,
-     sin problemas de CORS y con las variables compartidas.
-4. Abre **Environment Variables** y agrega estas cuatro (marcando Production, Preview
-   y Development):
+1. Vercel → **Add New → Project** → importa el repositorio.
+2. En la configuracion:
+   - **Root Directory:** `apps/api`
+   - **Framework Preset:** `Other`
+   - Build Command y Output Directory: dejalo como esta; los toma de
+     `apps/api/vercel.json`.
+3. **Environment Variables** — agrega **exactamente estas tres** (marca Production,
+   Preview y Development):
 
 | Nombre | Valor |
 |---|---|
@@ -115,10 +104,12 @@ git push -u origin main
 | `JWT_SECRET` | Una cadena larga y secreta (abajo te digo como generarla) |
 | `MIGRAR_AL_ARRANCAR` | `false` |
 
-> **NO agregues `NODE_ENV=production`.** Vercel ya lo pone solo cuando la aplicacion
-> corre, y al ponerlo como variable del proyecto tambien afecta al momento de instalar:
-> `npm` **se salta las herramientas de desarrollo** (TypeScript, Vite) y la compilacion
-> falla con `tsc: command not found`.
+> **NO agregues `NODE_ENV`.** Vercel ya lo pone solo cuando la aplicacion corre, y al
+> ponerlo como variable del proyecto tambien afecta al momento de instalar: `npm` se
+> salta las herramientas de desarrollo y la compilacion falla con `tsc: command not found`.
+>
+> Tampoco hace falta `VITE_API_URL`: la aplicacion llama al API en la misma direccion
+> donde vive.
 
 Genera el `JWT_SECRET` con:
 
@@ -126,66 +117,35 @@ Genera el `JWT_SECRET` con:
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-5. **Deploy** y espera. Al terminar te da una direccion como
-   `https://mostrador-tuusuario.vercel.app`.
+4. **Deploy** y espera. Al terminar te da una direccion como
+   `https://mostrador-tuusuario.vercel.app` con todo dentro:
 
-### Como queda repartido
-
-Vercel lee `vercel.json` y reparte el trafico asi:
-
-| Peticion | Va a | Por que |
-|---|---|---|
-| `/api/v1/...` | servicio `api` (Fastify) | El primer rewrite es el mas especifico |
-| Todo lo demas | servicio `pos` (Vite) | El segundo rewrite es el comodin |
-
-El API **no cambia nada**: la documentacion de Vercel confirma que el servicio recibe
-**la ruta original**, asi que `/api/v1/products` llega tal cual.
-
-El punto de entrada del API es `apps/api/src/index.ts`, y **ese nombre es justo uno de
-los que Vercel reconoce** (`src/index.ts`). No hay que configurar nada mas.
-
-### Detalles que ya estan resueltos (no los cambies sin leer esto)
-
-**1. `installCommand` con dos ramas.** Dentro de un repositorio con workspaces, ejecutar
-`npm install` **dentro de la carpeta de un paquete** (por ejemplo `apps/api`) instala
-solo las dependencias de produccion: **no instala las herramientas de la raiz**
-(TypeScript, Vite). Por eso el comando comprueba donde esta y **siempre instala desde
-la raiz del repositorio**:
-
-```
-if [ -f apps/api/package.json ]; then npm install --include=dev; else cd ../.. && npm install --include=dev; fi
-```
-
-**2. `postinstall` en la raiz.** Compila `@mostrador/domain` y `@mostrador/db-cloud`
-en cuanto termina la instalacion. Asi, cuando Vercel compila el API o la aplicacion,
-los paquetes que usan **ya estan listos** y el orden de compilacion deja de importar.
-
-**3. Nada de `NODE_ENV=production` en las variables del proyecto.** Vercel ya lo pone
-cuando la aplicacion corre; si lo pones tu, tambien afecta al momento de instalar y
-`npm` se salta las herramientas de desarrollo.
+| Ruta | Que hay |
+|---|---|
+| `/` | El punto de venta |
+| `/estado.html` | Estado del API y de la base de datos |
+| `/api/v1/...` | El API |
 
 ---
 
 ## Paso 5 — Entrar
 
-Abre la direccion de Vercel y entra con el usuario y la contrasena que pusiste en el
-Paso 2. Ya puedes vender.
-
-Si te equivocaste en la contrasena, vuelve a correr el Paso 2 con otros valores: creara
-otro administrador (la base admite varios usuarios).
+Abre la direccion de Vercel y entra con el usuario y la contrasena del Paso 2.
+Ya puedes vender.
 
 ---
 
-## Cosas que conviene saber
+## Como funciona por dentro (no lo cambies sin leer esto)
 
-- **El primer acceso tarda un poco** (1-3 segundos). Es una funcion sin estado: se
-  "apaga" cuando nadie la usa y despierta en la siguiente peticion. Despues vuela.
-- **Supabase gratis se pausa** si pasan unos dias sin uso. Si la aplicacion deja de
-  responder tras unas vacaciones, entra al panel de Supabase y reactiva el proyecto.
-- **Respaldos:** en el plan gratis conviene exportar de vez en cuando desde
-  **Table Editor → Export**. En planes de pago Supabase hace respaldos diarios.
-- **No hay pantalla para cambiar la contrasena** todavia (el API si lo permite). Por
-  ahora, elige una buena contrasena en el Paso 2.
+| Pieza | Como esta resuelto | Por que |
+|---|---|---|
+| Reparto del trafico | `/api/...` va a la funcion; lo demas son archivos estaticos | Definido en `apps/api/vercel.json` |
+| Funcion del API | `apps/api/api/index.ts` importa todo **de forma diferida** dentro de un `try` | Si algo falla al cargar, responde el **motivo real** en JSON en vez de una pagina 500 muda |
+| Instalacion | `installCommand` entra desde `apps/api` a la **raiz del repositorio** | `npm install` dentro de una carpeta del workspace **no instala las herramientas de la raiz** (TypeScript) |
+| Paquetes compartidos | `postinstall` de la raiz compila `domain`, `db-cloud` y el API | Asi el orden de compilacion deja de importar |
+| Contenido web | `buildCommand` arma `public/` con `apps/pos/dist` + `estado.html` | Vercel exige una carpeta de salida estatica |
+| `cookie` | Fijado en la 1.x con `overrides` | `cookie@2` es solo ESM y Vercel ejecuta el API en CommonJS: `require()` reventaria |
+| Conexion a la base | SSL explicito sin validar certificado | No depende del almacen de certificados de la plataforma |
 
 ---
 
@@ -193,7 +153,7 @@ otro administrador (la base admite varios usuarios).
 
 | Cambio | Que hacer |
 |---|---|
-| Aplicacion o API | `git push` y Vercel vuelve a publicar solo |
+| Aplicacion o API | `git push` y Vercel publica solo |
 | Tablas (esquema) | `npm run db:generate -w @mostrador/db-cloud`, commit, `git push`, y luego `npm run db:migrate` desde tu PC |
 
 ---
@@ -202,17 +162,19 @@ otro administrador (la base admite varios usuarios).
 
 | Sintoma | Causa probable |
 |---|---|
-| "No hay conexion con el servidor" | `DATABASE_URL` mal copiada. Debe ser la del **6543** |
-| El API responde 500 | Revisa **Deployments → Functions** en Vercel, ahi sale el error real |
-| `tsc: command not found` al construir | Pusiste `NODE_ENV=production` en las variables. Quitala |
-| `require() of ES Module .../cookie/...` | `cookie@2` es solo ESM y Vercel ejecuta el API en CommonJS. Lo resuelve el `overrides` de la raiz, que fija `cookie` en la 1.x (CommonJS) |
-| "Cannot find module @mostrador/db-cloud" | La instalacion no compilo los paquetes; revisa el `installCommand` |
-| Nada responde tras unos dias | El proyecto de Supabase se pauso. Reactivalo |
-| "Contrasena incorrecta" y estas seguro | Vuelve a correr el seed del Paso 2 |
-| La migracion falla sin decir nada | La cadena traia `sslmode=require`. Quitalo (o usa una version del codigo que ya lo descarta solo) |
+| `tsc: command not found` | Volvio a colarse `NODE_ENV` en las variables. Borrala |
+| `require() of ES Module .../cookie/...` | Se perdio el `overrides` de `cookie` en el `package.json` |
+| `No Output Directory "public"` | Fallo el `buildCommand` de `apps/api/vercel.json` |
+| `The page could not be found` | La funcion no existe; revisa que la carpeta `apps/api/api/` este y que el `rewrites` apunte a `api/index` |
+| "No hay conexion con el servidor" | `DATABASE_URL` mal copiada; debe ser la del **6543** |
+| Sale JSON con `ARRANQUE_FALLIDO` | **Lee el `detalle`**: ahi esta el motivo exacto |
+| Nada responde tras unos dias | El proyecto de Supabase se pauso. Reactivalo en su panel |
 
-> **Si la conexion funciona pero quieres comprobar que va cifrada**, consulta
-> `select ssl from pg_stat_ssl where pid = pg_backend_pid()`. Debe decir `true`.
+> **La pantalla `/estado.html`** dice en un segundo si el API y la base de datos estan
+> bien, sin entrar a los registros de Vercel.
+>
+> Para verificar que la conexion va cifrada:
+> `select ssl from pg_stat_ssl where pid = pg_backend_pid()` debe decir `true`.
 
 ---
 
@@ -220,4 +182,4 @@ otro administrador (la base admite varios usuarios).
 
 Si algun dia el plan gratis de Vercel se queda corto, el API tambien corre **tal cual**
 en un servicio con servidor permanente (Render, Railway, Fly.io): se sube el mismo
-codigo y se definen las mismas variables. No hay que cambiar nada mas.
+codigo y se definen las mismas variables.
