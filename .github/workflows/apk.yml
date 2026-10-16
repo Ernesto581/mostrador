@@ -14,26 +14,27 @@ on:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    # Version fija: "ubuntu-latest" va a cambiar de version mas adelante.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Traer el codigo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Preparar Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
 
       - name: Preparar Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Preparar el SDK de Android
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Instalar dependencias
         run: npm install --include=dev
