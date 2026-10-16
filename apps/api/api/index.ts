@@ -1,8 +1,10 @@
 /**
  * Punto de entrada del API en Vercel.
  *
- * El nombre con corchetes hace que Vercel entregue cualquier ruta bajo `/api`:
- * `/api/v1/products` llega como `ruta = ['v1', 'products']`.
+ * Se usa un nombre simple (`api/index.ts`) porque es el que Vercel reconoce sin
+ * ambiguedad. Como una sola funcion recibe todas las rutas, `vercel.json` reescribe
+ * `/api/(.*)` a `/api/index?ruta=$1`, de modo que aqui se reconstruye la direccion
+ * original (`/api/v1/health`).
  *
  * Toda la logica vive en `src/vercel.ts`, para poder probarla en local con las mismas
  * pruebas que el resto del sistema.

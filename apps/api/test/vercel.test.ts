@@ -133,4 +133,39 @@ describe('API como funcion (sin estado)', () => {
     expect(captura.estado()).toBe(404);
     expect(JSON.parse(String(captura.cuerpo())).error.codigo).toBe('NO_ENCONTRADO');
   });
+
+  it('reconstruye la ruta cuando Vercel la manda por el parametro ruta', async () => {
+    // Asi llega una peticion real: vercel.json reescribe /api/(.*) a
+    // /api/index?ruta=$1, y aqui se vuelve a armar /api/v1/health.
+    const captura = respuestaSimulada();
+    await manejadorVercel(
+      {
+        method: 'GET',
+        url: '/api/index?ruta=v1/health',
+        headers: {},
+        query: { ruta: 'v1/health' },
+      },
+      captura.respuesta,
+    );
+
+    expect(captura.estado()).toBe(200);
+    expect(JSON.parse(String(captura.cuerpo()))).toMatchObject({ estado: 'ok' });
+  });
+
+  it('conserva la forma de Vercel al iniciar sesion', async () => {
+    const captura = respuestaSimulada();
+    await manejadorVercel(
+      {
+        method: 'POST',
+        url: '/api/index?ruta=v1/auth/login',
+        headers: { 'content-type': 'application/json' },
+        query: { ruta: 'v1/auth/login' },
+        body: { username: 'admin', password },
+      },
+      captura.respuesta,
+    );
+
+    expect(captura.estado()).toBe(200);
+    expect(JSON.parse(String(captura.cuerpo())).token).toBeTruthy();
+  });
 });

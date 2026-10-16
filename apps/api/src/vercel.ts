@@ -46,6 +46,26 @@ function obtenerConsulta(
   url: string | undefined,
   query: Record<string, string | string[] | undefined> | undefined,
 ): string {
+  // Cuando Vercel reescribe a `/api/index?ruta=...`, la ruta original viene en el
+  // parametro `ruta`. La consulta se reconstruye desde los parametros, sin `ruta`.
+  if (query?.ruta !== undefined) {
+    const parametros = new URLSearchParams();
+    for (const [clave, valor] of Object.entries(query)) {
+      if (clave === 'ruta') {
+        continue;
+      }
+      if (Array.isArray(valor)) {
+        for (const elemento of valor) {
+          parametros.append(clave, elemento);
+        }
+      } else if (valor !== undefined) {
+        parametros.append(clave, valor);
+      }
+    }
+    const texto = parametros.toString();
+    return texto ? `?${texto}` : '';
+  }
+
   if (typeof url === 'string') {
     const indice = url.indexOf('?');
     if (indice >= 0) {
@@ -53,22 +73,7 @@ function obtenerConsulta(
     }
   }
 
-  const parametros = new URLSearchParams();
-  for (const [clave, valor] of Object.entries(query ?? {})) {
-    if (clave === 'ruta') {
-      continue;
-    }
-    if (Array.isArray(valor)) {
-      for (const elemento of valor) {
-        parametros.append(clave, elemento);
-      }
-    } else if (valor !== undefined) {
-      parametros.append(clave, valor);
-    }
-  }
-
-  const texto = parametros.toString();
-  return texto ? `?${texto}` : '';
+  return '';
 }
 
 /**
