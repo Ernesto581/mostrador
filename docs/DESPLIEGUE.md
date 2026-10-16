@@ -205,6 +205,7 @@ otro administrador (la base admite varios usuarios).
 | "No hay conexion con el servidor" | `DATABASE_URL` mal copiada. Debe ser la del **6543** |
 | El API responde 500 | Revisa **Deployments → Functions** en Vercel, ahi sale el error real |
 | `tsc: command not found` al construir | Pusiste `NODE_ENV=production` en las variables. Quitala |
+| `require() of ES Module .../cookie/...` | `cookie@2` es solo ESM y Vercel ejecuta el API en CommonJS. Lo resuelve el `overrides` de la raiz, que fija `cookie` en la 1.x (CommonJS) |
 | "Cannot find module @mostrador/db-cloud" | La instalacion no compilo los paquetes; revisa el `installCommand` |
 | Nada responde tras unos dias | El proyecto de Supabase se pauso. Reactivalo |
 | "Contrasena incorrecta" y estas seguro | Vuelve a correr el seed del Paso 2 |
