@@ -1,7 +1,10 @@
 name: Compilar el APK
 
-# Compila la app de Android en la nube y deja el APK para descargar.
-# Asi no hace falta tener el entorno de Android en la computadora.
+# Compila la app de Android en la nube, la firma con tu llave y la publica como
+# "release". Asi la app puede actualizarse sola, sin volver a instalarla.
+#
+# Necesita 4 secretos configurados en el repositorio (Settings -> Secrets -> Actions):
+#   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
 
 on:
   push:
@@ -12,9 +15,12 @@ on:
       - '.github/workflows/apk.yml'
   workflow_dispatch:
 
+# Para poder crear el release con el APK dentro.
+permissions:
+  contents: write
+
 jobs:
   apk:
-    # Version fija: "ubuntu-latest" va a cambiar de version mas adelante.
     runs-on: ubuntu-24.04
 
     steps:
@@ -49,21 +55,55 @@ jobs:
         run: npm install --include=dev
 
       - name: Compilar la aplicacion web
+        env:
+          # El numero de la ejecucion sirve de version: siempre sube.
+          VITE_VERSION_CODE: ${{ github.run_number }}
         run: npm run build -w @mostrador/pos
 
       - name: Copiar la aplicacion al proyecto de Android
         working-directory: apps/pos
         run: npx cap sync android
 
-      - name: Compilar el APK
+      - name: Compilar y firmar el APK
         working-directory: apps/pos/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ github.run_number }}
+          KEYSTORE_PATH: ${{ github.workspace }}/firma.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$KEYSTORE_PATH"
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
-      - name: Publicar el APK para descargar
+      - name: Dejar el APK con nombre fijo
+        # Un nombre fijo da una direccion que nunca cambia, para que la app se actualice.
+        run: cp apps/pos/android/app/build/outputs/apk/release/app-release.apk mostrador.apk
+
+      - name: Escribir el numero de version
+        run: |
+          printf '{"versionCode": %s, "versionName": "%s"}' "${{ github.run_number }}" "${{ github.run_number }}" > version.json
+          cat version.json
+
+      - name: Publicar la version
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Version ${{ github.run_number }}
+          body: |
+            **Para instalar o actualizar:** descarga `mostrador.apk` de abajo.
+
+            Se instala encima de la version anterior y **conserva los datos**
+            (productos, ventas sin subir y turno abierto).
+          files: |
+            mostrador.apk
+            version.json
+
+      - name: Guardar el APK tambien en la ejecucion
         uses: actions/upload-artifact@v4
         with:
           name: mostrador-apk
-          path: apps/pos/android/app/build/outputs/apk/debug/app-debug.apk
+          path: mostrador.apk
           if-no-files-found: error

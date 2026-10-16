@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Sesion } from '../api/tipos';
+import { AvisoActualizacion } from '../componentes/AvisoActualizacion';
 import { IndicadorConexion } from '../componentes/IndicadorConexion';
 import { Caja } from './Caja';
 import { Inventario } from './Inventario';
@@ -86,6 +87,8 @@ export function Marco({ sesion, onSalir }: Props) {
           </button>
         </div>
       </header>
+
+      <AvisoActualizacion />
 
       {pestana === 'mostrador' ? <Vender sesion={sesion} sucursalId={sucursalId} /> : null}
       {pestana === 'caja' ? <Caja sesion={sesion} sucursalId={sucursalId} /> : null}
