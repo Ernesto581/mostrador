@@ -75,3 +75,121 @@ export interface VentaRespuesta {
   lineas: LineaVentaRespuesta[];
   pagos: PagoRespuesta[];
 }
+
+/* ---------- Panel de administracion ---------- */
+
+export interface Categoria {
+  id: string;
+  nombre: string;
+  padreId: string | null;
+}
+
+export interface Rol {
+  id: string;
+  codigo: string;
+  nombre: string;
+  permisos: string[];
+}
+
+export interface FilaStock {
+  productoId: string;
+  sku: string;
+  nombre: string;
+  precioVenta: number;
+  costoPromedio: number;
+  stock: number;
+  stockMinimo: number;
+  bajoMinimo: boolean;
+}
+
+export type TipoMovimiento =
+  | 'inventario_inicial'
+  | 'entrada_compra'
+  | 'ajuste_positivo'
+  | 'ajuste_negativo'
+  | 'merma'
+  | 'devolucion_proveedor';
+
+export interface Movimiento {
+  id: string;
+  tipo: TipoMovimiento;
+  cantidad: number;
+  costoUnitario: number | null;
+  motivo: string | null;
+  documentoTipo: string | null;
+  documentoFolio: string | null;
+  ocurridoEn: string;
+  productoId: string;
+  producto: string;
+  sku: string;
+  sucursalId: string;
+}
+
+export interface VentaResumen {
+  id: string;
+  folio: string;
+  estado: string;
+  vendidoEn: string;
+  total: number;
+  impuestos: number;
+  descuentos: number;
+  cambio: number;
+  articulos: number;
+  sucursalId: string;
+  vendidoPor: string;
+}
+
+export interface LineaDeVenta {
+  id: string;
+  saleId: string;
+  productId: string | null;
+  lineNumber: number;
+  name: string;
+  sku: string | null;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  taxRate: number;
+  baseAmount: number;
+  taxAmount: number;
+  total: number;
+  unitCost: number;
+}
+
+export interface PagoDeVenta {
+  id: string;
+  saleId: string;
+  method: MetodoPago;
+  amount: number;
+  reference: string | null;
+}
+
+export interface DetalleVenta {
+  venta: {
+    id: string;
+    folio: string;
+    status: string;
+    soldAt: string;
+    subtotal: number;
+    discountTotal: number;
+    taxTotal: number;
+    total: number;
+    paidTotal: number;
+    changeGiven: number;
+    itemCount: number;
+    branchId: string;
+  };
+  lineas: LineaDeVenta[];
+  pagos: PagoDeVenta[];
+}
+
+export interface UsuarioDelPanel {
+  id: string;
+  username: string;
+  nombre: string;
+  email: string | null;
+  activo: boolean;
+  roles: string[];
+  rolNombres: string[];
+  sucursales: Sucursal[];
+}

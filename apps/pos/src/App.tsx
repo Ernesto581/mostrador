@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, guardarToken, leerToken } from './api/cliente';
 import type { Sesion } from './api/tipos';
 import { Acceso } from './pantallas/Acceso';
-import { Vender } from './pantallas/Vender';
+import { Marco } from './pantallas/Marco';
 
 export function App() {
   const [sesion, setSesion] = useState<Sesion | null>(null);
@@ -51,7 +51,7 @@ export function App() {
   }
 
   return (
-    <Vender
+    <Marco
       sesion={sesion}
       onSalir={() => {
         guardarToken(null);

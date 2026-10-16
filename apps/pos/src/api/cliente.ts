@@ -1,7 +1,15 @@
 import type {
+  Categoria,
+  DetalleVenta,
+  FilaStock,
   MetodoPago,
+  Movimiento,
   Producto,
+  Rol,
   Sesion,
+  Sucursal,
+  UsuarioDelPanel,
+  VentaResumen,
   VentaRespuesta,
 } from './tipos';
 
@@ -79,8 +87,6 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
       ? (datos as { error?: { codigo?: string; mensaje?: string; detalle?: string } } | null)?.error
       : undefined;
 
-    // Se muestra el detalle cuando lo hay: es la diferencia entre "algo fallo" y
-    // saber exactamente que fallo.
     const mensaje = error
       ? [error.mensaje, error.detalle].filter(Boolean).join(' — ')
       : esJson
@@ -101,7 +107,20 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
   return datos as T;
 }
 
+function parametros(valores: Record<string, string | number | boolean | undefined>): string {
+  const busqueda = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(valores)) {
+    if (valor !== undefined && valor !== '') {
+      busqueda.set(clave, String(valor));
+    }
+  }
+  const texto = busqueda.toString();
+  return texto ? `?${texto}` : '';
+}
+
 export const api = {
+  /* ---------- Sesion ---------- */
+
   iniciarSesion: (username: string, password: string) =>
     pedir<{ token: string; usuario: { id: string; username: string; nombre: string } }>(
       '/auth/login',
@@ -110,24 +129,162 @@ export const api = {
 
   sesion: () => pedir<Sesion>('/auth/me'),
 
-  buscarProductos: (buscar: string, sucursalId: string, limite = 24) => {
-    const parametros = new URLSearchParams({ sucursalId, limite: String(limite) });
-    if (buscar.trim()) {
-      parametros.set('buscar', buscar.trim());
-    }
-    return pedir<{ productos: Producto[] }>(`/products?${parametros.toString()}`);
-  },
+  cambiarMiPassword: (actual: string, nueva: string) =>
+    pedir<{ actualizado: boolean }>('/auth/password', {
+      metodo: 'POST',
+      cuerpo: { actual, nueva },
+    }),
 
-  porCodigo: (codigo: string, sucursalId: string) => {
-    const parametros = new URLSearchParams({ sucursalId });
-    return pedir<{ producto: Producto }>(
-      `/products/barcode/${encodeURIComponent(codigo)}?${parametros.toString()}`,
-    );
-  },
+  /* ---------- Mostrador ---------- */
+
+  buscarProductos: (buscar: string, sucursalId: string, limite = 24) =>
+    pedir<{ productos: Producto[] }>(
+      `/products${parametros({ sucursalId, limite, ...(buscar.trim() ? { buscar } : {}) })}`,
+    ),
+
+  porCodigo: (codigo: string, sucursalId: string) =>
+    pedir<{ producto: Producto }>(
+      `/products/barcode/${encodeURIComponent(codigo)}${parametros({ sucursalId })}`,
+    ),
 
   registrarVenta: (cuerpo: {
     sucursalId: string;
     lineas: { productoId: string; cantidad: number; descuentoPorcentaje?: number }[];
     pagos: { metodo: MetodoPago; monto: number; referencia?: string }[];
   }) => pedir<{ venta: VentaRespuesta }>('/sales', { metodo: 'POST', cuerpo }),
+
+  /* ---------- Catalogo ---------- */
+
+  categorias: () => pedir<{ categorias: Categoria[] }>('/categories'),
+
+  crearCategoria: (nombre: string) =>
+    pedir<{ categoria: { id: string; nombre: string } }>('/categories', {
+      metodo: 'POST',
+      cuerpo: { nombre },
+    }),
+
+  crearProducto: (cuerpo: {
+    sku: string;
+    nombre: string;
+    descripcion?: string;
+    categoriaId?: string;
+    esServicio?: boolean;
+    precioCosto: number;
+    precioVenta: number;
+    stockMinimo: number;
+    codigosBarras: string[];
+    stockInicial: number;
+    sucursalId?: string;
+  }) => pedir<{ producto: { id: string; sku: string; nombre: string } }>('/products', {
+    metodo: 'POST',
+    cuerpo,
+  }),
+
+  editarProducto: (
+    id: string,
+    cuerpo: {
+      sku?: string;
+      nombre?: string;
+      categoriaId?: string;
+      precioCosto?: number;
+      precioVenta?: number;
+      stockMinimo?: number;
+    },
+  ) => pedir<{ producto: { id: string } }>(`/products/${id}`, { metodo: 'PATCH', cuerpo }),
+
+  agregarCodigo: (id: string, codigo: string) =>
+    pedir<{ productoId: string; codigo: string }>(`/products/${id}/barcodes`, {
+      metodo: 'POST',
+      cuerpo: { codigo },
+    }),
+
+  /* ---------- Inventario ---------- */
+
+  stock: (sucursalId: string, buscar?: string, soloBajoMinimo?: boolean, limite = 200) =>
+    pedir<{ sucursalId: string; conAlerta: number; stock: FilaStock[] }>(
+      `/inventory/stock${parametros({ sucursalId, buscar, soloBajoMinimo, limite })}`,
+    ),
+
+  movimientos: (filtros: { productoId?: string; sucursalId?: string; limite?: number }) =>
+    pedir<{ movimientos: Movimiento[] }>(`/inventory/movements${parametros(filtros)}`),
+
+  registrarMovimiento: (cuerpo: {
+    sucursalId: string;
+    productoId: string;
+    tipo: string;
+    cantidad: number;
+    costoUnitario?: number;
+    motivo?: string;
+  }) => pedir<{ movimiento: unknown }>('/inventory/movements', { metodo: 'POST', cuerpo }),
+
+  transferir: (cuerpo: {
+    origenSucursalId: string;
+    destinoSucursalId: string;
+    motivo?: string;
+    lineas: { productoId: string; cantidad: number }[];
+  }) => pedir<{ movimientos: unknown[] }>('/inventory/transfers', { metodo: 'POST', cuerpo }),
+
+  /* ---------- Ventas ---------- */
+
+  ventas: (filtros: { sucursalId?: string; desde?: string; hasta?: string; limite?: number }) =>
+    pedir<{ ventas: VentaResumen[] }>(`/sales${parametros(filtros)}`),
+
+  venta: (id: string) => pedir<DetalleVenta>(`/sales/${id}`),
+
+  cancelarVenta: (id: string, motivo: string) =>
+    pedir<{ venta: { id: string; folio: string; estado: string } }>(`/sales/${id}/void`, {
+      metodo: 'POST',
+      cuerpo: { motivo },
+    }),
+
+  devolverVenta: (
+    id: string,
+    cuerpo: {
+      motivo: string;
+      metodoReembolso?: MetodoPago;
+      lineas: { lineaId: string; cantidad: number; reingresar?: boolean }[];
+    },
+  ) =>
+    pedir<{ devolucion: { id: string; folio: string; total: number } }>(`/sales/${id}/returns`, {
+      metodo: 'POST',
+      cuerpo,
+    }),
+
+  /* ---------- Usuarios ---------- */
+
+  usuarios: () => pedir<{ usuarios: UsuarioDelPanel[] }>('/users'),
+
+  roles: () => pedir<{ roles: Rol[] }>('/roles'),
+
+  sucursales: () => pedir<{ sucursales: Sucursal[] }>('/branches'),
+
+  crearUsuario: (cuerpo: {
+    username: string;
+    nombre: string;
+    password: string;
+    email?: string;
+    rol: string;
+    sucursalIds: string[];
+  }) =>
+    pedir<{ usuario: { id: string; username: string; nombre: string } }>('/users', {
+      metodo: 'POST',
+      cuerpo,
+    }),
+
+  editarUsuario: (
+    id: string,
+    cuerpo: {
+      nombre?: string;
+      email?: string;
+      activo?: boolean;
+      rol?: string;
+      sucursalIds?: string[];
+    },
+  ) => pedir<{ usuario: { id: string } }>(`/users/${id}`, { metodo: 'PATCH', cuerpo }),
+
+  cambiarPasswordDeUsuario: (id: string, password: string) =>
+    pedir<{ usuario: { id: string } }>(`/users/${id}/password`, {
+      metodo: 'POST',
+      cuerpo: { password },
+    }),
 };

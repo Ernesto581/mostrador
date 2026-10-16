@@ -11,11 +11,10 @@ import { aCentavos } from '../util/dinero';
 
 interface Props {
   sesion: Sesion;
-  onSalir: () => void;
+  sucursalId: string;
 }
 
-export function Vender({ sesion, onSalir }: Props) {
-  const [sucursalId, setSucursalId] = useState(sesion.sucursales[0]?.id ?? '');
+export function Vender({ sesion, sucursalId }: Props) {
   const [texto, setTexto] = useState('');
   const [resultados, setResultados] = useState<Producto[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -234,40 +233,7 @@ export function Vender({ sesion, onSalir }: Props) {
   }
 
   return (
-    <div className="app">
-      <header className="barra">
-        <div className="marca">
-          <span className="marca__punto" aria-hidden="true" />
-          {sesion.empresa.nombre || 'Mostrador'}
-          <span>punto de venta</span>
-        </div>
-
-        <div className="barra__datos">
-          {sesion.sucursales.length > 1 ? (
-            <select
-              className="selector"
-              value={sucursalId}
-              onChange={(evento) => setSucursalId(evento.target.value)}
-              aria-label="Sucursal"
-            >
-              {sesion.sucursales.map((opcion) => (
-                <option key={opcion.id} value={opcion.id}>
-                  {opcion.codigo} · {opcion.nombre}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="vendedor">
-              {sucursal?.codigo} · {sucursal?.nombre}
-            </span>
-          )}
-          <span className="vendedor">{sesion.usuario.nombre}</span>
-          <button type="button" className="boton boton--fantasma" onClick={onSalir}>
-            Salir
-          </button>
-        </div>
-      </header>
-
+    <>
       <main className="mostrador">
         <section>
           <Buscador
@@ -328,6 +294,6 @@ export function Vender({ sesion, onSalir }: Props) {
           onNuevaVenta={() => setVenta(null)}
         />
       ) : null}
-    </div>
+    </>
   );
 }
