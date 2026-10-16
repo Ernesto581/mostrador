@@ -3,6 +3,7 @@ import { api, guardarToken, leerToken } from './api/cliente';
 import type { Sesion } from './api/tipos';
 import { Acceso } from './pantallas/Acceso';
 import { Marco } from './pantallas/Marco';
+import { ProveedorConexion } from './servicios/conexion';
 
 export function App() {
   const [sesion, setSesion] = useState<Sesion | null>(null);
@@ -51,12 +52,14 @@ export function App() {
   }
 
   return (
-    <Marco
-      sesion={sesion}
-      onSalir={() => {
-        guardarToken(null);
-        setSesion(null);
-      }}
-    />
+    <ProveedorConexion>
+      <Marco
+        sesion={sesion}
+        onSalir={() => {
+          guardarToken(null);
+          setSesion(null);
+        }}
+      />
+    </ProveedorConexion>
   );
 }

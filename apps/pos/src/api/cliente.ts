@@ -156,9 +156,16 @@ export const api = {
     sucursalId: string;
     /** Turno de caja al que pertenece la venta (para el cierre). */
     turnoId?: string;
-    lineas: { productoId: string; cantidad: number; descuentoPorcentaje?: number }[];
-    pagos: { metodo: MetodoPago; monto: number; referencia?: string }[];
+    /** Folio generado en el telefono cuando se vendio sin conexion. */
+    folio?: string;
+    /** Momento real de la venta (para las ventas hechas sin conexion). */
+    vendidoEn?: string;
+    lineas: { productoId: string; cantidad: number; descuentoPorcentaje?: number | undefined }[];
+    pagos: { metodo: MetodoPago; monto: number; referencia?: string | undefined }[];
   }) => pedir<{ venta: VentaRespuesta }>('/sales', { metodo: 'POST', cuerpo }),
+
+  /** Estado del API. Sirve para saber si hay conexion de verdad. */
+  salud: () => pedir<{ estado: string; baseDeDatos: string }>('/health'),
 
   /* ---------- Catalogo ---------- */
 

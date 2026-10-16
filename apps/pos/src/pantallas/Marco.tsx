@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Sesion } from '../api/tipos';
+import { IndicadorConexion } from '../componentes/IndicadorConexion';
 import { Caja } from './Caja';
 import { Inventario } from './Inventario';
 import { Productos } from './Productos';
@@ -60,6 +61,7 @@ export function Marco({ sesion, onSalir }: Props) {
         </nav>
 
         <div className="barra__datos">
+          <IndicadorConexion />
           {sesion.sucursales.length > 1 ? (
             <select
               className="selector"

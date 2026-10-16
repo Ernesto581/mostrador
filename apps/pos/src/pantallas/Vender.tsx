@@ -1,4 +1,4 @@
-import { calcularTotales, centavos } from '@mostrador/domain';
+import { calcularCobro, calcularTotales, centavos } from '@mostrador/domain';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ErrorApi } from '../api/cliente';
 import type { MetodoPago, Producto, Sesion, VentaRespuesta } from '../api/tipos';
@@ -9,6 +9,16 @@ import { Ticket } from '../componentes/Ticket';
 import { DESCUENTOS, type LineaCarrito, type PagoLocal } from '../tipos';
 import { aCentavos } from '../util/dinero';
 import { useCarga } from '../util/pantalla';
+import { useConexion } from '../servicios/conexion';
+import {
+  buscarEnCatalogo,
+  descontarDelCatalogo,
+  encolarVenta,
+  guardarCatalogo,
+  guardarTurno,
+  leerTurno,
+  siguienteFolioLocal,
+} from '../servicios/almacenLocal';
 
 interface Props {
   sesion: Sesion;
@@ -27,15 +37,46 @@ export function Vender({ sesion, sucursalId }: Props) {
   const [venta, setVenta] = useState<VentaRespuesta | null>(null);
 
   const ultimaBusqueda = useRef(0);
+  const { enLinea, refrescar } = useConexion();
 
   /* Turno de caja: para vender hace falta uno abierto. */
   const {
     datos: datosTurno,
     cargando: cargandoTurno,
     recargar: recargarTurno,
-  } = useCarga(() => api.turnoActual(sucursalId), [sucursalId]);
+  } = useCarga(async () => {
+    try {
+      const respuesta = await api.turnoActual(sucursalId);
+      guardarTurno(sucursalId, respuesta.turno);
+      return respuesta;
+    } catch (fallo) {
+      // Sin internet se usa la copia del turno que quedo guardada en el telefono:
+      // asi las ventas sin conexion entran al cierre cuando se suban.
+      if (fallo instanceof ErrorApi && fallo.codigo === 'SIN_CONEXION') {
+        return { turno: leerTurno(sucursalId), resumen: null };
+      }
+      throw fallo;
+    }
+  }, [sucursalId]);
 
   const turno = datosTurno?.turno ?? null;
+  const [ventaPendiente, setVentaPendiente] = useState(false);
+
+  /* Copia del catalogo en el telefono: permite buscar y vender sin internet. */
+  useEffect(() => {
+    if (!enLinea || !turno) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const { productos } = await api.buscarProductos('', sucursalId, 500);
+        guardarCatalogo(sucursalId, productos);
+      } catch {
+        // Si falla se sigue con la copia que ya hubiera en el telefono.
+      }
+    })();
+  }, [enLinea, sucursalId, turno]);
   const [fondoTurno, setFondoTurno] = useState('200.00');
   const [abriendoTurno, setAbriendoTurno] = useState(false);
   const [errorTurno, setErrorTurno] = useState<string | null>(null);
@@ -67,6 +108,16 @@ export function Vender({ sesion, sucursalId }: Props) {
         }
         return productos;
       } catch (fallo) {
+        // Si no hay internet, se busca en la copia del catalogo del telefono.
+        if (fallo instanceof ErrorApi && fallo.codigo === 'SIN_CONEXION') {
+          const locales = buscarEnCatalogo(sucursalId, termino);
+          if (marca === ultimaBusqueda.current) {
+            setResultados(locales);
+            setErrorBusqueda(null);
+          }
+          return locales;
+        }
+
         if (marca === ultimaBusqueda.current) {
           setResultados([]);
           setErrorBusqueda(
@@ -239,29 +290,103 @@ export function Vender({ sesion, sucursalId }: Props) {
     setProcesando(true);
     setAviso(null);
 
+    const lineas = carrito.map((linea) => ({
+      productoId: linea.producto.id,
+      cantidad: linea.cantidad,
+      ...(linea.descuentoPorcentaje > 0
+        ? { descuentoPorcentaje: linea.descuentoPorcentaje }
+        : {}),
+    }));
+
     try {
       const { venta: registrada } = await api.registrarVenta({
         sucursalId,
         turnoId: turno.id,
-        lineas: carrito.map((linea) => ({
-          productoId: linea.producto.id,
-          cantidad: linea.cantidad,
-          ...(linea.descuentoPorcentaje > 0
-            ? { descuentoPorcentaje: linea.descuentoPorcentaje }
-            : {}),
-        })),
+        lineas,
         pagos: pagosEnviar,
       });
 
       setVenta(registrada);
+      setVentaPendiente(false);
       setCarrito([]);
       setPagos([]);
       void buscar(texto);
     } catch (fallo) {
+      // Si se cayo el internet, la venta no se pierde: se guarda en el telefono y se
+      // sube sola al recuperar la senal.
+      if (fallo instanceof ErrorApi && fallo.codigo === 'SIN_CONEXION') {
+        guardarVentaSinConexion(lineas, pagosEnviar);
+        return;
+      }
       setAviso(fallo instanceof ErrorApi ? fallo.message : 'No se pudo cerrar la venta');
     } finally {
       setProcesando(false);
     }
+  }
+
+  /** Guarda la venta en el telefono, con su folio, para subirla despues. */
+  function guardarVentaSinConexion(
+    lineas: { productoId: string; cantidad: number; descuentoPorcentaje?: number }[],
+    pagosEnviar: { metodo: MetodoPago; monto: number }[],
+  ): void {
+    if (!totales || !turno || !sucursal) {
+      return;
+    }
+
+    const vendidoEn = new Date();
+    const folio = siguienteFolioLocal(sucursal.codigo, vendidoEn);
+    const cobro = calcularCobro(
+      totales.total,
+      pagosEnviar.map((pago) => ({ metodo: pago.metodo, monto: centavos(pago.monto) })),
+    );
+    const id = `local-${vendidoEn.getTime()}`;
+
+    const ventaLocal: VentaRespuesta = {
+      id,
+      folio,
+      estado: 'completada',
+      vendidoEn: vendidoEn.toISOString(),
+      subtotal: totales.base,
+      descuentoTotal: totales.descuentoTotal,
+      impuestos: totales.impuestos,
+      total: totales.total,
+      pagado: cobro.pagado,
+      cambio: cobro.cambio,
+      articulos: totales.lineas.reduce((suma, linea) => suma + linea.cantidad, 0),
+      advertencias: [],
+      lineas: totales.lineas.map((linea) => ({
+        productoId: linea.productoId,
+        nombre: linea.nombre,
+        cantidad: linea.cantidad,
+        precioUnitario: linea.precioUnitario,
+        descuento: linea.descuento,
+        impuesto: linea.impuesto,
+        total: linea.total,
+        costoUnitario: 0,
+      })),
+      pagos: pagosEnviar.map((pago) => ({ metodo: pago.metodo, monto: pago.monto })),
+    };
+
+    encolarVenta({
+      id,
+      folio,
+      sucursalId,
+      turnoId: turno.id,
+      vendidoEn: vendidoEn.toISOString(),
+      lineas,
+      pagos: pagosEnviar,
+      venta: ventaLocal,
+    });
+
+    descontarDelCatalogo(sucursalId, lineas);
+
+    // Que el indicador muestre de inmediato cuantas van pendientes.
+    refrescar();
+
+    setVenta(ventaLocal);
+    setVentaPendiente(true);
+    setCarrito([]);
+    setPagos([]);
   }
 
   return (
@@ -370,6 +495,7 @@ export function Vender({ sesion, sucursalId }: Props) {
           venta={venta}
           sucursal={sucursal?.codigo ?? ''}
           vendedor={sesion.usuario.nombre}
+          pendiente={ventaPendiente}
           onNuevaVenta={() => setVenta(null)}
         />
       ) : null}

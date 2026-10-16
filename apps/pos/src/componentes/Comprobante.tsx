@@ -5,6 +5,8 @@ interface Props {
   venta: VentaRespuesta;
   sucursal: string;
   vendedor: string;
+  /** true cuando la venta se guardo en el telefono y aun no se sube. */
+  pendiente?: boolean;
   onNuevaVenta: () => void;
 }
 
@@ -14,7 +16,7 @@ const ETIQUETAS = {
   transferencia: 'Transferencia',
 } as const;
 
-export function Comprobante({ venta, sucursal, vendedor, onNuevaVenta }: Props) {
+export function Comprobante({ venta, sucursal, vendedor, pendiente, onNuevaVenta }: Props) {
   const cambio = venta.cambio;
 
   return (
@@ -85,6 +87,14 @@ export function Comprobante({ venta, sucursal, vendedor, onNuevaVenta }: Props) 
                 </div>
               ) : null}
             </div>
+
+            {pendiente ? (
+              <div className="advertencias">
+                <strong>Guardada sin conexion</strong>
+                Esta venta quedo guardada en este telefono y se subira sola al recuperar
+                internet. Aparece en el indicador de arriba, no la borres.
+              </div>
+            ) : null}
 
             {venta.advertencias.length > 0 ? (
               <div className="advertencias">
