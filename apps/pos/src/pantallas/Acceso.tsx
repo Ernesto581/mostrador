@@ -2,6 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { api, ErrorApi, guardarToken } from '../api/cliente';
 import type { Sesion } from '../api/tipos';
 import {
+  guardarSesion,
+  guardarVerificador,
+  leerSesion,
+  verificarSinConexion,
+} from '../servicios/sesionLocal';
+import {
   esAplicacionNativa,
   faltaConfigurarServidor,
   guardarServidor,
@@ -34,11 +40,38 @@ export function Acceso({ onEntrar }: { onEntrar: (sesion: Sesion) => void }) {
     setError(null);
     setEnviando(true);
 
+    const limpio = usuario.trim();
+
     try {
-      const { token } = await api.iniciarSesion(usuario.trim(), password);
+      const { token } = await api.iniciarSesion(limpio, password);
       guardarToken(token);
-      onEntrar(await api.sesion());
+
+      const sesion = await api.sesion();
+      guardarSesion(sesion);
+      // Se guarda la huella de la contrasena para poder entrar sin internet despues.
+      void guardarVerificador(limpio, password);
+
+      onEntrar(sesion);
     } catch (fallo) {
+      // Sin internet: se entra con los datos que ya se validaron en este telefono.
+      if (fallo instanceof ErrorApi && fallo.codigo === 'SIN_CONEXION') {
+        const guardada = leerSesion();
+        const coincide = await verificarSinConexion(limpio, password);
+
+        if (guardada && coincide) {
+          onEntrar(guardada);
+          return;
+        }
+
+        setError(
+          guardada
+            ? 'Sin internet. Revisa tu usuario y contrasena: se estan comprobando con los datos guardados en este telefono.'
+            : 'Sin internet y este telefono todavia no tiene una sesion guardada. Conectalo una vez para poder entrar sin red.',
+        );
+        setEnviando(false);
+        return;
+      }
+
       guardarToken(null);
       setError(fallo instanceof ErrorApi ? fallo.message : 'No se pudo iniciar sesion');
       setEnviando(false);

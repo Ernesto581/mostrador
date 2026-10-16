@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { api, guardarToken, leerToken } from './api/cliente';
+import { api, ErrorApi, guardarToken, leerToken } from './api/cliente';
 import type { Sesion } from './api/tipos';
 import { Acceso } from './pantallas/Acceso';
 import { Marco } from './pantallas/Marco';
 import { ProveedorConexion } from './servicios/conexion';
+import { borrarSesion, guardarSesion, leerSesion } from './servicios/sesionLocal';
 
 export function App() {
   const [sesion, setSesion] = useState<Sesion | null>(null);
@@ -21,11 +22,23 @@ export function App() {
       .sesion()
       .then((datos) => {
         if (activo) {
+          guardarSesion(datos);
           setSesion(datos);
         }
       })
-      .catch(() => {
+      .catch((fallo) => {
+        // Sin internet se entra con la sesion guardada: el mostrador sigue funcionando.
+        if (fallo instanceof ErrorApi && fallo.codigo === 'SIN_CONEXION') {
+          const guardada = leerSesion();
+          if (guardada && activo) {
+            setSesion(guardada);
+            return;
+          }
+        }
+
+        // El servidor rechazo la sesion (vencida o revocada): hay que entrar de nuevo.
         guardarToken(null);
+        borrarSesion();
       })
       .finally(() => {
         if (activo) {
@@ -56,7 +69,9 @@ export function App() {
       <Marco
         sesion={sesion}
         onSalir={() => {
-          guardarToken(null);
+          // Cerrar el mostrador NO borra la sesion del telefono: si no hay internet
+          // despues, hay que poder volver a entrar. La sesion se limpia sola cuando
+          // el servidor la rechaza (por ejemplo, al vencer).
           setSesion(null);
         }}
       />

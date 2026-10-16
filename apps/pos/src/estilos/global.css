@@ -46,6 +46,8 @@ html,
 body,
 #root {
   height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -197,6 +199,64 @@ button {
   }
   .ticket__vacio {
     padding: 1.4rem 1rem;
+  }
+}
+
+/* Telefonos: la barra se acomoda en varias filas y nada se desborda. */
+@media (max-width: 700px) {
+  .barra {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .marca {
+    justify-content: center;
+  }
+
+  .marca > span:last-child {
+    display: none;
+  }
+
+  .pestanas {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .barra__datos {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  /* El nombre del vendedor no cabe: lo importante es el boton de salir. */
+  .barra__datos .vendedor {
+    display: none;
+  }
+
+  .selector {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* El estado de la conexion primero, que es lo que hay que ver. */
+  .conexion {
+    order: -1;
+  }
+
+  .panel,
+  .mostrador {
+    padding: 0.7rem;
+  }
+
+  .panel__cabecera {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tarjeta {
+    padding: 0.8rem;
   }
 }
 
@@ -1545,5 +1605,32 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Afinado fino para telefonos: va al final para ganarle a lo de arriba.
+   Dos productos por fila y tarjetas mas bajas: se ve mas y se toca igual de facil. */
+@media (max-width: 700px) {
+  .rejilla {
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .producto {
+    min-height: 7rem;
+    padding: 0.7rem 0.75rem;
+    gap: 0.35rem;
+  }
+
+  .producto__nombre {
+    font-size: 0.9rem;
+  }
+
+  .producto__precio {
+    font-size: 1rem;
+  }
+
+  .ticket__vacio {
+    padding: 1.6rem 1rem;
   }
 }
