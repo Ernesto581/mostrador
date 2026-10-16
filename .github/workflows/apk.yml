@@ -1,0 +1,59 @@
+name: Compilar el APK
+
+# Compila la app de Android en la nube y deja el APK para descargar.
+# Asi no hace falta tener el entorno de Android en la computadora.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/pos/**'
+      - 'packages/**'
+      - '.github/workflows/apk.yml'
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Traer el codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Preparar el SDK de Android
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar dependencias
+        run: npm install --include=dev
+
+      - name: Compilar la aplicacion web
+        run: npm run build -w @mostrador/pos
+
+      - name: Copiar la aplicacion al proyecto de Android
+        working-directory: apps/pos
+        run: npx cap sync android
+
+      - name: Compilar el APK
+        working-directory: apps/pos/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Publicar el APK para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: mostrador-apk
+          path: apps/pos/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

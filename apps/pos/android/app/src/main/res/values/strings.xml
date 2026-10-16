@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mostrador</string>
+    <string name="title_activity_main">Mostrador</string>
+    <string name="package_name">mx.mostrador.pos</string>
+    <string name="custom_url_scheme">mx.mostrador.pos</string>
+</resources>

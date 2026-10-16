@@ -33,8 +33,11 @@ apps/api/public/
 
 # Android (app movil)
 apps/mobile/android/.gradle/
-apps/mobile/android/app/build/
-apps/mobile/android/build/
+apps/pos/android/.gradle/
+apps/pos/android/app/build/
+apps/pos/android/build/
+apps/pos/android/local.properties
+apps/pos/android/app/src/main/assets/public/
 *.apk
 *.aab
 

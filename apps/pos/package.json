@@ -8,9 +8,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "android:sync": "vite build && cap sync android",
+    "android:apk": "cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "@fontsource/archivo": "^5.3.0",
     "@fontsource/azeret-mono": "^5.3.0",
     "@mostrador/domain": "^0.0.1",
@@ -18,6 +22,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",

@@ -18,7 +18,8 @@ import type {
   VentaRespuesta,
 } from './tipos';
 
-const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+import { obtenerServidor } from '../servicios/servidor';
+
 const CLAVE_TOKEN = 'mostrador.token';
 
 export class ErrorApi extends Error {
@@ -62,7 +63,7 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
 
   let respuesta: Response;
   try {
-    respuesta = await fetch(`${BASE}/api/v1${ruta}`, {
+    respuesta = await fetch(`${obtenerServidor()}/api/v1${ruta}`, {
       method: opciones.metodo ?? 'GET',
       headers: cabeceras,
       ...(opciones.cuerpo !== undefined ? { body: JSON.stringify(opciones.cuerpo) } : {}),
