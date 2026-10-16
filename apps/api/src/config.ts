@@ -6,7 +6,8 @@ const ENTORNOS = ['development', 'test', 'production'] as const;
 const EsquemaConfig = z.object({
   NODE_ENV: z.enum(ENTORNOS).default('development'),
   PORT: z.coerce.number().int().min(0).max(65535).default(3000),
-  HOST: z.string().min(1).default('0.0.0.0'),
+  /** Direccion de escucha. Sin valor, Fastify usa la local. Vercel no lo necesita. */
+  HOST: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(NIVELES_LOG).default('info'),
   /** Si esta presente, se usa PostgreSQL real. Si no, PGlite. */
   DATABASE_URL: z.string().min(1).optional(),
@@ -36,7 +37,7 @@ const EsquemaConfig = z.object({
 export interface Config {
   NODE_ENV: (typeof ENTORNOS)[number];
   PORT: number;
-  HOST: string;
+  HOST?: string;
   LOG_LEVEL: (typeof NIVELES_LOG)[number];
   DATABASE_URL?: string;
   PGLITE_DIR?: string;
@@ -68,11 +69,11 @@ export function cargarConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     NODE_ENV: datos.NODE_ENV,
     PORT: datos.PORT,
-    HOST: datos.HOST,
     LOG_LEVEL: datos.LOG_LEVEL,
     MIGRAR_AL_ARRANCAR: datos.MIGRAR_AL_ARRANCAR,
     JWT_SECRET: secreto,
     JWT_EXPIRA: datos.JWT_EXPIRA,
+    ...(datos.HOST !== undefined ? { HOST: datos.HOST } : {}),
     ...(datos.DATABASE_URL !== undefined ? { DATABASE_URL: datos.DATABASE_URL } : {}),
     ...(datos.PGLITE_DIR !== undefined ? { PGLITE_DIR: datos.PGLITE_DIR } : {}),
     ...(datos.CORS_ORIGIN !== undefined ? { CORS_ORIGIN: datos.CORS_ORIGIN } : {}),

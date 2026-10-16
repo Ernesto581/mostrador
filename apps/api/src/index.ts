@@ -38,9 +38,11 @@ async function arrancar(): Promise<void> {
   }
 
   try {
+    // Sin `host`: es exactamente la forma que documenta Vercel para Fastify
+    // (`app.listen({ port })`). La plataforma se encarga de escuchar.
     await app.listen({
-      port: Number(process.env.PORT ?? 3000),
-      host: process.env.HOST ?? '0.0.0.0',
+      port: app.config.PORT,
+      ...(app.config.HOST ? { host: app.config.HOST } : {}),
     });
   } catch (error) {
     app.log.error(error);
