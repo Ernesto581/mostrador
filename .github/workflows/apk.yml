@@ -34,7 +34,16 @@ jobs:
           java-version: '21'
 
       - name: Preparar el SDK de Android
-        uses: android-actions/setup-android@v4
+        # El runner ya trae el SDK instalado; basta con decirle donde esta.
+        run: |
+          SDK=/usr/local/lib/android/sdk
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          for gestor in "$SDK"/cmdline-tools/*/bin/sdkmanager; do
+            if [ -x "$gestor" ]; then
+              yes | "$gestor" --licenses > /dev/null 2>&1 || true
+            fi
+          done
 
       - name: Instalar dependencias
         run: npm install --include=dev
