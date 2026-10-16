@@ -8,6 +8,7 @@ import { validar } from '../../errors.js';
 import {
   listarMovimientos,
   registrarMovimiento,
+  stockGeneral,
   stockPorSucursal,
   transferir,
 } from './servicio.js';
@@ -29,6 +30,12 @@ const booleanoDeConsulta = z.preprocess(
 
 const esquemaConsultaStock = z.object({
   sucursalId: z.string().min(1),
+  buscar: z.string().trim().max(120).optional(),
+  soloBajoMinimo: booleanoDeConsulta.optional(),
+  limite: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+const esquemaConsultaStockGeneral = z.object({
   buscar: z.string().trim().max(120).optional(),
   soloBajoMinimo: booleanoDeConsulta.optional(),
   limite: z.coerce.number().int().min(1).max(500).optional(),
@@ -90,6 +97,24 @@ export async function rutasInventario(app: FastifyInstance) {
     return {
       sucursalId: consulta.sucursalId,
       conAlerta: stock.filter((fila) => fila.bajoMinimo).length,
+      stock,
+    };
+  });
+
+  app.get('/inventory/stock-general', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    const consulta = validar(esquemaConsultaStockGeneral, request.query);
+
+    const stock = await stockGeneral(app.db, {
+      empresaId: sesion.empresaId,
+      buscar: consulta.buscar,
+      soloBajoMinimo: consulta.soloBajoMinimo,
+      limite: consulta.limite,
+    });
+
+    return {
+      conAlerta: stock.filter((fila) => fila.bajoMinimo).length,
+      sucursales: sesion.sucursales,
       stock,
     };
   });

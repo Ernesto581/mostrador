@@ -190,9 +190,7 @@ export function Ventas({ sesion, sucursalId }: Props) {
             <tbody>
               {ventas.map((venta) => (
                 <tr key={venta.id}>
-                  <td className="numero" style={{ textAlign: 'left' }}>
-                    {venta.folio}
-                  </td>
+                  <td className="codigo">{venta.folio}</td>
                   <td>{hora(venta.vendidoEn)}</td>
                   <td className="numero">{venta.articulos}</td>
                   <td className="numero">{dinero(venta.total)}</td>

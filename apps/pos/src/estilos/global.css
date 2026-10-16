@@ -1207,6 +1207,29 @@ button {
   white-space: nowrap;
 }
 
+/* Los encabezados de columnas numericas se alinean con sus cifras. */
+.tabla th.numero {
+  text-align: right;
+}
+
+.codigo {
+  font-family: var(--fuente-mono);
+  white-space: nowrap;
+}
+
+.reparto {
+  font-family: var(--fuente-mono);
+  font-size: 0.78rem;
+  color: var(--texto-tenue);
+  white-space: nowrap;
+}
+
+.acciones-fila {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
 .insignia {
   font-family: var(--fuente-mono);
   font-size: 0.64rem;

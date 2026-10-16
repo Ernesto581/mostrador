@@ -271,6 +271,58 @@ describe('inventario', () => {
 
     expect(respuesta.statusCode).toBe(422);
   });
+
+  it('el inventario general muestra el total y el reparto por sucursal', async () => {
+    const azucar = producto('ABA-004');
+
+    // Llegan 25 piezas a la sucursal principal.
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/movements',
+      headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        productoId: azucar.id,
+        tipo: 'entrada_compra',
+        cantidad: 25,
+        motivo: 'Compra de prueba',
+      },
+    });
+
+    // 10 de esas piezas se van a la bodega.
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/transfers',
+      headers: auth(),
+      payload: {
+        origenSucursalId: semilla.sucursalId,
+        destinoSucursalId: semilla.sucursalSecundariaId,
+        motivo: 'Reparto a bodega',
+        lineas: [{ productoId: azucar.id, cantidad: 10 }],
+      },
+    });
+
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: `/api/v1/inventory/stock-general?buscar=${azucar.sku}`,
+      headers: auth(),
+    });
+
+    expect(respuesta.statusCode).toBe(200);
+    const fila = respuesta.json().stock[0];
+
+    // Empezo con 20 y llegaron 25: hay 45 en total. La transferencia solo mueve
+    // piezas de lugar, no las quita.
+    expect(fila.stock).toBe(45);
+
+    const centro = fila.reparto.find((parte: { codigo: string }) => parte.codigo === 'CENTRO');
+    const bodega = fila.reparto.find((parte: { codigo: string }) => parte.codigo === 'BODEGA');
+
+    // 20 + 25 − 10 que se fueron a la bodega.
+    expect(centro.cantidad).toBe(35);
+    expect(bodega.cantidad).toBe(10);
+    expect(respuesta.json().sucursales).toHaveLength(2);
+  });
 });
 
 describe('ventas', () => {

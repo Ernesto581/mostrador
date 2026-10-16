@@ -262,8 +262,11 @@ export async function stockDeProductos(
   return new Map(filas.map((fila) => [fila.productoId, Number(fila.cantidad)]));
 }
 
-/** Stock por producto en una sucursal, con la alerta de minimo ya resuelta. */
-export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Promise<FilaStock[]> {
+/** Productos activos de la empresa, con el filtro de busqueda aplicado. */
+async function listarProductos(
+  base: BaseDatos,
+  filtro: { empresaId: string; buscar?: string | undefined; limite?: number | undefined },
+) {
   const condiciones = [
     eq(schema.products.companyId, filtro.empresaId),
     isNull(schema.products.deletedAt),
@@ -280,7 +283,7 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
     );
   }
 
-  const productos = await base
+  return base
     .select({
       id: schema.products.id,
       sku: schema.products.sku,
@@ -293,6 +296,15 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
     .where(and(...condiciones))
     .orderBy(asc(schema.products.name))
     .limit(filtro.limite ?? 200);
+}
+
+/** Stock por producto en una sucursal, con la alerta de minimo ya resuelta. */
+export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Promise<FilaStock[]> {
+  const productos = await listarProductos(base, {
+    empresaId: filtro.empresaId,
+    buscar: filtro.buscar,
+    limite: filtro.limite,
+  });
 
   if (productos.length === 0) {
     return [];
@@ -315,6 +327,111 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
       stock,
       stockMinimo: producto.stockMinimo,
       bajoMinimo: stock <= producto.stockMinimo,
+    };
+  });
+
+  return filtro.soloBajoMinimo ? resultado.filter((fila) => fila.bajoMinimo) : resultado;
+}
+
+export interface FiltroStockGeneral {
+  empresaId: string;
+  buscar?: string | undefined;
+  soloBajoMinimo?: boolean | undefined;
+  limite?: number | undefined;
+}
+
+export interface RepartoSucursal {
+  sucursalId: string;
+  codigo: string;
+  nombre: string;
+  cantidad: number;
+}
+
+export interface FilaStockGeneral {
+  productoId: string;
+  sku: string;
+  nombre: string;
+  precioVenta: number;
+  costoPromedio: number;
+  /** Total sumando todas las sucursales. */
+  stock: number;
+  stockMinimo: number;
+  bajoMinimo: boolean;
+  /** Como esta repartido: cuanto hay en cada sucursal. */
+  reparto: RepartoSucursal[];
+}
+
+/**
+ * Inventario general: el total de cada producto y su reparto por sucursal.
+ *
+ * Es la vista para decidir: "tengo 25 en total, 15 aqui y 10 alla".
+ */
+export async function stockGeneral(
+  base: BaseDatos,
+  filtro: FiltroStockGeneral,
+): Promise<FilaStockGeneral[]> {
+  const productos = await listarProductos(base, {
+    empresaId: filtro.empresaId,
+    buscar: filtro.buscar,
+    limite: filtro.limite,
+  });
+
+  if (productos.length === 0) {
+    return [];
+  }
+
+  const ids = productos.map((producto) => producto.id);
+
+  const filas = await base
+    .select({
+      productoId: schema.stockBalances.productId,
+      sucursalId: schema.stockBalances.branchId,
+      codigo: schema.branches.code,
+      nombreSucursal: schema.branches.name,
+      cantidad: sql<number>`sum(${schema.stockBalances.quantity})`,
+    })
+    .from(schema.stockBalances)
+    .innerJoin(schema.branches, eq(schema.branches.id, schema.stockBalances.branchId))
+    .where(
+      and(
+        eq(schema.branches.companyId, filtro.empresaId),
+        inArray(schema.stockBalances.productId, ids),
+      ),
+    )
+    .groupBy(
+      schema.stockBalances.productId,
+      schema.stockBalances.branchId,
+      schema.branches.code,
+      schema.branches.name,
+    )
+    .orderBy(asc(schema.branches.code));
+
+  const repartoPorProducto = new Map<string, RepartoSucursal[]>();
+  for (const fila of filas) {
+    const lista = repartoPorProducto.get(fila.productoId) ?? [];
+    lista.push({
+      sucursalId: fila.sucursalId,
+      codigo: fila.codigo,
+      nombre: fila.nombreSucursal,
+      cantidad: Number(fila.cantidad),
+    });
+    repartoPorProducto.set(fila.productoId, lista);
+  }
+
+  const resultado: FilaStockGeneral[] = productos.map((producto) => {
+    const reparto = repartoPorProducto.get(producto.id) ?? [];
+    const stock = reparto.reduce((total, parte) => total + parte.cantidad, 0);
+
+    return {
+      productoId: producto.id,
+      sku: producto.sku,
+      nombre: producto.nombre,
+      precioVenta: producto.precioVenta,
+      costoPromedio: producto.costoPromedio,
+      stock,
+      stockMinimo: producto.stockMinimo,
+      bajoMinimo: stock <= producto.stockMinimo,
+      reparto,
     };
   });
 

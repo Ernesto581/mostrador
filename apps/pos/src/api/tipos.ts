@@ -102,6 +102,27 @@ export interface FilaStock {
   bajoMinimo: boolean;
 }
 
+export interface RepartoSucursal {
+  sucursalId: string;
+  codigo: string;
+  nombre: string;
+  cantidad: number;
+}
+
+export interface FilaStockGeneral {
+  productoId: string;
+  sku: string;
+  nombre: string;
+  precioVenta: number;
+  costoPromedio: number;
+  /** Total sumando todas las sucursales. */
+  stock: number;
+  stockMinimo: number;
+  bajoMinimo: boolean;
+  /** Cuanto hay en cada sucursal. */
+  reparto: RepartoSucursal[];
+}
+
 export type TipoMovimiento =
   | 'inventario_inicial'
   | 'entrada_compra'

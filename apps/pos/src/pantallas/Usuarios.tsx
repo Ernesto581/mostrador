@@ -180,9 +180,7 @@ export function Usuarios() {
             <tbody>
               {usuarios.map((usuario) => (
                 <tr key={usuario.id}>
-                  <td className="numero" style={{ textAlign: 'left' }}>
-                    {usuario.username}
-                  </td>
+                  <td className="codigo">{usuario.username}</td>
                   <td>{usuario.nombre}</td>
                   <td>{usuario.rolNombres.join(', ') || '—'}</td>
                   <td>{usuario.sucursales.map((sucursal) => sucursal.codigo).join(', ') || '—'}</td>

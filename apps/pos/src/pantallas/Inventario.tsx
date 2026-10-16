@@ -1,12 +1,24 @@
 import { useState } from 'react';
 import { api } from '../api/cliente';
-import type { FilaStock, Movimiento, Sesion, TipoMovimiento } from '../api/tipos';
+import type { Movimiento, RepartoSucursal, Sesion, TipoMovimiento } from '../api/tipos';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
 import { aCentavos, dinero, fechaLarga } from '../util/dinero';
 
 interface Props {
   sesion: Sesion;
   sucursalId: string;
+}
+
+/** Fila tal como se pinta: sirve tanto para la vista general como para una sucursal. */
+interface FilaVista {
+  productoId: string;
+  sku: string;
+  nombre: string;
+  precioVenta: number;
+  stock: number;
+  stockMinimo: number;
+  bajoMinimo: boolean;
+  reparto?: RepartoSucursal[];
 }
 
 const TIPOS: { valor: TipoMovimiento; etiqueta: string }[] = [
@@ -40,44 +52,61 @@ const RESTAN = new Set([
 ]);
 
 interface FormularioMovimiento {
-  producto: FilaStock;
+  fila: FilaVista;
+  sucursalId: string;
   tipo: TipoMovimiento;
   cantidad: string;
   costo: string;
   motivo: string;
 }
 
+interface FormularioTransferencia {
+  fila: FilaVista;
+  origenSucursalId: string;
+  destinoSucursalId: string;
+  cantidad: string;
+  motivo: string;
+}
+
 export function Inventario({ sesion, sucursalId }: Props) {
+  const [general, setGeneral] = useState(true);
   const [buscar, setBuscar] = useState('');
   const [soloBajoMinimo, setSoloBajoMinimo] = useState(false);
   const [formulario, setFormulario] = useState<FormularioMovimiento | null>(null);
-  const [kardex, setKardex] = useState<FilaStock | null>(null);
-  const [transferencia, setTransferencia] = useState<{ producto: FilaStock; cantidad: string; destinoId: string; motivo: string } | null>(null);
+  const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
+  const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
   const puedeMover = sesion.permisos.includes('inventory.adjust');
-  const puedeTransferir = sesion.permisos.includes('inventory.transfer');
+  const puedeTransferir = sesion.permisos.includes('inventory.transfer') && sesion.sucursales.length > 1;
 
-  const { datos, cargando, error: errorLista, recargar } = useCarga(
-    () => api.stock(sucursalId, buscar, soloBajoMinimo),
-    [sucursalId, buscar, soloBajoMinimo],
-  );
+  const { datos, cargando, error: errorLista, recargar } = useCarga(async () => {
+    if (general) {
+      const respuesta = await api.stockGeneral(buscar, soloBajoMinimo);
+      return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
+    }
+    const respuesta = await api.stock(sucursalId, buscar, soloBajoMinimo);
+    return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
+  }, [general, buscar, soloBajoMinimo, sucursalId]);
 
   const { datos: datosKardex, cargando: cargandoKardex } = useCarga(
-    () => (kardex ? api.movimientos({ productoId: kardex.productoId, limite: 60 }) : Promise.resolve({ movimientos: [] as Movimiento[] })),
+    () =>
+      kardex
+        ? api.movimientos({ productoId: kardex.productoId, limite: 60 })
+        : Promise.resolve({ movimientos: [] as Movimiento[] }),
     [kardex],
   );
 
-  const filas = datos?.stock ?? [];
+  const filas = datos?.filas ?? [];
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
 
   function cerrarConMensaje(texto: string): void {
     setOk(texto);
     setFormulario(null);
     setTransferencia(null);
-    window.setTimeout(() => setOk(null), 4000);
+    window.setTimeout(() => setOk(null), 4500);
   }
 
   async function registrarMovimiento(): Promise<void> {
@@ -90,14 +119,18 @@ export function Inventario({ sesion, sucursalId }: Props) {
       setError('La cantidad debe ser un numero entero mayor a cero');
       return;
     }
+    if (!formulario.sucursalId) {
+      setError('Elige la sucursal donde entra o sale el producto');
+      return;
+    }
 
     setGuardando(true);
     setError(null);
 
     try {
       await api.registrarMovimiento({
-        sucursalId,
-        productoId: formulario.producto.productoId,
+        sucursalId: formulario.sucursalId,
+        productoId: formulario.fila.productoId,
         tipo: formulario.tipo,
         cantidad,
         ...(formulario.costo.trim() ? { costoUnitario: aCentavos(formulario.costo) } : {}),
@@ -105,7 +138,10 @@ export function Inventario({ sesion, sucursalId }: Props) {
       });
 
       await recargar();
-      cerrarConMensaje(`Movimiento registrado: ${ETIQUETA_TIPO[formulario.tipo] ?? formulario.tipo}`);
+      const destino = sesion.sucursales.find((opcion) => opcion.id === formulario.sucursalId);
+      cerrarConMensaje(
+        `${ETIQUETA_TIPO[formulario.tipo] ?? formulario.tipo}: ${cantidad} en ${destino?.codigo ?? ''}`,
+      );
     } catch (fallo) {
       setError(mensajeDe(fallo));
     } finally {
@@ -123,7 +159,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
       setError('La cantidad debe ser un numero entero mayor a cero');
       return;
     }
-    if (!transferencia.destinoId) {
+    if (!transferencia.destinoSucursalId) {
       setError('Elige la sucursal de destino');
       return;
     }
@@ -133,10 +169,10 @@ export function Inventario({ sesion, sucursalId }: Props) {
 
     try {
       await api.transferir({
-        origenSucursalId: sucursalId,
-        destinoSucursalId: transferencia.destinoId,
+        origenSucursalId: transferencia.origenSucursalId,
+        destinoSucursalId: transferencia.destinoSucursalId,
         ...(transferencia.motivo.trim() ? { motivo: transferencia.motivo.trim() } : {}),
-        lineas: [{ productoId: transferencia.producto.productoId, cantidad }],
+        lineas: [{ productoId: transferencia.fila.productoId, cantidad }],
       });
 
       await recargar();
@@ -148,11 +184,18 @@ export function Inventario({ sesion, sucursalId }: Props) {
     }
   }
 
-  function claseStock(fila: FilaStock): string {
+  function claseStock(fila: FilaVista): string {
     if (fila.stock <= 0) {
       return 'insignia insignia--agotado';
     }
     return fila.bajoMinimo ? 'insignia insignia--baja' : 'insignia insignia--ok';
+  }
+
+  function repartoDe(fila: FilaVista): string {
+    if (!fila.reparto || fila.reparto.length === 0) {
+      return '—';
+    }
+    return fila.reparto.map((parte) => `${parte.codigo} ${parte.cantidad}`).join(' · ');
   }
 
   return (
@@ -161,18 +204,38 @@ export function Inventario({ sesion, sucursalId }: Props) {
         <div>
           <h1 className="panel__titulo">Inventario</h1>
           <p className="panel__nota">
-            Sucursal {sucursal?.codigo ?? '—'} · {datos?.conAlerta ?? 0} productos por debajo del minimo
+            {general ? 'Todas las sucursales' : `Sucursal ${sucursal?.codigo ?? '—'}`} ·{' '}
+            {datos?.conAlerta ?? 0} productos por debajo del minimo
           </p>
         </div>
 
-        <label className="opcion-casilla">
-          <input
-            type="checkbox"
-            checked={soloBajoMinimo}
-            onChange={(evento) => setSoloBajoMinimo(evento.target.checked)}
-          />
-          Solo los que estan bajo el minimo
-        </label>
+        <div className="barra-filtros">
+          <div className="pestanas">
+            <button
+              type="button"
+              className={general ? 'pestana pestana--activa' : 'pestana'}
+              onClick={() => setGeneral(true)}
+            >
+              General
+            </button>
+            <button
+              type="button"
+              className={general ? 'pestana' : 'pestana pestana--activa'}
+              onClick={() => setGeneral(false)}
+            >
+              {sucursal?.codigo ?? 'Sucursal'}
+            </button>
+          </div>
+
+          <label className="opcion-casilla">
+            <input
+              type="checkbox"
+              checked={soloBajoMinimo}
+              onChange={(evento) => setSoloBajoMinimo(evento.target.checked)}
+            />
+            Solo bajo el minimo
+          </label>
+        </div>
       </div>
 
       <div className="barra-filtros">
@@ -206,7 +269,8 @@ export function Inventario({ sesion, sucursalId }: Props) {
               <tr>
                 <th>SKU</th>
                 <th>Producto</th>
-                <th className="numero">Stock</th>
+                <th className="numero">Total</th>
+                {general ? <th>Reparto por sucursal</th> : null}
                 <th className="numero">Minimo</th>
                 <th className="numero">Venta</th>
                 <th />
@@ -215,17 +279,16 @@ export function Inventario({ sesion, sucursalId }: Props) {
             <tbody>
               {filas.map((fila) => (
                 <tr key={fila.productoId}>
-                  <td className="numero" style={{ textAlign: 'left' }}>
-                    {fila.sku}
-                  </td>
+                  <td className="codigo">{fila.sku}</td>
                   <td>{fila.nombre}</td>
                   <td className="numero">
                     <span className={claseStock(fila)}>{fila.stock}</span>
                   </td>
+                  {general ? <td className="reparto">{repartoDe(fila)}</td> : null}
                   <td className="numero">{fila.stockMinimo}</td>
                   <td className="numero">{dinero(fila.precioVenta)}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <div className="acciones-fila">
                       <button type="button" className="boton" onClick={() => setKardex(fila)}>
                         Kardex
                       </button>
@@ -236,7 +299,8 @@ export function Inventario({ sesion, sucursalId }: Props) {
                           onClick={() => {
                             setError(null);
                             setFormulario({
-                              producto: fila,
+                              fila,
+                              sucursalId,
                               tipo: 'entrada_compra',
                               cantidad: '',
                               costo: '',
@@ -247,13 +311,19 @@ export function Inventario({ sesion, sucursalId }: Props) {
                           Movimiento
                         </button>
                       ) : null}
-                      {puedeTransferir && sesion.sucursales.length > 1 ? (
+                      {puedeTransferir ? (
                         <button
                           type="button"
                           className="boton"
                           onClick={() => {
                             setError(null);
-                            setTransferencia({ producto: fila, cantidad: '', destinoId: '', motivo: '' });
+                            setTransferencia({
+                              fila,
+                              origenSucursalId: sucursalId,
+                              destinoSucursalId: '',
+                              cantidad: '',
+                              motivo: '',
+                            });
                           }}
                         >
                           Transferir
@@ -271,7 +341,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
       {formulario ? (
         <Modal
           titulo="Registrar movimiento"
-          nota={`${formulario.producto.sku} · ${formulario.producto.nombre} · hay ${formulario.producto.stock}`}
+          nota={`${formulario.fila.sku} · ${formulario.fila.nombre} · hay ${formulario.fila.stock} en total`}
           onCerrar={() => setFormulario(null)}
         >
           <div className="formulario">
@@ -280,11 +350,28 @@ export function Inventario({ sesion, sucursalId }: Props) {
               <select
                 className="entrada"
                 value={formulario.tipo}
-                onChange={(evento) => setFormulario({ ...formulario, tipo: evento.target.value as TipoMovimiento })}
+                onChange={(evento) =>
+                  setFormulario({ ...formulario, tipo: evento.target.value as TipoMovimiento })
+                }
               >
                 {TIPOS.map((tipo) => (
                   <option key={tipo.valor} value={tipo.valor}>
                     {tipo.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="campo-ancho">
+              <span>Sucursal</span>
+              <select
+                className="entrada"
+                value={formulario.sucursalId}
+                onChange={(evento) => setFormulario({ ...formulario, sucursalId: evento.target.value })}
+              >
+                {sesion.sucursales.map((opcion) => (
+                  <option key={opcion.id} value={opcion.id}>
+                    {opcion.codigo} · {opcion.nombre}
                   </option>
                 ))}
               </select>
@@ -326,7 +413,12 @@ export function Inventario({ sesion, sucursalId }: Props) {
             <button type="button" className="boton" onClick={() => setFormulario(null)}>
               Cancelar
             </button>
-            <button type="button" className="boton boton--acento" onClick={() => void registrarMovimiento()} disabled={guardando}>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void registrarMovimiento()}
+              disabled={guardando}
+            >
               {guardando ? 'Guardando…' : 'Registrar'}
             </button>
           </div>
@@ -336,10 +428,47 @@ export function Inventario({ sesion, sucursalId }: Props) {
       {transferencia ? (
         <Modal
           titulo="Transferir a otra sucursal"
-          nota={`${transferencia.producto.sku} · ${transferencia.producto.nombre} · hay ${transferencia.producto.stock}`}
+          nota={`${transferencia.fila.sku} · ${transferencia.fila.nombre} · hay ${transferencia.fila.stock} en total`}
           onCerrar={() => setTransferencia(null)}
         >
           <div className="formulario">
+            <label className="campo-ancho">
+              <span>Desde</span>
+              <select
+                className="entrada"
+                value={transferencia.origenSucursalId}
+                onChange={(evento) =>
+                  setTransferencia({ ...transferencia, origenSucursalId: evento.target.value })
+                }
+              >
+                {sesion.sucursales.map((opcion) => (
+                  <option key={opcion.id} value={opcion.id}>
+                    {opcion.codigo} · {opcion.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="campo-ancho">
+              <span>Hacia</span>
+              <select
+                className="entrada"
+                value={transferencia.destinoSucursalId}
+                onChange={(evento) =>
+                  setTransferencia({ ...transferencia, destinoSucursalId: evento.target.value })
+                }
+              >
+                <option value="">Elige…</option>
+                {sesion.sucursales
+                  .filter((opcion) => opcion.id !== transferencia.origenSucursalId)
+                  .map((opcion) => (
+                    <option key={opcion.id} value={opcion.id}>
+                      {opcion.codigo} · {opcion.nombre}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
             <label className="campo-ancho">
               <span>Cantidad</span>
               <input
@@ -351,24 +480,6 @@ export function Inventario({ sesion, sucursalId }: Props) {
             </label>
 
             <label className="campo-ancho">
-              <span>Sucursal destino</span>
-              <select
-                className="entrada"
-                value={transferencia.destinoId}
-                onChange={(evento) => setTransferencia({ ...transferencia, destinoId: evento.target.value })}
-              >
-                <option value="">Elige…</option>
-                {sesion.sucursales
-                  .filter((opcion) => opcion.id !== sucursalId)
-                  .map((opcion) => (
-                    <option key={opcion.id} value={opcion.id}>
-                      {opcion.codigo} · {opcion.nombre}
-                    </option>
-                  ))}
-              </select>
-            </label>
-
-            <label className="campo-ancho campo-ancho--ancho">
               <span>Motivo</span>
               <input
                 className="entrada"
@@ -382,7 +493,12 @@ export function Inventario({ sesion, sucursalId }: Props) {
             <button type="button" className="boton" onClick={() => setTransferencia(null)}>
               Cancelar
             </button>
-            <button type="button" className="boton boton--acento" onClick={() => void transferir()} disabled={guardando}>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void transferir()}
+              disabled={guardando}
+            >
               {guardando ? 'Transfiriendo…' : 'Transferir'}
             </button>
           </div>
@@ -418,7 +534,9 @@ export function Inventario({ sesion, sucursalId }: Props) {
                       <td>{fechaLarga(movimiento.ocurridoEn)}</td>
                       <td>{ETIQUETA_TIPO[movimiento.tipo] ?? movimiento.tipo}</td>
                       <td className="numero">
-                        {RESTAN.has(movimiento.tipo) ? `−${movimiento.cantidad}` : `+${movimiento.cantidad}`}
+                        {RESTAN.has(movimiento.tipo)
+                          ? `−${movimiento.cantidad}`
+                          : `+${movimiento.cantidad}`}
                       </td>
                       <td>{movimiento.motivo ?? '—'}</td>
                     </tr>

@@ -2,6 +2,7 @@ import type {
   Categoria,
   DetalleVenta,
   FilaStock,
+  FilaStockGeneral,
   MetodoPago,
   Movimiento,
   Producto,
@@ -203,6 +204,11 @@ export const api = {
   stock: (sucursalId: string, buscar?: string, soloBajoMinimo?: boolean, limite = 200) =>
     pedir<{ sucursalId: string; conAlerta: number; stock: FilaStock[] }>(
       `/inventory/stock${parametros({ sucursalId, buscar, soloBajoMinimo, limite })}`,
+    ),
+
+  stockGeneral: (buscar?: string, soloBajoMinimo?: boolean, limite = 200) =>
+    pedir<{ conAlerta: number; sucursales: Sucursal[]; stock: FilaStockGeneral[] }>(
+      `/inventory/stock-general${parametros({ buscar, soloBajoMinimo, limite })}`,
     ),
 
   movimientos: (filtros: { productoId?: string; sucursalId?: string; limite?: number }) =>
