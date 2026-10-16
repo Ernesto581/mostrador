@@ -31,7 +31,12 @@ export interface RespuestaVercel {
 let aplicacion: Promise<FastifyInstance> | undefined;
 
 export function obtenerServidor(): Promise<FastifyInstance> {
-  aplicacion ??= construirServidor();
+  aplicacion ??= construirServidor().catch((error: unknown) => {
+    // Si el arranque falla, se olvida el intento para que la siguiente peticion
+    // vuelva a probar (por ejemplo, si la base de datos estaba caida y ya volvio).
+    aplicacion = undefined;
+    throw error;
+  });
   return aplicacion;
 }
 
