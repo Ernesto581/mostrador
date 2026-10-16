@@ -67,6 +67,22 @@ export function codigoDePostgres(error: unknown): string | undefined {
   return undefined;
 }
 
+/** Mensaje legible recorriendo la cadena de causas (Drizzle envuelve los errores). */
+export function mensajeDeError(error: unknown): string {
+  const mensajes: string[] = [];
+  let actual: unknown = error;
+
+  for (let nivel = 0; nivel < 6 && actual instanceof Error; nivel += 1) {
+    mensajes.push(actual.message);
+    actual = (actual as { cause?: unknown }).cause;
+  }
+
+  if (mensajes.length === 0) {
+    return String(error);
+  }
+  return [...new Set(mensajes)].join(' | ');
+}
+
 /**
  * Envuelve una regla de negocio del dominio.
  *

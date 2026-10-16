@@ -20,9 +20,19 @@ export const pluginBaseDeDatos = fp(
 
     if (DATABASE_URL) {
       const db = crearDbPostgres(DATABASE_URL);
+
       if (app.config.MIGRAR_AL_ARRANCAR) {
-        await migrarDbPostgres(db);
+        // Nunca se tumba la aplicacion por una migracion: se avisa y se sigue.
+        try {
+          await migrarDbPostgres(db);
+        } catch (error) {
+          app.log.error(
+            { err: error },
+            'No se pudieron aplicar las migraciones; el API arranca igual',
+          );
+        }
       }
+
       app.decorate('db', db as unknown as Db);
       app.addHook('onClose', async () => {
         await db.$client.end();

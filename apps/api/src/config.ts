@@ -17,14 +17,18 @@ const EsquemaConfig = z.object({
   /**
    * Aplica las migraciones al arrancar.
    *
-   * En local conviene (true). En un servidor sin estado (Vercel) NO: cada arranque
-   * intentaria migrar y varias instancias podrian pisarse. Ahi se migra desde la
-   * maquina de desarrollo con `npm run db:migrate`.
+   * En local conviene (true). En un servidor sin estado (Vercel) NO: la carpeta de
+   * migraciones no viaja dentro del paquete, cada arranque intentaria migrar y varias
+   * instancias podrian pisarse. Ahi se migra desde la maquina de desarrollo con
+   * `npm run db:migrate`, y esto se deja en false.
+   *
+   * Se lee de forma tolerante: cualquier cosa que no sea "true" significa que no.
+   * Un valor mal escrito no debe tumbar la aplicacion.
    */
   MIGRAR_AL_ARRANCAR: z
-    .enum(['true', 'false'])
-    .default('true')
-    .transform((valor) => valor === 'true'),
+    .string()
+    .default('false')
+    .transform((valor) => valor.trim().toLowerCase() === 'true'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres').optional(),
   JWT_EXPIRA: z.string().min(1).default('12h'),
 });
