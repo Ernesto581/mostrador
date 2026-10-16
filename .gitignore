@@ -23,6 +23,8 @@ npm-debug.log*
 
 # Bases de datos locales
 .data/
+# Contenido web generado para el despliegue (lo arma el comando de compilacion)
+apps/api/public/
 *.db
 *.db-journal
 *.db-wal

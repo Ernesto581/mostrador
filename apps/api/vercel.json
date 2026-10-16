@@ -3,6 +3,7 @@
   "framework": null,
   "installCommand": "cd ../.. && npm install --include=dev",
   "outputDirectory": "public",
+  "buildCommand": "cd ../.. && npm run build -w @mostrador/pos && rm -rf apps/api/public && mkdir -p apps/api/public && cp -R apps/pos/dist/. apps/api/public/ && cp apps/api/estado.html apps/api/public/estado.html",
   "functions": {
     "api/index.ts": {
       "memory": 1024,
