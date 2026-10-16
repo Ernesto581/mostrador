@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 
 /**
  * Arranque del API.
@@ -24,7 +24,7 @@ function detalleDe(error: unknown): string {
 }
 
 async function arrancar(): Promise<void> {
-  let app = Fastify({ logger: { level: 'info' } });
+  let app: FastifyInstance = Fastify({ logger: { level: 'info' } });
 
   try {
     const { construirServidor } = await import('./server.js');
