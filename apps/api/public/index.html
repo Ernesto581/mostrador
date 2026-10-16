@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mostrador · API</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=Azeret+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --tinta: #16120f;
+        --papel: #f5ede0;
+        --tenue: #a2917e;
+        --acento: #e4572e;
+        --dinero: #2f8060;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background:
+          radial-gradient(900px 500px at 12% -12%, rgba(228, 87, 46, 0.16), transparent 62%),
+          var(--tinta);
+        color: var(--papel);
+        font-family: 'Archivo', system-ui, sans-serif;
+      }
+      .caja {
+        width: min(520px, 100%);
+        background: var(--papel);
+        color: #221c17;
+        border-radius: 12px;
+        padding: 2rem 1.8rem;
+        box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.9);
+      }
+      h1 {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0;
+        font-size: 1.3rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .punto {
+        width: 13px; height: 13px; border-radius: 50%;
+        background: var(--acento); box-shadow: 0 0 0 5px rgba(228, 87, 46, 0.16);
+      }
+      .lema {
+        font-family: 'Azeret Mono', monospace;
+        font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+        color: #7a6a58; margin: 0.4rem 0 1.5rem;
+        border-bottom: 2px dashed #e8dcc8; padding-bottom: 1rem;
+      }
+      .estado {
+        display: flex; justify-content: space-between; align-items: baseline;
+        padding: 0.6rem 0; border-bottom: 1px dotted #e8dcc8; font-size: 0.9rem;
+      }
+      .estado span:last-child {
+        font-family: 'Azeret Mono', monospace; font-weight: 600;
+      }
+      .bien { color: var(--dinero); }
+      .mal { color: #b0342a; }
+      a {
+        display: inline-block; margin-top: 1.2rem;
+        font-family: 'Azeret Mono', monospace; font-size: 0.82rem;
+        color: var(--acento); text-decoration: none;
+        border-bottom: 1px solid currentColor; padding-bottom: 2px;
+      }
+      pre {
+        margin: 0.8rem 0 0; padding: 0.8rem; border-radius: 8px;
+        background: rgba(34, 28, 23, 0.06); overflow-x: auto;
+        font-family: 'Azeret Mono', monospace; font-size: 0.72rem; line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="caja">
+      <h1><span class="punto" aria-hidden="true"></span>Mostrador</h1>
+      <p class="lema">API · Ventas · Inventario · Contabilidad</p>
+
+      <div class="estado">
+        <span>Servicio</span>
+        <span id="estado" class="bien">revisando…</span>
+      </div>
+      <div class="estado">
+        <span>Base de datos</span>
+        <span id="base">—</span>
+      </div>
+
+      <pre id="detalle">Consultando /api/v1/health …</pre>
+
+      <a href="/api/v1/health">Ver /api/v1/health</a>
+    </main>
+
+    <script>
+      fetch('/api/v1/health')
+        .then((r) => r.json().then((datos) => ({ ok: r.ok, datos })))
+        .then(({ ok, datos }) => {
+          document.getElementById('estado').textContent = ok ? 'funcionando' : 'con problemas';
+          document.getElementById('estado').className = ok ? 'bien' : 'mal';
+          document.getElementById('base').textContent = datos.baseDeDatos ?? '—';
+          document.getElementById('base').className =
+            datos.baseDeDatos === 'conectada' ? 'bien' : 'mal';
+          document.getElementById('detalle').textContent = JSON.stringify(datos, null, 2);
+        })
+        .catch((error) => {
+          document.getElementById('estado').textContent = 'sin respuesta';
+          document.getElementById('estado').className = 'mal';
+          document.getElementById('detalle').textContent = String(error);
+        });
+    </script>
+  </body>
+</html>

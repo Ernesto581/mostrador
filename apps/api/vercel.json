@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "cd ../.. && npm install --include=dev",
+  "outputDirectory": "public",
   "functions": {
     "api/[...ruta].ts": {
       "memory": 1024,
