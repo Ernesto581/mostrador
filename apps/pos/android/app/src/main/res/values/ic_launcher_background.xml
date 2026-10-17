@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Tinta calida de la marca: el ticket crema se ve sobre este fondo. -->
+    <color name="ic_launcher_background">#16120F</color>
 </resources>
