@@ -331,8 +331,8 @@ export function Inventario({ sesion, sucursalId }: Props) {
 
   return (
     <div className="panel">
-      <div className="panel__cabecera">
-        <div>
+      <div className="panel__cabecera inventario__cabecera">
+        <div className="inventario__titulo">
           <h1 className="panel__titulo">Inventario</h1>
           <p className="panel__nota">
             {general ? 'Todas las sucursales' : `Sucursal ${sucursal?.codigo ?? '—'}`} ·{' '}
@@ -340,8 +340,8 @@ export function Inventario({ sesion, sucursalId }: Props) {
           </p>
         </div>
 
-        <div className="barra-filtros">
-          <div className="pestanas">
+        <div className="barra-filtros inventario__controles">
+          <div className="pestanas inventario__vistas">
             <button
               type="button"
               className={general ? 'pestana pestana--activa' : 'pestana'}
@@ -358,7 +358,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
             </button>
           </div>
 
-          <label className="opcion-casilla">
+          <label className="opcion-casilla inventario__filtro-minimo">
             <input
               type="checkbox"
               checked={soloBajoMinimo}
@@ -370,7 +370,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
           {puedeCatalogo ? (
             <button
               type="button"
-              className="boton"
+              className="boton inventario__categorias"
               onClick={() => {
                 setError(null);
                 setCategoriasAbiertas(true);
@@ -383,7 +383,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
           {puedeCatalogo ? (
             <button
               type="button"
-              className="boton boton--acento"
+              className="boton boton--acento inventario__nuevo"
               onClick={() => {
                 setError(null);
                 setProducto(borradorVacioDeProducto(sucursalId));
@@ -395,7 +395,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
         </div>
       </div>
 
-      <div className="barra-filtros">
+      <div className="barra-filtros inventario__busqueda">
         <input
           className="entrada buscador"
           placeholder="Buscar producto"
@@ -444,11 +444,11 @@ export function Inventario({ sesion, sucursalId }: Props) {
                   </td>
                   <td className="col-producto">{fila.nombre}</td>
                   <td className="numero col-total">
-                    <span className="solo-angosto">Total </span>
+                    <span className="solo-angosto inventario__etiqueta-total">Total</span>
                     <span className={claseStock(fila)} title={estadoStock(fila)}>
                       {fila.stock}
                     </span>
-                    <span className="solo-angosto"> · {estadoStock(fila)}</span>
+                    <span className="solo-angosto inventario__estado-stock">{estadoStock(fila)}</span>
                   </td>
                   {general ? (
                     <td className="reparto col-reparto">

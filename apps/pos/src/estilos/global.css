@@ -2164,3 +2164,118 @@ button {
     display: flex;
   }
 }
+
+/* Ajustes solo para la pestana Inventario en telefono.
+   El escritorio conserva exactamente el orden y la distribucion existentes. */
+@media (max-width: 767px) {
+  .inventario__cabecera {
+    display: contents;
+  }
+
+  .inventario__titulo {
+    order: 0;
+  }
+
+  .inventario__busqueda {
+    order: 1;
+    width: 100%;
+  }
+
+  .inventario__controles {
+    order: 2;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .inventario__controles > * {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .inventario__vistas {
+    grid-column: 1 / -1;
+    display: flex;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  .inventario__vistas .pestana {
+    min-width: 5.25rem;
+    min-height: 42px;
+    padding-inline: 0.55rem;
+  }
+
+  .inventario__filtro-minimo {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding-inline: 0.15rem;
+  }
+
+  .inventario__categorias,
+  .inventario__nuevo {
+    min-height: 44px;
+    justify-content: center;
+    padding-inline: 0.5rem;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .inventario__busqueda .buscador {
+    max-width: none;
+  }
+
+  /* Titulo, busqueda y controles primero; resultados y mensajes despues. */
+  .panel > :not(.inventario__cabecera):not(.inventario__busqueda) {
+    order: 3;
+  }
+
+  /* La fila de SKU y stock tiene dos columnas reales y un espacio tactil. */
+  .tabla--inventario .col-sku {
+    padding-right: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tabla--inventario .col-total {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    min-width: 0;
+    text-align: right;
+  }
+
+  .inventario__etiqueta-total {
+    color: var(--texto-tenue);
+    font-size: 0.72rem;
+  }
+
+  .inventario__estado-stock {
+    color: var(--texto-tenue);
+    font-size: 0.68rem;
+    letter-spacing: 0;
+  }
+}
+
+/* En telefonos muy estrechos prima que SKU y cantidad no choquen. */
+@media (max-width: 359px) {
+  .tabla--inventario tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'producto precio'
+      'sku sku'
+      'stock stock'
+      'reparto reparto'
+      'minimo costo'
+      'acciones acciones';
+  }
+
+  .tabla--inventario .col-total {
+    justify-content: flex-start;
+  }
+}
