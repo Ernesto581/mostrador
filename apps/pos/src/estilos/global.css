@@ -113,7 +113,15 @@ button {
   text-transform: uppercase;
 }
 
-.marca span {
+.marca__nombre {
+  /* Si el telefono es angosto, el nombre se abrevia en vez de empujar lo demas. */
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.marca__lema {
   font-family: var(--fuente-mono);
   font-size: 0.62rem;
   letter-spacing: 0.2em;
@@ -202,9 +210,10 @@ button {
   }
 }
 
-/* Telefonos: la barra se queda en una sola fila, con el boton de menu a la
-   izquierda. Las secciones, la sucursal y "Salir" se van al menu lateral. */
-@media (max-width: 700px) {
+/* Telefonos (menos de 768 px): la barra se queda en una sola fila, con el boton de
+   menu a la izquierda, el logo al centro y el estado de la conexion a la derecha.
+   Las secciones, la sucursal y "Salir" se van al menu lateral. */
+@media (max-width: 767px) {
   .barra {
     flex-direction: row;
     align-items: center;
@@ -212,6 +221,16 @@ button {
     flex-wrap: nowrap;
     gap: 0.5rem;
     padding: 0.55rem 0.7rem;
+  }
+
+  /* El logo se queda, pero sin el "punto de venta": aqui no cabe. */
+  .marca {
+    font-size: 0.86rem;
+    letter-spacing: 0.12em;
+  }
+
+  .marca__lema {
+    display: none;
   }
 
   .barra__datos {
@@ -1611,7 +1630,7 @@ button {
 
 /* Afinado fino para telefonos: va al final para ganarle a lo de arriba.
    Dos productos por fila y tarjetas mas bajas: se ve mas y se toca igual de facil. */
-@media (max-width: 700px) {
+@media (max-width: 767px) {
   .rejilla {
     grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
     gap: 0.5rem;
@@ -1637,6 +1656,268 @@ button {
 }
 
 /* ============================================================
+   Inventario adaptable
+   En escritorio manda la tabla de siempre. En tablet se aprieta: se esconden el
+   costo y el reparto (que siguen estando en Editar y en el kardex) y las acciones
+   secundarias se guardan en el menu de tres puntos. En telefono la tabla se
+   convierte en tarjetas: sin scroll horizontal y sin letra diminuta.
+   ============================================================ */
+
+/* El buscador ocupa el ancho que le dejen, sin pasarse en escritorio. */
+.buscador {
+  width: 100%;
+  max-width: 22rem;
+}
+
+/* El menu de tres puntos solo existe en tablet y telefono. */
+.menu-acciones {
+  display: none;
+  position: relative;
+}
+
+.menu-acciones__disparador {
+  padding: 0.45rem 0.6rem;
+}
+
+.menu-acciones__puntos {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.menu-acciones__puntos > span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.menu-acciones__lista {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.3rem);
+  z-index: 30;
+  min-width: 9.5rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.3rem;
+  background: var(--tinta-media);
+  border: 1px solid var(--tinta-borde);
+  border-radius: var(--radio-chico);
+  box-shadow: var(--sombra);
+}
+
+.menu-acciones__item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--texto);
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--radio-chico);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.menu-acciones__item:hover,
+.menu-acciones__item:active {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* Etiquetas que solo hacen falta cuando la tabla se vuelve tarjeta. */
+.solo-angosto {
+  display: none;
+}
+
+/* ---------- Tablet: tabla compacta (768 a 1023 px) ---------- */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* El costo y el reparto no se pierden: estan en Editar y en el kardex. */
+  .tabla--inventario .col-costo,
+  .tabla--inventario .col-reparto {
+    display: none;
+  }
+
+  /* Sin scroll horizontal, para que el menu de tres puntos no salga recortado. */
+  .tabla-envoltura {
+    overflow: visible;
+  }
+
+  /* Las acciones se agrupan: el kardex tambien entra en el menu. */
+  .accion-kardex,
+  .accion-movimiento,
+  .accion-transferir {
+    display: none;
+  }
+
+  .menu-acciones {
+    display: inline-block;
+  }
+
+  /* La columna de acciones se queda con lo minimo y no parte los botones en dos
+     lineas: el espacio que sobra se lo queda el nombre del producto. */
+  .tabla--inventario .col-acciones {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .tabla--inventario .col-acciones .acciones-fila {
+    flex-wrap: nowrap;
+  }
+
+  .tabla--inventario .col-acciones .boton {
+    padding: 0.42rem 0.65rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* ---------- Telefono: una tarjeta por producto (menos de 768 px) ---------- */
+@media (max-width: 767px) {
+  .tabla-envoltura {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .buscador {
+    max-width: 100%;
+  }
+
+  /* Adios a la tabla: cada fila pasa a ser una tarjeta. */
+  .tabla--inventario,
+  .tabla--inventario tbody,
+  .tabla--inventario tr,
+  .tabla--inventario td {
+    display: block;
+    width: 100%;
+  }
+
+  .tabla--inventario thead {
+    display: none;
+  }
+
+  .tabla--inventario tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'producto precio'
+      'sku stock'
+      'reparto reparto'
+      'minimo costo'
+      'acciones acciones';
+    align-items: start;
+    gap: 0.4rem 0.7rem;
+    padding: 0.8rem;
+    margin-bottom: 0.6rem;
+    background: var(--tinta-alta);
+    border: 1px solid var(--tinta-borde);
+    border-radius: var(--radio);
+  }
+
+  .tabla--inventario tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .tabla--inventario td {
+    padding: 0;
+    border: 0;
+  }
+
+  /* Sin el gris de "pasar el raton": aqui se toca, no se pasa el raton. */
+  .tabla tbody tr:hover td {
+    background: transparent;
+  }
+
+  .col-producto {
+    grid-area: producto;
+    font-size: 0.95rem;
+    font-weight: 600;
+    /* Los nombres largos ocupan las lineas que hagan falta, sin salirse. */
+    overflow-wrap: anywhere;
+  }
+
+  .col-venta {
+    grid-area: precio;
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .col-sku {
+    grid-area: sku;
+    font-size: 0.78rem;
+    color: var(--texto-tenue);
+    white-space: nowrap;
+  }
+
+  .col-total {
+    grid-area: stock;
+    white-space: nowrap;
+  }
+
+  .col-reparto {
+    grid-area: reparto;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .col-minimo,
+  .col-costo {
+    font-size: 0.78rem;
+    color: var(--texto-tenue);
+    white-space: nowrap;
+  }
+
+  .col-minimo {
+    grid-area: minimo;
+    text-align: left;
+  }
+
+  .col-costo {
+    grid-area: costo;
+  }
+
+  /* Las acciones van aparte, con su linea: no se tocan sin querer. */
+  .col-acciones {
+    grid-area: acciones;
+    margin-top: 0.35rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed var(--tinta-borde);
+  }
+
+  .col-acciones .acciones-fila {
+    gap: 0.4rem;
+  }
+
+  /* Botones comodos para el dedo, y con respuesta al tocarlos. */
+  .col-acciones .boton {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.82rem;
+  }
+
+  .col-acciones .boton:active {
+    transform: translateY(1px);
+  }
+
+  /* El kardex se queda a la vista: es la consulta mas comun. */
+  .accion-movimiento,
+  .accion-transferir {
+    display: none;
+  }
+
+  .menu-acciones {
+    display: inline-block;
+  }
+
+  /* Ya es un boton aqui: no se repite dentro del menu. */
+  .menu-acciones__item--kardex {
+    display: none;
+  }
+
+  .solo-angosto {
+    display: inline;
+  }
+}
+
+/* ============================================================
    Menu lateral de telefonos
    La barra de pestanas no cabe en un telefono. Ahi las secciones viven en un
    menu que sale desde la izquierda, una debajo de otra, y guarda ademas la
@@ -1646,7 +1927,6 @@ button {
 
 /* Estas piezas solo se encienden en el telefono, mas abajo. */
 .boton-menu,
-.barra__seccion,
 .telon,
 .menu-lateral {
   display: none;
@@ -1695,33 +1975,6 @@ button {
 
 .boton-menu__rayas::after {
   top: 6px;
-}
-
-/* Sin pestanas en la barra, aqui se ve en que seccion estas. */
-.barra__seccion {
-  align-items: center;
-  gap: 0.5rem;
-  flex: 0 1 auto;
-  min-width: 0;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-/* Si el telefono es muy angosto, el nombre se abrevia en vez de cortarse. */
-.barra__seccion-texto {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.barra__seccion .marca__punto {
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  box-shadow: 0 0 0 3px rgba(228, 87, 46, 0.16);
 }
 
 /* Telon: oscurece el fondo y cierra el menu al tocarlo. */
@@ -1888,26 +2141,16 @@ button {
   color: var(--alerta);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 767px) {
   .boton-menu {
     display: inline-flex;
-  }
-
-  .barra__seccion {
-    display: flex;
-    font-size: 0.78rem;
-  }
-
-  /* El nombre de la empresa vive en el menu: en la barra manda la seccion. */
-  .marca {
-    display: none;
   }
 
   .pestanas {
     display: none;
   }
 
-  /* Sucursal, vendedor y salir se van al menu: la barra queda limpia. */
+  /* Sucursal y salir se van al menu: la barra queda limpia. */
   .barra__datos .selector,
   .barra__salir {
     display: none;
@@ -1918,11 +2161,6 @@ button {
   }
 
   .menu-lateral {
-    display: flex;
-  }
-
-  /* Dentro del menu la marca si se ve, aunque en la barra no. */
-  .menu-lateral .marca {
     display: flex;
   }
 }

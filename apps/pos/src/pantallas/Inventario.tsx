@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api/cliente';
 import type { Categoria, Movimiento, RepartoSucursal, Sesion, TipoMovimiento } from '../api/tipos';
+import { MenuAcciones } from '../componentes/MenuAcciones';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
 import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
 
@@ -118,6 +119,8 @@ export function Inventario({ sesion, sucursalId }: Props) {
   const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
+  // Que fila tiene abierto el menu de tres puntos (solo se abre uno a la vez).
+  const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -311,6 +314,14 @@ export function Inventario({ sesion, sucursalId }: Props) {
     return fila.bajoMinimo ? 'insignia insignia--baja' : 'insignia insignia--ok';
   }
 
+  /** El mismo estado, en palabras: el color solo no avisa a todo el mundo. */
+  function estadoStock(fila: FilaVista): string {
+    if (fila.stock <= 0) {
+      return 'Agotado';
+    }
+    return fila.bajoMinimo ? 'Bajo el minimo' : 'Con existencia';
+  }
+
   function repartoDe(fila: FilaVista): string {
     if (!fila.reparto || fila.reparto.length === 0) {
       return '—';
@@ -386,8 +397,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
 
       <div className="barra-filtros">
         <input
-          className="entrada"
-          style={{ maxWidth: '22rem' }}
+          className="entrada buscador"
           placeholder="Buscar producto"
           value={buscar}
           onChange={(evento) => setBuscar(evento.target.value)}
@@ -412,37 +422,55 @@ export function Inventario({ sesion, sucursalId }: Props) {
 
       {filas.length > 0 ? (
         <div className="tabla-envoltura">
-          <table className="tabla">
+          <table className="tabla tabla--inventario">
             <thead>
               <tr>
-                <th>SKU</th>
-                <th>Producto</th>
-                <th className="numero">Total</th>
-                {general ? <th>Reparto por sucursal</th> : null}
-                <th className="numero">Minimo</th>
-                <th className="numero">Costo</th>
-                <th className="numero">Venta</th>
-                <th />
+                <th className="col-sku">SKU</th>
+                <th className="col-producto">Producto</th>
+                <th className="numero col-total">Total</th>
+                {general ? <th className="col-reparto">Reparto por sucursal</th> : null}
+                <th className="numero col-minimo">Minimo</th>
+                <th className="numero col-costo">Costo</th>
+                <th className="numero col-venta">Venta</th>
+                <th className="col-acciones" />
               </tr>
             </thead>
             <tbody>
               {filas.map((fila) => (
                 <tr key={fila.productoId}>
-                  <td className="codigo">{fila.sku}</td>
-                  <td>{fila.nombre}</td>
-                  <td className="numero">
-                    <span className={claseStock(fila)}>{fila.stock}</span>
+                  <td className="codigo col-sku">
+                    <span className="solo-angosto">SKU </span>
+                    {fila.sku}
                   </td>
-                  {general ? <td className="reparto">{repartoDe(fila)}</td> : null}
-                  <td className="numero">{fila.stockMinimo}</td>
-                  <td className="numero">{dinero(fila.precioCosto)}</td>
-                  <td className="numero">{dinero(fila.precioVenta)}</td>
-                  <td>
+                  <td className="col-producto">{fila.nombre}</td>
+                  <td className="numero col-total">
+                    <span className="solo-angosto">Total </span>
+                    <span className={claseStock(fila)} title={estadoStock(fila)}>
+                      {fila.stock}
+                    </span>
+                    <span className="solo-angosto"> · {estadoStock(fila)}</span>
+                  </td>
+                  {general ? (
+                    <td className="reparto col-reparto">
+                      <span className="solo-angosto">Por sucursal: </span>
+                      {repartoDe(fila)}
+                    </td>
+                  ) : null}
+                  <td className="numero col-minimo">
+                    <span className="solo-angosto">Minimo </span>
+                    {fila.stockMinimo}
+                  </td>
+                  <td className="numero col-costo">
+                    <span className="solo-angosto">Costo </span>
+                    {dinero(fila.precioCosto)}
+                  </td>
+                  <td className="numero col-venta">{dinero(fila.precioVenta)}</td>
+                  <td className="col-acciones">
                     <div className="acciones-fila">
                       {puedeCatalogo ? (
                         <button
                           type="button"
-                          className="boton"
+                          className="boton accion-editar"
                           onClick={() => {
                             setError(null);
                             setProducto({
@@ -462,13 +490,21 @@ export function Inventario({ sesion, sucursalId }: Props) {
                           Editar
                         </button>
                       ) : null}
-                      <button type="button" className="boton" onClick={() => setKardex(fila)}>
+
+                      {/* En escritorio el kardex va a la vista; en telefono tambien,
+                          porque es la consulta mas comun. En tablet se guarda en el menu. */}
+                      <button
+                        type="button"
+                        className="boton accion-kardex"
+                        onClick={() => setKardex(fila)}
+                      >
                         Kardex
                       </button>
+
                       {puedeMover ? (
                         <button
                           type="button"
-                          className="boton"
+                          className="boton accion-movimiento"
                           onClick={() => {
                             setError(null);
                             setFormulario({
@@ -484,10 +520,11 @@ export function Inventario({ sesion, sucursalId }: Props) {
                           Movimiento
                         </button>
                       ) : null}
+
                       {puedeTransferir ? (
                         <button
                           type="button"
-                          className="boton"
+                          className="boton accion-transferir"
                           onClick={() => {
                             setError(null);
                             setTransferencia({
@@ -502,6 +539,66 @@ export function Inventario({ sesion, sucursalId }: Props) {
                           Transferir
                         </button>
                       ) : null}
+
+                      {/* Donde no caben todos los botones, aqui siguen estando. */}
+                      <MenuAcciones
+                        abierto={menuAbiertoId === fila.productoId}
+                        onAbrir={() => setMenuAbiertoId(fila.productoId)}
+                        onCerrar={() => setMenuAbiertoId(null)}
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="menu-acciones__item menu-acciones__item--kardex"
+                          onClick={() => {
+                            setMenuAbiertoId(null);
+                            setKardex(fila);
+                          }}
+                        >
+                          Kardex
+                        </button>
+                        {puedeMover ? (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="menu-acciones__item"
+                            onClick={() => {
+                              setMenuAbiertoId(null);
+                              setError(null);
+                              setFormulario({
+                                fila,
+                                sucursalId,
+                                tipo: 'entrada_compra',
+                                cantidad: '',
+                                costo: '',
+                                motivo: '',
+                              });
+                            }}
+                          >
+                            Movimiento
+                          </button>
+                        ) : null}
+                        {puedeTransferir ? (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="menu-acciones__item"
+                            onClick={() => {
+                              setMenuAbiertoId(null);
+                              setError(null);
+                              setTransferencia({
+                                fila,
+                                origenSucursalId: sucursalId,
+                                destinoSucursalId: '',
+                                cantidad: '',
+                                motivo: '',
+                              });
+                            }}
+                          >
+                            Transferir
+                          </button>
+                        ) : null}
+                      </MenuAcciones>
                     </div>
                   </td>
                 </tr>

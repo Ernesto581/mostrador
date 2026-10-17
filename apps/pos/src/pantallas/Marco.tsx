@@ -98,7 +98,7 @@ export function Marco({ sesion, onSalir }: Props) {
   // El menu solo tiene sentido en el telefono: si la ventana se agranda (o el
   // telefono se acuesta y ya cabe la barra completa) se cierra solo.
   useEffect(() => {
-    const ancho = window.matchMedia('(min-width: 701px)');
+    const ancho = window.matchMedia('(min-width: 768px)');
     const alCambiar = () => {
       if (ancho.matches) {
         setMenuAbierto(false);
@@ -153,15 +153,9 @@ export function Marco({ sesion, onSalir }: Props) {
 
         <div className="marca">
           <span className="marca__punto" aria-hidden="true" />
-          {sesion.empresa.nombre || 'Mostrador'}
-          <span>punto de venta</span>
+          <span className="marca__nombre">{sesion.empresa.nombre || 'Mostrador'}</span>
+          <span className="marca__lema">punto de venta</span>
         </div>
-
-        {/* En el telefono la barra no lleva pestanas: aqui se ve donde estas. */}
-        <span className="barra__seccion">
-          <span className="marca__punto" aria-hidden="true" />
-          <span className="barra__seccion-texto">{seccion?.etiqueta}</span>
-        </span>
 
         <nav className="pestanas" aria-label="Secciones">
           {opciones.map((opcion) => (
@@ -219,8 +213,8 @@ export function Marco({ sesion, onSalir }: Props) {
         <div className="menu-lateral__cabecera">
           <div className="marca">
             <span className="marca__punto" aria-hidden="true" />
-            {sesion.empresa.nombre || 'Mostrador'}
-            <span>punto de venta</span>
+            <span className="marca__nombre">{sesion.empresa.nombre || 'Mostrador'}</span>
+            <span className="marca__lema">punto de venta</span>
           </div>
           <button
             type="button"
