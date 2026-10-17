@@ -5,12 +5,12 @@ import { IndicadorConexion } from '../componentes/IndicadorConexion';
 import { buscarActualizacion, versionActual, type VersionNueva } from '../servicios/actualizacion';
 import { Caja } from './Caja';
 import { Inventario } from './Inventario';
-import { Productos } from './Productos';
+import { Sucursales } from './Sucursales';
 import { Usuarios } from './Usuarios';
 import { Vender } from './Vender';
 import { Ventas } from './Ventas';
 
-type Pestana = 'mostrador' | 'caja' | 'productos' | 'inventario' | 'ventas' | 'usuarios';
+type Pestana = 'mostrador' | 'caja' | 'inventario' | 'ventas' | 'usuarios' | 'sucursales';
 
 interface Props {
   sesion: Sesion;
@@ -27,8 +27,34 @@ interface Props {
  * En el telefono las pestanas no caben en una fila, asi que se guardan en un menu que
  * sale desde la izquierda, una debajo de otra. En tablet y monitor siguen a la vista.
  */
+/**
+ * Secciones del panel, segun lo que puede hacer cada quien.
+ *
+ * El administrador GESTIONA: cobrar y cerrar turno son de la cuenta de mostrador, asi
+ * que esas secciones solo aparecen si de verdad se tiene el permiso. El servidor lo
+ * valida igual: esconder el boton no es seguridad.
+ */
+function opcionesDe(sesion: Sesion): { id: Pestana; etiqueta: string }[] {
+  const permisos = new Set(sesion.permisos);
+
+  return [
+    ...(permisos.has('sale.sell') ? [{ id: 'mostrador' as Pestana, etiqueta: 'Mostrador' }] : []),
+    ...(permisos.has('cash.close') ? [{ id: 'caja' as Pestana, etiqueta: 'Caja' }] : []),
+    ...(permisos.has('inventory.adjust') || permisos.has('catalog.manage')
+      ? [{ id: 'inventario' as Pestana, etiqueta: 'Inventario' }]
+      : []),
+    ...(permisos.has('sale.void') ? [{ id: 'ventas' as Pestana, etiqueta: 'Ventas' }] : []),
+    ...(permisos.has('users.manage') ? [{ id: 'usuarios' as Pestana, etiqueta: 'Usuarios' }] : []),
+    ...(permisos.has('branches.manage')
+      ? [{ id: 'sucursales' as Pestana, etiqueta: 'Sucursales' }]
+      : []),
+  ];
+}
+
 export function Marco({ sesion, onSalir }: Props) {
-  const [pestana, setPestana] = useState<Pestana>('mostrador');
+  const opciones = opcionesDe(sesion);
+  // Se abre en la primera seccion que le toca a esta cuenta.
+  const [pestana, setPestana] = useState<Pestana>(() => opcionesDe(sesion)[0]?.id ?? 'inventario');
   const [sucursalId, setSucursalId] = useState(sesion.sucursales[0]?.id ?? '');
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [nueva, setNueva] = useState<VersionNueva | null>(null);
@@ -65,18 +91,9 @@ export function Marco({ sesion, onSalir }: Props) {
     return () => window.removeEventListener('online', alVolver);
   }, [revisar]);
 
-  const permisos = new Set(sesion.permisos);
-  const opciones: { id: Pestana; etiqueta: string }[] = [
-    { id: 'mostrador', etiqueta: 'Mostrador' },
-    ...(permisos.has('cash.close') ? [{ id: 'caja' as Pestana, etiqueta: 'Caja' }] : []),
-    ...(permisos.has('catalog.manage') ? [{ id: 'productos' as Pestana, etiqueta: 'Productos' }] : []),
-    ...(permisos.has('inventory.adjust') ? [{ id: 'inventario' as Pestana, etiqueta: 'Inventario' }] : []),
-    ...(permisos.has('sale.void') ? [{ id: 'ventas' as Pestana, etiqueta: 'Ventas' }] : []),
-    ...(permisos.has('users.manage') ? [{ id: 'usuarios' as Pestana, etiqueta: 'Usuarios' }] : []),
-  ];
-
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
-  const actual = opciones.find((opcion) => opcion.id === pestana);
+  // Si la seccion guardada no existe para esta cuenta, se muestra la primera.
+  const seccion = opciones.find((opcion) => opcion.id === pestana) ?? opciones[0];
 
   // El menu solo tiene sentido en el telefono: si la ventana se agranda (o el
   // telefono se acuesta y ya cabe la barra completa) se cierra solo.
@@ -143,7 +160,7 @@ export function Marco({ sesion, onSalir }: Props) {
         {/* En el telefono la barra no lleva pestanas: aqui se ve donde estas. */}
         <span className="barra__seccion">
           <span className="marca__punto" aria-hidden="true" />
-          <span className="barra__seccion-texto">{actual?.etiqueta}</span>
+          <span className="barra__seccion-texto">{seccion?.etiqueta}</span>
         </span>
 
         <nav className="pestanas" aria-label="Secciones">
@@ -288,12 +305,12 @@ export function Marco({ sesion, onSalir }: Props) {
         <AvisoActualizacion version={nueva} onDescartar={() => setAvisoOculto(true)} />
       ) : null}
 
-      {pestana === 'mostrador' ? <Vender sesion={sesion} sucursalId={sucursalId} /> : null}
-      {pestana === 'caja' ? <Caja sesion={sesion} sucursalId={sucursalId} /> : null}
-      {pestana === 'productos' ? <Productos sesion={sesion} sucursalId={sucursalId} /> : null}
-      {pestana === 'inventario' ? <Inventario sesion={sesion} sucursalId={sucursalId} /> : null}
-      {pestana === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}
-      {pestana === 'usuarios' ? <Usuarios /> : null}
+      {seccion?.id === 'mostrador' ? <Vender sesion={sesion} sucursalId={sucursalId} /> : null}
+      {seccion?.id === 'caja' ? <Caja sesion={sesion} sucursalId={sucursalId} /> : null}
+      {seccion?.id === 'inventario' ? <Inventario sesion={sesion} sucursalId={sucursalId} /> : null}
+      {seccion?.id === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}
+      {seccion?.id === 'usuarios' ? <Usuarios /> : null}
+      {seccion?.id === 'sucursales' ? <Sucursales /> : null}
     </div>
   );
 }

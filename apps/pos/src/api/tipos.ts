@@ -18,6 +18,17 @@ export interface Sucursal {
   tipo: string;
 }
 
+/** Sucursal tal como se administra en el panel (con direccion y estado). */
+export interface SucursalDelPanel {
+  id: string;
+  codigo: string;
+  nombre: string;
+  tipo: string;
+  direccion: string | null;
+  telefono: string | null;
+  activa: boolean;
+}
+
 export interface Sesion {
   empresa: Empresa;
   usuario: Usuario;
@@ -95,11 +106,13 @@ export interface FilaStock {
   productoId: string;
   sku: string;
   nombre: string;
+  precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
   stock: number;
   stockMinimo: number;
   bajoMinimo: boolean;
+  categoriaId: string | null;
 }
 
 export interface RepartoSucursal {
@@ -113,12 +126,14 @@ export interface FilaStockGeneral {
   productoId: string;
   sku: string;
   nombre: string;
+  precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
   /** Total sumando todas las sucursales. */
   stock: number;
   stockMinimo: number;
   bajoMinimo: boolean;
+  categoriaId: string | null;
   /** Cuanto hay en cada sucursal. */
   reparto: RepartoSucursal[];
 }

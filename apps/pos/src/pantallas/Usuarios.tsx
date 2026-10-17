@@ -30,6 +30,7 @@ function borradorVacio(rolPorDefecto: string): Borrador {
 export function Usuarios() {
   const [borrador, setBorrador] = useState<Borrador | null>(null);
   const [contraUsuario, setContraUsuario] = useState<UsuarioDelPanel | null>(null);
+  const [porBorrar, setPorBorrar] = useState<UsuarioDelPanel | null>(null);
   const [nuevaPassword, setNuevaPassword] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +48,29 @@ export function Usuarios() {
     setOk(texto);
     setBorrador(null);
     setContraUsuario(null);
+    setPorBorrar(null);
     setNuevaPassword('');
     window.setTimeout(() => setOk(null), 4000);
+  }
+
+  async function borrar(): Promise<void> {
+    if (!porBorrar) {
+      return;
+    }
+
+    setGuardando(true);
+    setError(null);
+
+    try {
+      await api.borrarUsuario(porBorrar.id);
+      await recargar();
+      terminarCon(`La cuenta de ${porBorrar.username} quedo borrada: ya no puede entrar.`);
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+      setPorBorrar(null);
+    } finally {
+      setGuardando(false);
+    }
   }
 
   async function guardar(): Promise<void> {
@@ -190,7 +212,7 @@ export function Usuarios() {
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <div className="acciones-fila">
                       <button type="button" className="boton" onClick={() => abrirEdicion(usuario)}>
                         Editar
                       </button>
@@ -204,6 +226,16 @@ export function Usuarios() {
                         }}
                       >
                         Contrasena
+                      </button>
+                      <button
+                        type="button"
+                        className="boton"
+                        onClick={() => {
+                          setError(null);
+                          setPorBorrar(usuario);
+                        }}
+                      >
+                        Borrar
                       </button>
                     </div>
                   </td>
@@ -349,6 +381,37 @@ export function Usuarios() {
             </button>
             <button type="button" className="boton boton--acento" onClick={() => void cambiarPassword()} disabled={guardando}>
               {guardando ? 'Guardando…' : 'Cambiar contrasena'}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+      {porBorrar ? (
+        <Modal
+          titulo={`Borrar ${porBorrar.username}`}
+          nota="La cuenta deja de poder entrar. Sus ventas, turnos y movimientos se conservan: la historia no se pierde."
+          onCerrar={() => setPorBorrar(null)}
+        >
+          <p className="panel__nota">
+            ¿Seguro que quieres borrar la cuenta de <strong>{porBorrar.nombre}</strong> (
+            {porBorrar.username})?
+          </p>
+          <p className="panel__nota">
+            Si esa persona sigue trabajando contigo, mejor marcala como inactiva desde{' '}
+            <strong>Editar</strong>: asi deja de entrar pero la puedes reactivar despues. Borrarla
+            no se puede deshacer.
+          </p>
+
+          <div className="modal__acciones">
+            <button type="button" className="boton" onClick={() => setPorBorrar(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void borrar()}
+              disabled={guardando}
+            >
+              {guardando ? 'Borrando…' : 'Si, borrarla'}
             </button>
           </div>
         </Modal>

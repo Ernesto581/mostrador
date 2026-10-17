@@ -11,6 +11,7 @@ import type {
   Rol,
   Sesion,
   Sucursal,
+  SucursalDelPanel,
   Turno,
   TurnoAbiertoResumen,
   UsuarioDelPanel,
@@ -46,7 +47,7 @@ export function leerToken(): string | null {
 }
 
 interface OpcionesPeticion {
-  metodo?: 'GET' | 'POST' | 'PATCH';
+  metodo?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   cuerpo?: unknown;
 }
 
@@ -178,6 +179,14 @@ export const api = {
       cuerpo: { nombre },
     }),
 
+  editarCategoria: (id: string, nombre: string) =>
+    pedir<{ categoria: { id: string } }>(`/categories/${id}`, { metodo: 'PATCH', cuerpo: { nombre } }),
+
+  borrarCategoria: (id: string) =>
+    pedir<{ categoria: { id: string; borrada: boolean } }>(`/categories/${id}`, {
+      metodo: 'DELETE',
+    }),
+
   crearProducto: (cuerpo: {
     sku: string;
     nombre: string;
@@ -276,7 +285,33 @@ export const api = {
 
   roles: () => pedir<{ roles: Rol[] }>('/roles'),
 
-  sucursales: () => pedir<{ sucursales: Sucursal[] }>('/branches'),
+  sucursales: () => pedir<{ sucursales: SucursalDelPanel[] }>('/branches'),
+
+  crearSucursal: (cuerpo: {
+    codigo: string;
+    nombre: string;
+    tipo: 'tienda' | 'almacen';
+    direccion?: string;
+    telefono?: string;
+  }) =>
+    pedir<{ sucursal: { id: string; codigo: string; nombre: string } }>('/branches', {
+      metodo: 'POST',
+      cuerpo,
+    }),
+
+  editarSucursal: (
+    id: string,
+    cuerpo: {
+      nombre?: string;
+      tipo?: 'tienda' | 'almacen';
+      direccion?: string;
+      telefono?: string;
+      activa?: boolean;
+    },
+  ) => pedir<{ sucursal: { id: string } }>(`/branches/${id}`, { metodo: 'PATCH', cuerpo }),
+
+  quitarSucursal: (id: string) =>
+    pedir<{ sucursal: { id: string; quitada: boolean } }>(`/branches/${id}`, { metodo: 'DELETE' }),
 
   crearUsuario: (cuerpo: {
     username: string;
@@ -307,6 +342,9 @@ export const api = {
       metodo: 'POST',
       cuerpo: { password },
     }),
+
+  borrarUsuario: (id: string) =>
+    pedir<{ usuario: { id: string; borrado: boolean } }>(`/users/${id}`, { metodo: 'DELETE' }),
 
   /* ---------- Caja y turnos ---------- */
 

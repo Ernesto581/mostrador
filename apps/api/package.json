@@ -12,7 +12,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:seed": "tsx src/scripts/seed.ts"
+    "db:seed": "tsx src/scripts/seed.ts",
+    "db:permisos": "tsx src/scripts/permisos.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",

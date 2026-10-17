@@ -15,6 +15,9 @@ export interface OpcionesSemilla {
   usuario?: string;
   nombreUsuario?: string;
   password?: string;
+  /** Cuenta de mostrador: es la que cobra y cierra el turno en la sucursal. */
+  usuarioCajero?: string;
+  passwordCajero?: string;
   /** Crea categorias y 20 productos de abarrotes con stock inicial. */
   conProductosEjemplo?: boolean;
 }
@@ -36,6 +39,10 @@ export interface ResultadoSemilla {
   usuarioId: string;
   usuario: string;
   password: string;
+  /** Cajero de ejemplo: sirve para vender sin usar la cuenta del administrador. */
+  cajeroId: string;
+  usuarioCajero: string;
+  passwordCajero: string;
   productos: ProductoEjemplo[];
 }
 
@@ -84,6 +91,8 @@ export async function sembrarDatosIniciales(
   const usuario = opciones.usuario ?? 'admin';
   const nombreUsuario = opciones.nombreUsuario ?? 'Administrador';
   const password = opciones.password ?? 'mostrador123';
+  const usuarioCajero = opciones.usuarioCajero ?? 'cajero';
+  const passwordCajero = opciones.passwordCajero ?? 'cajero123';
   const conProductosEjemplo = opciones.conProductosEjemplo ?? true;
 
   const empresaId = nuevoId();
@@ -92,6 +101,7 @@ export async function sembrarDatosIniciales(
   const sucursalSecundariaId = nuevoId();
   const almacenSecundariaId = nuevoId();
   const usuarioId = nuevoId();
+  const cajeroId = nuevoId();
 
   await db.insert(schema.companies).values({
     id: empresaId,
@@ -147,6 +157,22 @@ export async function sembrarDatosIniciales(
   await db.insert(schema.userBranchAccess).values([
     { userId: usuarioId, branchId: sucursalId },
     { userId: usuarioId, branchId: sucursalSecundariaId },
+  ]);
+
+  // La cuenta de mostrador: cobra y cierra el turno, pero no administra nada.
+  await db.insert(schema.users).values({
+    id: cajeroId,
+    companyId: empresaId,
+    username: usuarioCajero,
+    fullName: 'Cajero de mostrador',
+    passwordHash: await hashearSecreto(passwordCajero),
+  });
+
+  await db.insert(schema.userRoles).values({ userId: cajeroId, roleId: definicionesRoles[1]!.id });
+
+  await db.insert(schema.userBranchAccess).values([
+    { userId: cajeroId, branchId: sucursalId },
+    { userId: cajeroId, branchId: sucursalSecundariaId },
   ]);
 
   const productos: ProductoEjemplo[] = [];
@@ -218,6 +244,9 @@ export async function sembrarDatosIniciales(
     usuarioId,
     usuario,
     password,
+    cajeroId,
+    usuarioCajero,
+    passwordCajero,
     productos,
   };
 }

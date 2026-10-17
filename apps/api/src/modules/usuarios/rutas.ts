@@ -1,5 +1,5 @@
 import { schema } from '@mostrador/db-cloud';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { hashearSecreto } from '../../auth/password.js';
@@ -35,23 +35,6 @@ const parametroId = z.object({ id: z.string().min(1) });
 export async function rutasUsuarios(app: FastifyInstance) {
   const preHandler = exigirSesion(app);
   const { users, roles, userRoles, branches, userBranchAccess } = schema;
-
-  /** Sucursales de una empresa, para el formulario. */
-  app.get('/branches', { preHandler: [preHandler] }, async (request) => {
-    const sesion = sesionDe(request);
-    const lista = await app.db
-      .select({
-        id: branches.id,
-        codigo: branches.code,
-        nombre: branches.name,
-        tipo: branches.type,
-      })
-      .from(branches)
-      .where(and(eq(branches.companyId, sesion.empresaId), isNull(branches.deletedAt)))
-      .orderBy(asc(branches.code));
-
-    return { sucursales: lista };
-  });
 
   app.get('/roles', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
@@ -208,6 +191,73 @@ export async function rutasUsuarios(app: FastifyInstance) {
       .where(eq(users.id, usuario.id));
 
     return { usuario: { id: usuario.id, actualizado: true } };
+  });
+
+  /**
+   * Borra una cuenta.
+   *
+   * Nunca se borra de verdad: la cuenta queda desactivada y fuera de la lista, pero las
+   * ventas, los turnos y el kardex que firmo siguen ahi. Borrarla de verdad romperia la
+   * historia y el arqueo de esos turnos.
+   */
+  app.delete('/users/:id', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.GESTIONAR_USUARIOS);
+    const { id } = validar(parametroId, request.params);
+
+    if (id === sesion.usuarioId) {
+      throw new ErrorDeAplicacion(
+        'No puedes borrar tu propia cuenta: te quedarias fuera del sistema.',
+        409,
+        'NO_TE_PUEDES_BORRAR',
+      );
+    }
+
+    const usuario = await buscarUsuario(app, sesion.empresaId, id);
+
+    // Si esta cuenta administra, tiene que quedar al menos otra: si no, nadie podria
+    // volver a crear cuentas ni corregir nada.
+    const permisosDelUsuario = await app.db
+      .select({ permisos: roles.permissions })
+      .from(userRoles)
+      .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(eq(userRoles.userId, usuario.id));
+
+    const administra = permisosDelUsuario.some((fila) =>
+      fila.permisos.includes(PERMISOS.GESTIONAR_USUARIOS),
+    );
+
+    if (administra) {
+      const [otras] = await app.db
+        .select({ total: sql<number>`count(distinct ${users.id})` })
+        .from(users)
+        .innerJoin(userRoles, eq(userRoles.userId, users.id))
+        .innerJoin(roles, eq(roles.id, userRoles.roleId))
+        .where(
+          and(
+            eq(users.companyId, sesion.empresaId),
+            ne(users.id, usuario.id),
+            eq(users.active, true),
+            isNull(users.deletedAt),
+            sql`${PERMISOS.GESTIONAR_USUARIOS} = any(${roles.permissions})`,
+          ),
+        );
+
+      if (Number(otras?.total ?? 0) === 0) {
+        throw new ErrorDeAplicacion(
+          'Es la unica cuenta que puede administrar usuarios. Crea otra antes de borrarla.',
+          409,
+          'ULTIMO_ADMINISTRADOR',
+        );
+      }
+    }
+
+    await app.db
+      .update(users)
+      .set({ active: false, deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(users.id, usuario.id));
+
+    return { usuario: { id: usuario.id, borrado: true } };
   });
 
   app.post('/users/:id/password', { preHandler: [preHandler] }, async (request) => {

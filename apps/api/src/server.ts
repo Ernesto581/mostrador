@@ -11,6 +11,7 @@ import { rutasInventario } from './modules/inventario/rutas.js';
 import { rutasVentas } from './modules/ventas/rutas.js';
 import { rutasUsuarios } from './modules/usuarios/rutas.js';
 import { rutasCaja } from './modules/caja/rutas.js';
+import { rutasSucursales } from './modules/sucursales/rutas.js';
 import { rutasSalud } from './routes/health.js';
 import './tipos.js';
 
@@ -102,6 +103,7 @@ export async function construirServidor() {
   await app.register(rutasInventario, { prefix: '/api/v1' });
   await app.register(rutasVentas, { prefix: '/api/v1' });
   await app.register(rutasUsuarios, { prefix: '/api/v1' });
+  await app.register(rutasSucursales, { prefix: '/api/v1' });
   await app.register(rutasCaja, { prefix: '/api/v1' });
 
   return app;

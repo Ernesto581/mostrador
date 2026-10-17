@@ -16,13 +16,26 @@ export const PERMISOS = {
   VER_UTILIDAD: 'report.profit',
   CERRAR_PERIODO: 'accounting.close_period',
   GESTIONAR_USUARIOS: 'users.manage',
+  GESTIONAR_SUCURSALES: 'branches.manage',
   APROBAR_DISPOSITIVOS: 'devices.approve',
 } as const;
 
 export type Permiso = (typeof PERMISOS)[keyof typeof PERMISOS];
 
-export const PERMISOS_ADMINISTRADOR: readonly Permiso[] = Object.values(PERMISOS);
+/**
+ * El administrador GESTIONA, no atiende el mostrador.
+ *
+ * A proposito no tiene `sale.sell` ni `cash.close`: cobrar y cerrar turno son de las
+ * cuentas de las sucursales (rol Cajero). Asi queda claro quien cobro cada venta y
+ * quien cerro cada turno, en vez de que una sola cuenta lo pueda todo.
+ *
+ * Se aplica tambien en el servidor: no es solo esconder botones.
+ */
+export const PERMISOS_ADMINISTRADOR: readonly Permiso[] = Object.values(PERMISOS).filter(
+  (permiso) => permiso !== PERMISOS.VENDER && permiso !== PERMISOS.CERRAR_CAJA,
+);
 
+/** La cuenta que se usa en la sucursal para cobrar y cerrar el turno. */
 export const PERMISOS_CAJERO: readonly Permiso[] = [
   PERMISOS.VENDER,
   PERMISOS.APLICAR_DESCUENTO,

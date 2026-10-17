@@ -112,7 +112,11 @@ describe('autenticacion', () => {
     const cuerpo = respuesta.json();
     expect(cuerpo.usuario.username).toBe('ernesto');
     expect(cuerpo.roles).toContain('administrador');
-    expect(cuerpo.permisos).toContain('sale.sell');
+    // El administrador gestiona; cobrar y cerrar turno son de la cuenta de mostrador.
+    expect(cuerpo.permisos).not.toContain('sale.sell');
+    expect(cuerpo.permisos).not.toContain('cash.close');
+    expect(cuerpo.permisos).toContain('users.manage');
+    expect(cuerpo.permisos).toContain('branches.manage');
     expect(cuerpo.permisos).toContain('devices.approve');
     expect(cuerpo.sucursales).toHaveLength(2);
     expect(cuerpo.sucursales.map((s: { codigo: string }) => s.codigo).sort()).toEqual([

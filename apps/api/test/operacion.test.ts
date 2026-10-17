@@ -62,6 +62,11 @@ function auth(): Record<string, string> {
   return { authorization: `Bearer ${token}` };
 }
 
+/** Cobrar es de la cuenta de mostrador: el administrador ya no vende. */
+function authCajero(): Record<string, string> {
+  return { authorization: `Bearer ${tokenCajero}` };
+}
+
 function producto(sku: string) {
   const encontrado = semilla.productos.find((candidato) => candidato.sku === sku);
   if (!encontrado) {
@@ -370,7 +375,7 @@ describe('ventas', () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/sales',
-      headers: auth(),
+      headers: authCajero(),
       payload: {
         sucursalId: semilla.sucursalId,
         lineas: [{ productoId: producto('BEB-002').id, cantidad: 3 }],
@@ -401,7 +406,7 @@ describe('ventas', () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/sales',
-      headers: auth(),
+      headers: authCajero(),
       payload: {
         sucursalId: semilla.sucursalId,
         lineas: [{ productoId: producto('BEB-003').id, cantidad: 2, descuentoPorcentaje: 10 }],
@@ -420,7 +425,7 @@ describe('ventas', () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/sales',
-      headers: auth(),
+      headers: authCajero(),
       payload: {
         sucursalId: semilla.sucursalId,
         lineas: [{ productoId: producto('ABA-003').id, cantidad: 2 }],
@@ -436,7 +441,7 @@ describe('ventas', () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/sales',
-      headers: auth(),
+      headers: authCajero(),
       payload: {
         sucursalId: semilla.sucursalId,
         lineas: [{ productoId: producto('ABA-003').id, cantidad: 0 }],
@@ -452,7 +457,7 @@ describe('ventas', () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/sales',
-      headers: auth(),
+      headers: authCajero(),
       payload: {
         sucursalId: semilla.sucursalId,
         lineas: [{ productoId: producto('BOT-003').id, cantidad: 50 }],
@@ -525,7 +530,7 @@ describe('ventas', () => {
     const venta = await app.inject({
       method: 'POST',
       url: '/api/v1/sales',
-      headers: auth(),
+      headers: authCajero(),
       payload: {
         sucursalId: semilla.sucursalId,
         lineas: [{ productoId: producto('DUL-003').id, cantidad: 3 }],

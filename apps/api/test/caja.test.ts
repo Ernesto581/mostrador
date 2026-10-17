@@ -16,10 +16,11 @@ beforeAll(async () => {
     password: 'mostrador123',
   });
 
+  // El turno lo abre y lo cierra la cuenta de mostrador: el administrador ya no cobra.
   const respuesta = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
-    payload: { username: 'ernesto', password: 'mostrador123' },
+    payload: { username: semilla.usuarioCajero, password: semilla.passwordCajero },
   });
   token = respuesta.json().token as string;
 });

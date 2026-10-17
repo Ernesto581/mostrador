@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { PERMISOS } from '../../auth/permisos.js';
 import { asegurarPermiso, exigirSesion, sesionDe } from '../../auth/sesion.js';
-import { ErrorNoEncontrado, validar } from '../../errors.js';
+import { ErrorDeAplicacion, ErrorNoEncontrado, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
 import { registrarMovimiento, stockDeProductos } from '../inventario/servicio.js';
 
@@ -299,5 +299,94 @@ export async function rutasCatalogo(app: FastifyInstance) {
 
     reply.status(201);
     return { categoria: { id, nombre: datos.nombre } };
+  });
+
+  app.patch('/categories/:id', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
+    const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
+    const datos = validar(esquemaCrearCategoria, request.body);
+
+    const [existente] = await app.db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.id, id),
+          eq(categories.companyId, sesion.empresaId),
+          isNull(categories.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!existente) {
+      throw new ErrorNoEncontrado('La categoria no existe');
+    }
+
+    await app.db
+      .update(categories)
+      .set({
+        name: datos.nombre,
+        parentId: datos.categoriaPadreId ?? null,
+        updatedAt: new Date(),
+        revision: sql`${categories.revision} + 1`,
+      })
+      .where(eq(categories.id, id));
+
+    return { categoria: { id, nombre: datos.nombre, actualizada: true } };
+  });
+
+  app.delete('/categories/:id', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
+    const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
+
+    const [existente] = await app.db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.id, id),
+          eq(categories.companyId, sesion.empresaId),
+          isNull(categories.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!existente) {
+      throw new ErrorNoEncontrado('La categoria no existe');
+    }
+
+    // Antes de borrar se cuenta cuantos productos la usan: es mejor avisar que
+    // dejar productos sin clasificar sin que nadie se entere.
+    const [enUso] = await app.db
+      .select({ total: sql<number>`count(*)` })
+      .from(products)
+      .where(
+        and(
+          eq(products.categoryId, id),
+          eq(products.companyId, sesion.empresaId),
+          isNull(products.deletedAt),
+        ),
+      );
+
+    const cuantos = Number(enUso?.total ?? 0);
+    if (cuantos > 0) {
+      throw new ErrorDeAplicacion(
+        cuantos === 1
+          ? 'No se puede borrar: 1 producto usa esta categoria. Cambialo de categoria primero.'
+          : `No se puede borrar: ${cuantos} productos usan esta categoria. Cambialos de categoria primero.`,
+        409,
+        'CATEGORIA_EN_USO',
+      );
+    }
+
+    // Borrado logico: la historia no se pierde nunca.
+    await app.db
+      .update(categories)
+      .set({ deletedAt: new Date(), active: false, updatedAt: new Date() })
+      .where(eq(categories.id, id));
+
+    return { categoria: { id, borrada: true } };
   });
 }

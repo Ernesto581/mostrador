@@ -60,7 +60,13 @@ export function exigirSesion(app: FastifyInstance) {
       })
       .from(userBranchAccess)
       .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
-      .where(eq(userBranchAccess.userId, usuario.id));
+      .where(
+        and(
+          eq(userBranchAccess.userId, usuario.id),
+          isNull(branches.deletedAt),
+          eq(branches.active, true),
+        ),
+      );
 
     request.sesion = {
       usuarioId: usuario.id,

@@ -1,8 +1,16 @@
 import { useState } from 'react';
 import { api } from '../api/cliente';
-import type { Movimiento, RepartoSucursal, Sesion, TipoMovimiento } from '../api/tipos';
+import type { Categoria, Movimiento, RepartoSucursal, Sesion, TipoMovimiento } from '../api/tipos';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
-import { aCentavos, dinero, fechaLarga } from '../util/dinero';
+import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
+
+/**
+ * Inventario general.
+ *
+ * Es la unica pantalla de mercancia: aqui se dan de alta los productos (con sus
+ * categorias y codigos de barras) y aqui se ven las existencias, se registran entradas,
+ * mermas y ajustes, se transfiere entre sucursales y se consulta el kardex.
+ */
 
 interface Props {
   sesion: Sesion;
@@ -14,10 +22,12 @@ interface FilaVista {
   productoId: string;
   sku: string;
   nombre: string;
+  precioCosto: number;
   precioVenta: number;
   stock: number;
   stockMinimo: number;
   bajoMinimo: boolean;
+  categoriaId: string | null;
   reparto?: RepartoSucursal[];
 }
 
@@ -68,6 +78,37 @@ interface FormularioTransferencia {
   motivo: string;
 }
 
+/** Alta y edicion de un producto. */
+interface BorradorProducto {
+  id: string | null;
+  sku: string;
+  nombre: string;
+  categoriaId: string;
+  precioCosto: string;
+  precioVenta: string;
+  stockMinimo: string;
+  codigos: string;
+  stockInicial: string;
+  sucursalId: string;
+}
+
+function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
+  return {
+    id: null,
+    sku: '',
+    nombre: '',
+    categoriaId: '',
+    precioCosto: '',
+    precioVenta: '',
+    stockMinimo: '0',
+    codigos: '',
+    stockInicial: '0',
+    // Viene elegida la sucursal que se esta viendo arriba: se puede cambiar o dejar
+    // el stock inicial en cero para no surtir nada todavia.
+    sucursalId,
+  };
+}
+
 export function Inventario({ sesion, sucursalId }: Props) {
   const [general, setGeneral] = useState(true);
   const [buscar, setBuscar] = useState('');
@@ -75,12 +116,16 @@ export function Inventario({ sesion, sucursalId }: Props) {
   const [formulario, setFormulario] = useState<FormularioMovimiento | null>(null);
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
   const [kardex, setKardex] = useState<FilaVista | null>(null);
+  const [producto, setProducto] = useState<BorradorProducto | null>(null);
+  const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
   const puedeMover = sesion.permisos.includes('inventory.adjust');
-  const puedeTransferir = sesion.permisos.includes('inventory.transfer') && sesion.sucursales.length > 1;
+  const puedeTransferir =
+    sesion.permisos.includes('inventory.transfer') && sesion.sucursales.length > 1;
+  const puedeCatalogo = sesion.permisos.includes('catalog.manage');
 
   const { datos, cargando, error: errorLista, recargar } = useCarga(async () => {
     if (general) {
@@ -99,14 +144,89 @@ export function Inventario({ sesion, sucursalId }: Props) {
     [kardex],
   );
 
+  const { datos: datosCategorias, recargar: recargarCategorias } = useCarga(
+    () => api.categorias(),
+    [],
+  );
+
   const filas = datos?.filas ?? [];
+  const categorias: Categoria[] = datosCategorias?.categorias ?? [];
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
 
   function cerrarConMensaje(texto: string): void {
     setOk(texto);
     setFormulario(null);
     setTransferencia(null);
+    setProducto(null);
     window.setTimeout(() => setOk(null), 4500);
+  }
+
+  async function guardarProducto(): Promise<void> {
+    if (!producto) {
+      return;
+    }
+
+    if (producto.sku.trim().length === 0 || producto.nombre.trim().length === 0) {
+      setError('Escribe el SKU y el nombre del producto');
+      return;
+    }
+
+    const inicial = Number(producto.stockInicial) || 0;
+    if (!producto.id && inicial > 0 && !producto.sucursalId) {
+      setError('Elige la sucursal donde entra el stock inicial, o deja el stock en cero');
+      return;
+    }
+
+    setGuardando(true);
+    setError(null);
+
+    const codigos = producto.codigos
+      .split(',')
+      .map((codigo) => codigo.trim())
+      .filter(Boolean);
+
+    try {
+      if (producto.id) {
+        await api.editarProducto(producto.id, {
+          sku: producto.sku.trim(),
+          nombre: producto.nombre.trim(),
+          ...(producto.categoriaId ? { categoriaId: producto.categoriaId } : {}),
+          precioCosto: aCentavos(producto.precioCosto),
+          precioVenta: aCentavos(producto.precioVenta),
+          stockMinimo: Number(producto.stockMinimo) || 0,
+        });
+
+        for (const codigo of codigos) {
+          await api.agregarCodigo(producto.id, codigo);
+        }
+
+        await recargar();
+        cerrarConMensaje('Producto actualizado.');
+      } else {
+        await api.crearProducto({
+          sku: producto.sku.trim(),
+          nombre: producto.nombre.trim(),
+          ...(producto.categoriaId ? { categoriaId: producto.categoriaId } : {}),
+          precioCosto: aCentavos(producto.precioCosto),
+          precioVenta: aCentavos(producto.precioVenta),
+          stockMinimo: Number(producto.stockMinimo) || 0,
+          codigosBarras: codigos,
+          stockInicial: inicial,
+          ...(inicial > 0 ? { sucursalId: producto.sucursalId } : {}),
+        });
+
+        await recargar();
+        cerrarConMensaje(
+          inicial > 0
+            ? `Producto creado con ${inicial} piezas de existencia.`
+            : 'Producto creado. Todavia sin existencia: registra una entrada cuando llegue.',
+        );
+      }
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setGuardando(false);
+    }
   }
 
   async function registrarMovimiento(): Promise<void> {
@@ -235,6 +355,32 @@ export function Inventario({ sesion, sucursalId }: Props) {
             />
             Solo bajo el minimo
           </label>
+
+          {puedeCatalogo ? (
+            <button
+              type="button"
+              className="boton"
+              onClick={() => {
+                setError(null);
+                setCategoriasAbiertas(true);
+              }}
+            >
+              Categorias
+            </button>
+          ) : null}
+
+          {puedeCatalogo ? (
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => {
+                setError(null);
+                setProducto(borradorVacioDeProducto(sucursalId));
+              }}
+            >
+              Nuevo producto
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -257,7 +403,9 @@ export function Inventario({ sesion, sucursalId }: Props) {
           <p className="vacio">
             {soloBajoMinimo
               ? 'Ningun producto esta por debajo de su minimo. Todo en orden.'
-              : 'No hay productos que coincidan.'}
+              : puedeCatalogo
+                ? 'No hay productos todavia. Usa Nuevo producto para dar de alta el primero.'
+                : 'No hay productos que coincidan.'}
           </p>
         </div>
       ) : null}
@@ -272,6 +420,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
                 <th className="numero">Total</th>
                 {general ? <th>Reparto por sucursal</th> : null}
                 <th className="numero">Minimo</th>
+                <th className="numero">Costo</th>
                 <th className="numero">Venta</th>
                 <th />
               </tr>
@@ -286,9 +435,33 @@ export function Inventario({ sesion, sucursalId }: Props) {
                   </td>
                   {general ? <td className="reparto">{repartoDe(fila)}</td> : null}
                   <td className="numero">{fila.stockMinimo}</td>
+                  <td className="numero">{dinero(fila.precioCosto)}</td>
                   <td className="numero">{dinero(fila.precioVenta)}</td>
                   <td>
                     <div className="acciones-fila">
+                      {puedeCatalogo ? (
+                        <button
+                          type="button"
+                          className="boton"
+                          onClick={() => {
+                            setError(null);
+                            setProducto({
+                              id: fila.productoId,
+                              sku: fila.sku,
+                              nombre: fila.nombre,
+                              categoriaId: fila.categoriaId ?? '',
+                              precioCosto: aTextoCaptura(fila.precioCosto),
+                              precioVenta: aTextoCaptura(fila.precioVenta),
+                              stockMinimo: String(fila.stockMinimo),
+                              codigos: '',
+                              stockInicial: '0',
+                              sucursalId,
+                            });
+                          }}
+                        >
+                          Editar
+                        </button>
+                      ) : null}
                       <button type="button" className="boton" onClick={() => setKardex(fila)}>
                         Kardex
                       </button>
@@ -338,6 +511,156 @@ export function Inventario({ sesion, sucursalId }: Props) {
         </div>
       ) : null}
 
+      {/* ---------- Alta y edicion del producto ---------- */}
+      {producto ? (
+        <Modal
+          titulo={producto.id ? `Editar ${producto.sku}` : 'Nuevo producto'}
+          nota={
+            producto.id
+              ? 'Los codigos y el stock inicial solo se capturan al crear. Para mover existencias usa Movimiento.'
+              : 'Si indicas stock inicial, eliges a que sucursal entra y queda registrado en el kardex.'
+          }
+          onCerrar={() => setProducto(null)}
+        >
+          <div className="formulario">
+            <label className="campo-ancho">
+              <span>SKU</span>
+              <input
+                className="entrada"
+                value={producto.sku}
+                onChange={(evento) => setProducto({ ...producto, sku: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho campo-ancho--ancho">
+              <span>Nombre</span>
+              <input
+                className="entrada"
+                value={producto.nombre}
+                onChange={(evento) => setProducto({ ...producto, nombre: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho">
+              <span>Categoria</span>
+              <select
+                className="entrada"
+                value={producto.categoriaId}
+                onChange={(evento) => setProducto({ ...producto, categoriaId: evento.target.value })}
+              >
+                <option value="">Sin categoria</option>
+                {categorias.map((categoria) => (
+                  <option key={categoria.id} value={categoria.id}>
+                    {categoria.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="campo-ancho">
+              <span>Precio de costo</span>
+              <input
+                className="entrada entrada--numero"
+                inputMode="decimal"
+                value={producto.precioCosto}
+                onChange={(evento) => setProducto({ ...producto, precioCosto: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho">
+              <span>Precio de venta</span>
+              <input
+                className="entrada entrada--numero"
+                inputMode="decimal"
+                value={producto.precioVenta}
+                onChange={(evento) => setProducto({ ...producto, precioVenta: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho">
+              <span>Stock minimo</span>
+              <input
+                className="entrada entrada--numero"
+                inputMode="numeric"
+                value={producto.stockMinimo}
+                onChange={(evento) => setProducto({ ...producto, stockMinimo: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho campo-ancho--ancho">
+              <span>{producto.id ? 'Agregar codigos de barras' : 'Codigos de barras'}</span>
+              <input
+                className="entrada"
+                placeholder="7501234567890, 7509876543210"
+                value={producto.codigos}
+                onChange={(evento) => setProducto({ ...producto, codigos: evento.target.value })}
+              />
+            </label>
+
+            {!producto.id ? (
+              <label className="campo-ancho">
+                <span>Stock inicial</span>
+                <input
+                  className="entrada entrada--numero"
+                  inputMode="numeric"
+                  value={producto.stockInicial}
+                  onChange={(evento) =>
+                    setProducto({ ...producto, stockInicial: evento.target.value })
+                  }
+                />
+              </label>
+            ) : null}
+
+            {!producto.id && (Number(producto.stockInicial) || 0) > 0 ? (
+              <label className="campo-ancho">
+                <span>Sucursal donde entra</span>
+                <select
+                  className="entrada"
+                  value={producto.sucursalId}
+                  onChange={(evento) =>
+                    setProducto({ ...producto, sucursalId: evento.target.value })
+                  }
+                >
+                  <option value="">Elegir sucursal…</option>
+                  {sesion.sucursales.map((opcion) => (
+                    <option key={opcion.id} value={opcion.id}>
+                      {opcion.codigo} · {opcion.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
+          <div className="modal__acciones">
+            <button type="button" className="boton" onClick={() => setProducto(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void guardarProducto()}
+              disabled={guardando}
+            >
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {/* ---------- Categorias ---------- */}
+      {categoriasAbiertas ? (
+        <Categorias
+          categorias={categorias}
+          onCerrar={() => setCategoriasAbiertas(false)}
+          onCambio={async () => {
+            await recargarCategorias();
+            await recargar();
+          }}
+        />
+      ) : null}
+
+      {/* ---------- Movimiento de existencias ---------- */}
       {formulario ? (
         <Modal
           titulo="Registrar movimiento"
@@ -367,7 +690,9 @@ export function Inventario({ sesion, sucursalId }: Props) {
               <select
                 className="entrada"
                 value={formulario.sucursalId}
-                onChange={(evento) => setFormulario({ ...formulario, sucursalId: evento.target.value })}
+                onChange={(evento) =>
+                  setFormulario({ ...formulario, sucursalId: evento.target.value })
+                }
               >
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
@@ -425,6 +750,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
         </Modal>
       ) : null}
 
+      {/* ---------- Transferencia entre sucursales ---------- */}
       {transferencia ? (
         <Modal
           titulo="Transferir a otra sucursal"
@@ -475,7 +801,9 @@ export function Inventario({ sesion, sucursalId }: Props) {
                 className="entrada entrada--numero"
                 inputMode="numeric"
                 value={transferencia.cantidad}
-                onChange={(evento) => setTransferencia({ ...transferencia, cantidad: evento.target.value })}
+                onChange={(evento) =>
+                  setTransferencia({ ...transferencia, cantidad: evento.target.value })
+                }
               />
             </label>
 
@@ -484,7 +812,9 @@ export function Inventario({ sesion, sucursalId }: Props) {
               <input
                 className="entrada"
                 value={transferencia.motivo}
-                onChange={(evento) => setTransferencia({ ...transferencia, motivo: evento.target.value })}
+                onChange={(evento) =>
+                  setTransferencia({ ...transferencia, motivo: evento.target.value })
+                }
               />
             </label>
           </div>
@@ -505,6 +835,7 @@ export function Inventario({ sesion, sucursalId }: Props) {
         </Modal>
       ) : null}
 
+      {/* ---------- Kardex ---------- */}
       {kardex ? (
         <Modal
           titulo="Kardex"
@@ -548,5 +879,158 @@ export function Inventario({ sesion, sucursalId }: Props) {
         </Modal>
       ) : null}
     </div>
+  );
+}
+
+/* ---------- Categorias ---------- */
+
+interface PropsCategorias {
+  categorias: Categoria[];
+  onCerrar: () => void;
+  onCambio: () => Promise<void>;
+}
+
+/**
+ * Categorias: agregar, renombrar y borrar.
+ *
+ * Borrar no siempre se puede: si hay productos usando la categoria, el servidor lo
+ * impide y aqui se muestra el motivo. Es mejor eso que dejar productos sin clasificar
+ * sin que nadie se entere.
+ */
+function Categorias({ categorias, onCerrar, onCambio }: PropsCategorias) {
+  const [nueva, setNueva] = useState('');
+  const [editando, setEditando] = useState<{ id: string; nombre: string } | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  async function ejecutar(accion: () => Promise<unknown>, mensaje: string): Promise<void> {
+    setGuardando(true);
+    setError(null);
+
+    try {
+      await accion();
+      await onCambio();
+      setOk(mensaje);
+      window.setTimeout(() => setOk(null), 3500);
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <Modal
+      titulo="Categorias"
+      nota="Sirven para agrupar los productos. Cada producto puede tener una."
+      onCerrar={onCerrar}
+    >
+      <div className="barra-filtros" style={{ marginBottom: '0.8rem' }}>
+        <input
+          className="entrada"
+          style={{ maxWidth: '16rem' }}
+          placeholder="Nombre de la nueva categoria"
+          value={nueva}
+          onChange={(evento) => setNueva(evento.target.value)}
+        />
+        <button
+          type="button"
+          className="boton boton--acento"
+          disabled={guardando || nueva.trim().length === 0}
+          onClick={() =>
+            void ejecutar(async () => {
+              await api.crearCategoria(nueva.trim());
+              setNueva('');
+            }, 'Categoria agregada.')
+          }
+        >
+          Agregar
+        </button>
+      </div>
+
+      <Aviso error={error} ok={ok} />
+
+      {categorias.length === 0 ? (
+        <p className="vacio">Todavia no hay categorias.</p>
+      ) : (
+        <div className="tabla-envoltura">
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {categorias.map((categoria) => (
+                <tr key={categoria.id}>
+                  <td>
+                    {editando?.id === categoria.id ? (
+                      <input
+                        className="entrada"
+                        value={editando.nombre}
+                        onChange={(evento) =>
+                          setEditando({ id: categoria.id, nombre: evento.target.value })
+                        }
+                      />
+                    ) : (
+                      categoria.nombre
+                    )}
+                  </td>
+                  <td>
+                    <div className="acciones-fila">
+                      {editando?.id === categoria.id ? (
+                        <>
+                          <button
+                            type="button"
+                            className="boton boton--acento"
+                            disabled={guardando}
+                            onClick={() =>
+                              void ejecutar(async () => {
+                                await api.editarCategoria(categoria.id, editando.nombre.trim());
+                                setEditando(null);
+                              }, 'Categoria renombrada.')
+                            }
+                          >
+                            Guardar
+                          </button>
+                          <button type="button" className="boton" onClick={() => setEditando(null)}>
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="boton"
+                            onClick={() => setEditando({ id: categoria.id, nombre: categoria.nombre })}
+                          >
+                            Renombrar
+                          </button>
+                          <button
+                            type="button"
+                            className="boton"
+                            disabled={guardando}
+                            onClick={() =>
+                              void ejecutar(
+                                () => api.borrarCategoria(categoria.id),
+                                'Categoria borrada.',
+                              )
+                            }
+                          >
+                            Borrar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
   );
 }

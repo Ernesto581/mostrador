@@ -266,11 +266,13 @@ export interface FilaStock {
   productoId: string;
   sku: string;
   nombre: string;
+  precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
   stock: number;
   stockMinimo: number;
   bajoMinimo: boolean;
+  categoriaId: string | null;
 }
 
 /** Stock de varios productos en una sucursal, sumando todos sus almacenes. */
@@ -326,9 +328,11 @@ async function listarProductos(
       id: schema.products.id,
       sku: schema.products.sku,
       nombre: schema.products.name,
+      precioCosto: schema.products.costPrice,
       precioVenta: schema.products.salePrice,
       costoPromedio: schema.products.averageCost,
       stockMinimo: schema.products.minStock,
+      categoriaId: schema.products.categoryId,
     })
     .from(schema.products)
     .where(and(...condiciones))
@@ -360,11 +364,13 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
       productoId: producto.id,
       sku: producto.sku,
       nombre: producto.nombre,
+      precioCosto: producto.precioCosto,
       precioVenta: producto.precioVenta,
       costoPromedio: producto.costoPromedio,
       stock,
       stockMinimo: producto.stockMinimo,
       bajoMinimo: stock <= producto.stockMinimo,
+      categoriaId: producto.categoriaId,
     };
   });
 
@@ -389,12 +395,14 @@ export interface FilaStockGeneral {
   productoId: string;
   sku: string;
   nombre: string;
+  precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
   /** Total sumando todas las sucursales. */
   stock: number;
   stockMinimo: number;
   bajoMinimo: boolean;
+  categoriaId: string | null;
   /** Como esta repartido: cuanto hay en cada sucursal. */
   reparto: RepartoSucursal[];
 }
@@ -464,11 +472,13 @@ export async function stockGeneral(
       productoId: producto.id,
       sku: producto.sku,
       nombre: producto.nombre,
+      precioCosto: producto.precioCosto,
       precioVenta: producto.precioVenta,
       costoPromedio: producto.costoPromedio,
       stock,
       stockMinimo: producto.stockMinimo,
       bajoMinimo: stock <= producto.stockMinimo,
+      categoriaId: producto.categoriaId,
       reparto,
     };
   });

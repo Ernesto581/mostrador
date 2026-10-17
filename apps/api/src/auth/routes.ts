@@ -111,7 +111,13 @@ export async function rutasAuth(app: FastifyInstance) {
       })
       .from(userBranchAccess)
       .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
-      .where(eq(userBranchAccess.userId, usuario.id));
+      .where(
+        and(
+          eq(userBranchAccess.userId, usuario.id),
+          isNull(branches.deletedAt),
+          eq(branches.active, true),
+        ),
+      );
 
     return {
       empresa: {
