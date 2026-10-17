@@ -43,6 +43,25 @@ export function IndicadorConexion() {
           ? `${total} por subir`
           : 'En linea';
 
+  // Cuando todo esta subido no hay nada que enseñar: el aviso es solo informativo y
+  // tocarlo no hace nada. La lista se abre solo si de verdad hay algo que revisar.
+  const hayAlgoQueVer = !enLinea || total > 0 || conError > 0;
+
+  const aviso = (
+    <>
+      <span className="conexion__punto" aria-hidden="true" />
+      {etiqueta}
+    </>
+  );
+
+  if (!hayAlgoQueVer) {
+    return (
+      <span className={clase} title="Todo esta subido">
+        {aviso}
+      </span>
+    );
+  }
+
   return (
     <>
       <button
@@ -51,8 +70,7 @@ export function IndicadorConexion() {
         onClick={() => setAbierto(true)}
         title={revisando ? 'Revisando la conexion…' : 'Ver las ventas por subir'}
       >
-        <span className="conexion__punto" aria-hidden="true" />
-        {etiqueta}
+        {aviso}
       </button>
 
       {abierto ? (
