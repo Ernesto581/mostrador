@@ -1868,6 +1868,26 @@ button {
   justify-content: center;
 }
 
+/* Version instalada y revision a mano: asi se puede comprobar que esta al dia. */
+.menu-lateral__version {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed var(--tinta-borde);
+}
+
+.menu-lateral__nota {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--texto-tenue);
+}
+
+.menu-lateral__nota--nueva {
+  color: var(--alerta);
+}
+
 @media (max-width: 700px) {
   .boton-menu {
     display: inline-flex;

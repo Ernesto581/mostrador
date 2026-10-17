@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Sesion } from '../api/tipos';
 import { AvisoActualizacion } from '../componentes/AvisoActualizacion';
 import { IndicadorConexion } from '../componentes/IndicadorConexion';
+import { buscarActualizacion, versionActual, type VersionNueva } from '../servicios/actualizacion';
 import { Caja } from './Caja';
 import { Inventario } from './Inventario';
 import { Productos } from './Productos';
@@ -30,6 +31,39 @@ export function Marco({ sesion, onSalir }: Props) {
   const [pestana, setPestana] = useState<Pestana>('mostrador');
   const [sucursalId, setSucursalId] = useState(sesion.sucursales[0]?.id ?? '');
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [nueva, setNueva] = useState<VersionNueva | null>(null);
+  const [revision, setRevision] = useState<'inicial' | 'revisando' | 'aldia' | 'nueva' | 'sinRevisar'>(
+    'inicial',
+  );
+  const [avisoOculto, setAvisoOculto] = useState(false);
+
+  /** Pregunta si hay una version mas nueva. Tambien se puede lanzar a mano. */
+  const revisar = useCallback(async () => {
+    setRevision('revisando');
+    const resultado = await buscarActualizacion();
+
+    if (resultado.estado === 'nueva') {
+      setNueva(resultado.version);
+      setAvisoOculto(false);
+      setRevision('nueva');
+      return;
+    }
+
+    setRevision(resultado.estado === 'aldia' ? 'aldia' : 'sinRevisar');
+  }, []);
+
+  // Al abrir, y de nuevo si vuelve la senal: en el telefono es comun abrir la app
+  // sin internet, y si no se reintentara nunca se enteraria de las versiones nuevas.
+  useEffect(() => {
+    void revisar();
+
+    const alVolver = () => {
+      void revisar();
+    };
+    window.addEventListener('online', alVolver);
+
+    return () => window.removeEventListener('online', alVolver);
+  }, [revisar]);
 
   const permisos = new Set(sesion.permisos);
   const opciones: { id: Pestana; etiqueta: string }[] = [
@@ -222,10 +256,37 @@ export function Marco({ sesion, onSalir }: Props) {
           <button type="button" className="boton" onClick={onSalir}>
             Salir
           </button>
+
+          <div className="menu-lateral__version">
+            <span className="vendedor">
+              {versionActual ? `Version ${versionActual}` : 'Version de desarrollo'}
+            </span>
+            <button
+              type="button"
+              className="boton boton--fantasma"
+              onClick={() => void revisar()}
+              disabled={revision === 'revisando'}
+            >
+              {revision === 'revisando' ? 'Revisando…' : 'Buscar actualizacion'}
+            </button>
+            {revision === 'aldia' ? (
+              <span className="menu-lateral__nota">Esta es la ultima version</span>
+            ) : null}
+            {revision === 'nueva' ? (
+              <span className="menu-lateral__nota menu-lateral__nota--nueva">
+                Hay una version nueva: usa el aviso de arriba
+              </span>
+            ) : null}
+            {revision === 'sinRevisar' ? (
+              <span className="menu-lateral__nota">No se pudo revisar: sin internet</span>
+            ) : null}
+          </div>
         </div>
       </aside>
 
-      <AvisoActualizacion />
+      {nueva && !avisoOculto ? (
+        <AvisoActualizacion version={nueva} onDescartar={() => setAvisoOculto(true)} />
+      ) : null}
 
       {pestana === 'mostrador' ? <Vender sesion={sesion} sucursalId={sucursalId} /> : null}
       {pestana === 'caja' ? <Caja sesion={sesion} sucursalId={sucursalId} /> : null}
