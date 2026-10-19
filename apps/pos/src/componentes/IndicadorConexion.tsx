@@ -97,8 +97,8 @@ export function IndicadorConexion() {
           {total === 0 ? (
             <p className="vacio">No hay ventas pendientes.</p>
           ) : (
-            <div className="tabla-envoltura">
-              <table className="tabla">
+            <div className="tabla-envoltura tabla-envoltura--tarjetas">
+              <table className="tabla tabla--responsive">
                 <thead>
                   <tr>
                     <th>Folio</th>
@@ -111,12 +111,12 @@ export function IndicadorConexion() {
                 <tbody>
                   {pendientes.map((venta) => (
                     <tr key={venta.id}>
-                      <td className="codigo">{venta.folio}</td>
-                      <td>
+                      <td className="codigo" data-label="Folio">{venta.folio}</td>
+                      <td data-label="Cuando">
                         {fechaLarga(venta.vendidoEn)} {hora(venta.vendidoEn)}
                       </td>
-                      <td className="numero">{dinero(venta.venta.total)}</td>
-                      <td>
+                      <td className="numero" data-label="Total">{dinero(venta.venta.total)}</td>
+                      <td data-label="Estado">
                         {venta.error ? (
                           <span className="insignia insignia--agotado" title={venta.error}>
                             Rechazada
@@ -125,7 +125,7 @@ export function IndicadorConexion() {
                           <span className="insignia insignia--baja">Por subir</span>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Acciones">
                         <div className="acciones-fila">
                           {venta.error ? (
                             <>

@@ -187,8 +187,8 @@ export function Usuarios() {
       {cargando ? <p className="panel__nota">Cargando…</p> : null}
 
       {usuarios.length > 0 ? (
-        <div className="tabla-envoltura">
-          <table className="tabla">
+        <div className="tabla-envoltura tabla-envoltura--tarjetas">
+          <table className="tabla tabla--responsive">
             <thead>
               <tr>
                 <th>Usuario</th>
@@ -202,16 +202,16 @@ export function Usuarios() {
             <tbody>
               {usuarios.map((usuario) => (
                 <tr key={usuario.id}>
-                  <td className="codigo">{usuario.username}</td>
-                  <td>{usuario.nombre}</td>
-                  <td>{usuario.rolNombres.join(', ') || '—'}</td>
-                  <td>{usuario.sucursales.map((sucursal) => sucursal.codigo).join(', ') || '—'}</td>
-                  <td>
+                  <td className="codigo" data-label="Usuario">{usuario.username}</td>
+                  <td data-label="Nombre">{usuario.nombre}</td>
+                  <td data-label="Rol">{usuario.rolNombres.join(', ') || '—'}</td>
+                  <td data-label="Sucursales">{usuario.sucursales.map((sucursal) => sucursal.codigo).join(', ') || '—'}</td>
+                  <td data-label="Estado">
                     <span className={usuario.activo ? 'insignia insignia--ok' : 'insignia insignia--agotado'}>
                       {usuario.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Acciones">
                     <div className="acciones-fila">
                       <button type="button" className="boton" onClick={() => abrirEdicion(usuario)}>
                         Editar

@@ -2279,3 +2279,201 @@ button {
     justify-content: flex-start;
   }
 }
+
+/* ---------- Responsive de las demas vistas ---------- */
+
+/* Tablet: conservan tabla y datos, con menos relleno; el scroll queda contenido
+   dentro de la tabla si no caben todas las columnas. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tabla--responsive {
+    font-size: 0.8rem;
+  }
+
+  .tabla--responsive th,
+  .tabla--responsive td {
+    padding: 0.48rem 0.5rem;
+  }
+
+  .tabla--responsive .acciones-fila {
+    flex-wrap: wrap;
+  }
+}
+
+/* Tablet y telefono: tarjetas con cada dato rotulado para que ninguna columna
+   quede cortada. El inventario tiene sus propias reglas y no usa esta clase. */
+@media (max-width: 1023px) {
+  .tabla-envoltura--tarjetas {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .tabla--responsive,
+  .tabla--responsive tbody,
+  .tabla--responsive tr {
+    display: block;
+    width: 100%;
+  }
+
+  .tabla--responsive thead {
+    display: none;
+  }
+
+  .tabla--responsive tbody {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .tabla--responsive tbody tr {
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--tinta-borde);
+    border-radius: var(--radio);
+    background: var(--tinta-alta);
+  }
+
+  .tabla--responsive tbody tr:hover td {
+    background: transparent;
+  }
+
+  .tabla--responsive td {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 0.65fr) minmax(0, 1.35fr);
+    align-items: start;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.42rem 0;
+    border-bottom: 1px solid rgba(59, 49, 41, 0.48);
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .tabla--responsive td::before {
+    content: attr(data-label);
+    color: var(--texto-tenue);
+    font-family: var(--fuente);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.4;
+    text-transform: uppercase;
+  }
+
+  .tabla--responsive td:last-child {
+    border-bottom: 0;
+  }
+
+  .tabla--responsive td[data-label='Acciones'] {
+    display: block;
+    margin-top: 0.3rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed var(--tinta-borde);
+  }
+
+  .tabla--responsive td[data-label='Acciones']::before {
+    display: block;
+    margin-bottom: 0.45rem;
+  }
+
+  .tabla--responsive td[data-label='Acciones'] .acciones-fila {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .tabla--responsive td[data-label='Acciones'] .boton {
+    min-height: 40px;
+  }
+
+  /* Fechas una junto a otra y el acceso rapido en una fila tactil propia. */
+  .ventas__filtros {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 0.6rem;
+  }
+
+  .ventas__fecha {
+    min-width: 0;
+  }
+
+  .ventas__hoy {
+    grid-column: 1 / -1;
+    min-height: 44px;
+  }
+
+  /* En caja los accesos son grandes, agrupados y no se sobreponen. */
+  .caja__acciones {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .caja__acciones .boton {
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .caja__acciones .boton:last-child {
+    grid-column: 1 / -1;
+  }
+
+  /* Dialogos y comprobante dejan un margen comodo y botones faciles de tocar. */
+  .velo {
+    padding: 0.55rem;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: calc(100dvh - 1.1rem);
+    padding: 1rem;
+  }
+
+  .modal__acciones {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(8rem, 100%), 1fr));
+    gap: 0.45rem;
+  }
+
+  .modal__acciones .boton {
+    min-height: 44px;
+    justify-content: center;
+    white-space: normal;
+  }
+
+  .acciones-comprobante {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  /* En pantalla tactil la tecla F2 no se usa; deja mas sitio al texto de busqueda. */
+  .mostrador .buscador__tecla {
+    display: none;
+  }
+}
+
+/* Tablet de mostrador: productos y ticket juntos si el ancho lo permite. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .mostrador {
+    grid-template-columns: minmax(0, 1.1fr) minmax(310px, 0.9fr);
+    gap: 0.75rem;
+    padding: 0.8rem;
+  }
+
+  .columna-ticket {
+    position: sticky;
+    top: 4.2rem;
+  }
+}
+
+/* En el telefono los controles de cada articulo del ticket pueden bajar de fila. */
+@media (max-width: 359px) {
+  .linea__controles {
+    flex-wrap: wrap;
+  }
+
+  .pago {
+    grid-template-columns: minmax(0, 1fr) minmax(5rem, 7rem) auto;
+  }
+}

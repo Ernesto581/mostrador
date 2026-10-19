@@ -146,8 +146,8 @@ export function Sucursales() {
       ) : null}
 
       {sucursales.length > 0 ? (
-        <div className="tabla-envoltura">
-          <table className="tabla">
+        <div className="tabla-envoltura tabla-envoltura--tarjetas">
+          <table className="tabla tabla--responsive">
             <thead>
               <tr>
                 <th>Codigo</th>
@@ -161,16 +161,16 @@ export function Sucursales() {
             <tbody>
               {sucursales.map((sucursal) => (
                 <tr key={sucursal.id}>
-                  <td className="codigo">{sucursal.codigo}</td>
-                  <td>{sucursal.nombre}</td>
-                  <td>{sucursal.tipo === 'almacen' ? 'Bodega' : 'Tienda'}</td>
-                  <td>{sucursal.direccion ?? '—'}</td>
-                  <td>
+                  <td className="codigo" data-label="Codigo">{sucursal.codigo}</td>
+                  <td data-label="Nombre">{sucursal.nombre}</td>
+                  <td data-label="Tipo">{sucursal.tipo === 'almacen' ? 'Bodega' : 'Tienda'}</td>
+                  <td data-label="Direccion">{sucursal.direccion ?? '—'}</td>
+                  <td data-label="Estado">
                     <span className={sucursal.activa ? 'insignia insignia--ok' : 'insignia insignia--agotado'}>
                       {sucursal.activa ? 'Activa' : 'Inactiva'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Acciones">
                     <div className="acciones-fila">
                       <button
                         type="button"

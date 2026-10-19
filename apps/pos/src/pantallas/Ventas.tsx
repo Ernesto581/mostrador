@@ -141,18 +141,18 @@ export function Ventas({ sesion, sucursalId }: Props) {
         </div>
       </div>
 
-      <div className="barra-filtros">
-        <label className="campo-ancho">
+      <div className="barra-filtros ventas__filtros">
+        <label className="campo-ancho ventas__fecha">
           <span>Desde</span>
           <input className="entrada" type="date" value={desde} onChange={(evento) => setDesde(evento.target.value)} />
         </label>
-        <label className="campo-ancho">
+        <label className="campo-ancho ventas__fecha">
           <span>Hasta</span>
           <input className="entrada" type="date" value={hasta} onChange={(evento) => setHasta(evento.target.value)} />
         </label>
         <button
           type="button"
-          className="boton"
+          className="boton ventas__hoy"
           onClick={() => {
             setDesde(hoy());
             setHasta(hoy());
@@ -173,8 +173,8 @@ export function Ventas({ sesion, sucursalId }: Props) {
       ) : null}
 
       {ventas.length > 0 ? (
-        <div className="tabla-envoltura">
-          <table className="tabla">
+        <div className="tabla-envoltura tabla-envoltura--tarjetas">
+          <table className="tabla tabla--responsive">
             <thead>
               <tr>
                 <th>Folio</th>
@@ -190,18 +190,18 @@ export function Ventas({ sesion, sucursalId }: Props) {
             <tbody>
               {ventas.map((venta) => (
                 <tr key={venta.id}>
-                  <td className="codigo">{venta.folio}</td>
-                  <td>{hora(venta.vendidoEn)}</td>
-                  <td className="numero">{venta.articulos}</td>
-                  <td className="numero">{dinero(venta.total)}</td>
-                  <td className="numero">{dinero(venta.cambio)}</td>
-                  <td>{venta.vendidoPor}</td>
-                  <td>
+                  <td className="codigo" data-label="Folio">{venta.folio}</td>
+                  <td data-label="Hora">{hora(venta.vendidoEn)}</td>
+                  <td className="numero" data-label="Articulos">{venta.articulos}</td>
+                  <td className="numero" data-label="Total">{dinero(venta.total)}</td>
+                  <td className="numero" data-label="Cambio">{dinero(venta.cambio)}</td>
+                  <td data-label="Vendedor">{venta.vendidoPor}</td>
+                  <td data-label="Estado">
                     <span className={venta.estado === 'cancelada' ? 'insignia insignia--agotado' : 'insignia insignia--ok'}>
                       {venta.estado === 'cancelada' ? 'Cancelada' : 'Completada'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Acciones">
                     <button type="button" className="boton" onClick={() => void abrir(venta)}>
                       Ver
                     </button>
@@ -227,8 +227,8 @@ export function Ventas({ sesion, sucursalId }: Props) {
 
           {detalle ? (
             <>
-              <div className="tabla-envoltura">
-                <table className="tabla">
+              <div className="tabla-envoltura tabla-envoltura--tarjetas">
+                <table className="tabla tabla--responsive">
                   <thead>
                     <tr>
                       <th>Producto</th>
@@ -241,7 +241,7 @@ export function Ventas({ sesion, sucursalId }: Props) {
                   <tbody>
                     {detalle.lineas.map((linea) => (
                       <tr key={linea.id}>
-                        <td>
+                        <td data-label="Producto">
                           {linea.name}
                           {linea.discountAmount > 0 ? (
                             <span className="insignia" style={{ marginLeft: '0.4rem' }}>
@@ -249,11 +249,11 @@ export function Ventas({ sesion, sucursalId }: Props) {
                             </span>
                           ) : null}
                         </td>
-                        <td className="numero">{linea.quantity}</td>
-                        <td className="numero">{dinero(linea.unitPrice)}</td>
-                        <td className="numero">{dinero(linea.total)}</td>
+                        <td className="numero" data-label="Cantidad">{linea.quantity}</td>
+                        <td className="numero" data-label="Precio">{dinero(linea.unitPrice)}</td>
+                        <td className="numero" data-label="Importe">{dinero(linea.total)}</td>
                         {devolver ? (
-                          <td className="numero">
+                          <td className="numero" data-label="Devolver">
                             <input
                               className="entrada entrada--numero"
                               style={{ width: '5rem' }}

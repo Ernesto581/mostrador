@@ -168,7 +168,7 @@ export function Caja({ sesion, sucursalId }: Props) {
         </div>
 
         {turno ? (
-          <div className="barra-filtros">
+          <div className="barra-filtros caja__acciones">
             <button
               type="button"
               className="boton"
@@ -327,8 +327,8 @@ export function Caja({ sesion, sucursalId }: Props) {
             <p className="vacio">Todavia no hay cierres registrados.</p>
           </div>
         ) : (
-          <div className="tabla-envoltura">
-            <table className="tabla">
+          <div className="tabla-envoltura tabla-envoltura--tarjetas">
+            <table className="tabla tabla--responsive">
               <thead>
                 <tr>
                   <th>Cerrado</th>
@@ -344,12 +344,12 @@ export function Caja({ sesion, sucursalId }: Props) {
               <tbody>
                 {cierres.map((cierre) => (
                   <tr key={cierre.id}>
-                    <td className="codigo">{fechaLarga(cierre.cerradoEn)}</td>
-                    <td>{cierre.sucursal}</td>
-                    <td className="numero">{dinero(cierre.ventasTotal)}</td>
-                    <td className="numero">{dinero(cierre.esperado)}</td>
-                    <td className="numero">{dinero(cierre.contado)}</td>
-                    <td className="numero">
+                    <td className="codigo" data-label="Cierre">{fechaLarga(cierre.cerradoEn)}</td>
+                    <td data-label="Sucursal">{cierre.sucursal}</td>
+                    <td className="numero" data-label="Vendido">{dinero(cierre.ventasTotal)}</td>
+                    <td className="numero" data-label="Esperado">{dinero(cierre.esperado)}</td>
+                    <td className="numero" data-label="Contado">{dinero(cierre.contado)}</td>
+                    <td className="numero" data-label="Diferencia">
                       <span
                         className={
                           cierre.diferencia === 0
@@ -361,8 +361,8 @@ export function Caja({ sesion, sucursalId }: Props) {
                         {dinero(cierre.diferencia)}
                       </span>
                     </td>
-                    <td>{cierre.cerradoPor}</td>
-                    <td>{cierre.notas ?? '—'}</td>
+                    <td data-label="Cerro">{cierre.cerradoPor}</td>
+                    <td data-label="Notas">{cierre.notas ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
