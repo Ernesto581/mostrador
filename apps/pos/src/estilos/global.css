@@ -1728,8 +1728,39 @@ button {
   display: none;
 }
 
+.inventario__paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 48px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--tinta-borde);
+  border-top: 0;
+  border-radius: 0 0 var(--radio-chico) var(--radio-chico);
+  background: var(--tinta-alta);
+}
+
+.inventario__pagina-controles {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.inventario__por-pagina {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.35rem;
+}
+
 /* ---------- Tablet: tabla compacta (768 a 1023 px) ---------- */
 @media (min-width: 768px) and (max-width: 1023px) {
+  .tabla--inventario .col-imagen,
+  .tabla--inventario .col-categoria {
+    display: none;
+  }
+
   /* El costo y el reparto no se pierden: estan en Editar y en el kardex. */
   .tabla--inventario .col-costo,
   .tabla--inventario .col-reparto {
@@ -1771,6 +1802,11 @@ button {
 
 /* ---------- Telefono: una tarjeta por producto (menos de 768 px) ---------- */
 @media (max-width: 767px) {
+  .tabla--inventario .col-imagen,
+  .tabla--inventario .col-categoria {
+    display: none;
+  }
+
   .tabla-envoltura {
     overflow: visible;
     border: 0;
@@ -2141,6 +2177,425 @@ button {
   color: var(--alerta);
 }
 
+/* ============================================================
+   Estructura de escritorio: navegacion lateral + barra superior.
+   La paleta de Mostrador se conserva; la version compacta de tablet y telefono
+   sigue usando su cabecera y menu actuales.
+   ============================================================ */
+
+.barra-lateral-escritorio,
+.barra__busqueda {
+  display: none;
+}
+
+.inventario__titulo-principal {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.inventario__titulo-principal svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: var(--acento);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (min-width: 1024px) {
+  .app {
+    min-height: 100vh;
+    padding-left: 212px;
+  }
+
+  .barra-lateral-escritorio {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 24;
+    display: flex;
+    flex-direction: column;
+    width: 212px;
+    padding: 1.15rem 0.65rem 0.8rem;
+    background: linear-gradient(180deg, rgba(22, 18, 15, 0.99), rgba(30, 25, 21, 0.99));
+    border-right: 1px solid var(--tinta-borde);
+  }
+
+  .barra-lateral__marca {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 0.6rem;
+    padding: 0 0.65rem 1.35rem;
+    border-bottom: 1px solid var(--tinta-borde);
+  }
+
+  .barra-lateral__carrito {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 30px;
+    height: 30px;
+    fill: none;
+    stroke: var(--acento);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .barra-lateral__nombre {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--texto);
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .barra-lateral__lema {
+    color: var(--acento);
+    font-family: var(--fuente-mono);
+    font-size: 0.57rem;
+    font-weight: 700;
+    letter-spacing: 0.17em;
+  }
+
+  .barra-lateral__opciones {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    padding-top: 0.8rem;
+  }
+
+  .barra-lateral__opcion {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 42px;
+    width: 100%;
+    padding: 0 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--radio-chico);
+    background: transparent;
+    color: var(--texto-tenue);
+    text-align: left;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  }
+
+  .barra-lateral__opcion svg {
+    flex: 0 0 auto;
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .barra-lateral__opcion:hover {
+    color: var(--texto);
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  .barra-lateral__opcion--activa {
+    color: var(--texto);
+    border-color: rgba(228, 87, 46, 0.35);
+    background: linear-gradient(90deg, rgba(228, 87, 46, 0.2), rgba(228, 87, 46, 0.08));
+    box-shadow: inset 2px 0 var(--acento);
+  }
+
+  .barra-lateral__opcion--activa svg {
+    color: var(--acento);
+  }
+
+  .barra-lateral__pie {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: auto;
+    padding: 0.75rem 0.7rem;
+    border: 1px solid var(--tinta-borde);
+    border-radius: var(--radio-chico);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--texto-tenue);
+    font-size: 0.68rem;
+    overflow-wrap: anywhere;
+  }
+
+  .barra-lateral__estado {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--dinero);
+    font-weight: 700;
+  }
+
+  .barra-lateral__estado-punto {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--dinero);
+  }
+
+  .barra {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 1rem;
+    min-height: 62px;
+    padding: 0.65rem 1.25rem;
+  }
+
+  .barra__marca,
+  .barra__pestanas,
+  .barra .boton-menu {
+    display: none;
+  }
+
+  .barra__busqueda {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex: 1 1 20rem;
+    width: min(30rem, 42vw);
+    max-width: 30rem;
+    min-width: 12rem;
+    height: 40px;
+    padding: 0 0.7rem;
+    border: 1px solid var(--tinta-borde);
+    border-radius: var(--radio-chico);
+    background: var(--tinta-media);
+    color: var(--texto-tenue);
+  }
+
+  .barra__busqueda svg {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  .barra__busqueda input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--texto);
+    font-size: 0.82rem;
+  }
+
+  .barra__busqueda:focus-within {
+    border-color: rgba(228, 87, 46, 0.65);
+    box-shadow: 0 0 0 3px rgba(228, 87, 46, 0.1);
+  }
+
+  .barra__datos {
+    flex: 0 0 auto;
+    margin-left: auto;
+    gap: 0.65rem;
+  }
+
+  .barra__datos .selector {
+    max-width: 14rem;
+  }
+
+  .inventario__busqueda {
+    display: none;
+  }
+
+  .inventario__titulo-principal {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: 1.35rem;
+  }
+
+  .inventario__titulo-principal svg {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    fill: none;
+    stroke: var(--acento);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .inventario__cabecera {
+    align-items: center;
+  }
+
+  .inventario__controles {
+    justify-content: flex-end;
+  }
+
+  .inventario__tabla-envoltura {
+    overflow-x: auto;
+  }
+
+  .tabla--inventario .col-imagen {
+    width: 44px;
+    padding-inline: 0.45rem;
+  }
+
+  .inventario__miniatura {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 36px;
+    border: 1px solid var(--tinta-borde);
+    border-radius: 6px;
+    background: var(--tinta-media);
+    object-fit: cover;
+  }
+
+  .inventario__miniatura--vacia svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: var(--texto-tenue);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .tabla--inventario .col-categoria {
+    white-space: nowrap;
+  }
+
+  .inventario__paginacion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 48px;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--tinta-borde);
+    border-top: 0;
+    border-radius: 0 0 var(--radio-chico) var(--radio-chico);
+    background: var(--tinta-alta);
+  }
+
+  .inventario__conteo,
+  .inventario__por-pagina > span {
+    color: var(--texto-tenue);
+    font-size: 0.72rem;
+  }
+
+  .inventario__pagina-controles {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .inventario__flecha {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0.2rem;
+  }
+
+  .inventario__pagina-actual {
+    display: grid;
+    place-items: center;
+    min-width: 30px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--acento);
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .inventario__por-pagina {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 0.35rem;
+  }
+
+  .inventario__por-pagina .selector {
+    min-height: 32px;
+    padding: 0.25rem 0.4rem;
+  }
+}
+
+/* Con sidebar, los monitores compactos usan la tabla resumida que cabe en el area. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .barra__datos .vendedor {
+    display: none;
+  }
+
+  .barra__datos .selector {
+    max-width: 10.5rem;
+  }
+
+  .tabla--inventario .col-imagen,
+  .tabla--inventario .col-reparto,
+  .tabla--inventario .col-categoria,
+  .tabla--inventario .col-costo {
+    display: none;
+  }
+
+  .accion-kardex,
+  .accion-movimiento,
+  .accion-transferir {
+    display: none;
+  }
+
+  .menu-acciones {
+    display: inline-block;
+  }
+
+  .tabla--inventario .col-acciones {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .tabla--inventario .col-acciones .acciones-fila {
+    flex-wrap: nowrap;
+  }
+
+  .tabla--inventario .col-acciones .boton {
+    padding: 0.38rem 0.55rem;
+    font-size: 0.76rem;
+  }
+}
+
+/* Conservar todas las columnas en monitores medianos sin partir las acciones. */
+@media (min-width: 1280px) and (max-width: 1599px) {
+  .tabla--inventario th,
+  .tabla--inventario td {
+    padding: 0.48rem 0.45rem;
+  }
+
+  .tabla--inventario .col-acciones {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .tabla--inventario .col-acciones .acciones-fila {
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+  }
+
+  .tabla--inventario .col-acciones .boton {
+    padding: 0.38rem 0.48rem;
+    font-size: 0.74rem;
+  }
+}
+
 @media (max-width: 767px) {
   .boton-menu {
     display: inline-flex;
@@ -2259,6 +2714,28 @@ button {
     color: var(--texto-tenue);
     font-size: 0.68rem;
     letter-spacing: 0;
+  }
+
+  .inventario__paginacion {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    padding: 0.7rem;
+    border: 1px solid var(--tinta-borde);
+    border-radius: var(--radio-chico);
+  }
+
+  .inventario__conteo {
+    text-align: center;
+  }
+
+  .inventario__pagina-controles {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .inventario__por-pagina {
+    margin-left: 0;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api/cliente';
 import type { Categoria, Movimiento, RepartoSucursal, Sesion, TipoMovimiento } from '../api/tipos';
 import { MenuAcciones } from '../componentes/MenuAcciones';
@@ -16,6 +16,8 @@ import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
 interface Props {
   sesion: Sesion;
   sucursalId: string;
+  busquedaExterna?: string;
+  alCambiarBusqueda?: (texto: string) => void;
 }
 
 /** Fila tal como se pinta: sirve tanto para la vista general como para una sucursal. */
@@ -23,6 +25,7 @@ interface FilaVista {
   productoId: string;
   sku: string;
   nombre: string;
+  imagenUrl: string | null;
   precioCosto: number;
   precioVenta: number;
   stock: number;
@@ -110,9 +113,13 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
   };
 }
 
-export function Inventario({ sesion, sucursalId }: Props) {
+export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqueda }: Props) {
   const [general, setGeneral] = useState(true);
-  const [buscar, setBuscar] = useState('');
+  const [busquedaInterna, setBusquedaInterna] = useState('');
+  const buscar = busquedaExterna ?? busquedaInterna;
+  const setBuscar = alCambiarBusqueda ?? setBusquedaInterna;
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(25);
   const [soloBajoMinimo, setSoloBajoMinimo] = useState(false);
   const [formulario, setFormulario] = useState<FormularioMovimiento | null>(null);
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
@@ -132,10 +139,10 @@ export function Inventario({ sesion, sucursalId }: Props) {
 
   const { datos, cargando, error: errorLista, recargar } = useCarga(async () => {
     if (general) {
-      const respuesta = await api.stockGeneral(buscar, soloBajoMinimo);
+      const respuesta = await api.stockGeneral(buscar, soloBajoMinimo, 500);
       return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
     }
-    const respuesta = await api.stock(sucursalId, buscar, soloBajoMinimo);
+    const respuesta = await api.stock(sucursalId, buscar, soloBajoMinimo, 500);
     return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
   }, [general, buscar, soloBajoMinimo, sucursalId]);
 
@@ -153,8 +160,19 @@ export function Inventario({ sesion, sucursalId }: Props) {
   );
 
   const filas = datos?.filas ?? [];
+  const paginas = Math.max(1, Math.ceil(filas.length / porPagina));
+  const paginaActual = Math.min(pagina, paginas);
+  const inicio = filas.length === 0 ? 0 : (paginaActual - 1) * porPagina;
+  const filasPagina = filas.slice(inicio, inicio + porPagina);
+  const indicePrimero = filas.length === 0 ? 0 : inicio + 1;
+  const indiceUltimo = Math.min(inicio + porPagina, filas.length);
   const categorias: Categoria[] = datosCategorias?.categorias ?? [];
+  const nombrePorCategoria = new Map(categorias.map((categoria) => [categoria.id, categoria.nombre]));
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
+
+  useEffect(() => {
+    setPagina(1);
+  }, [buscar, general, sucursalId, soloBajoMinimo, porPagina]);
 
   function cerrarConMensaje(texto: string): void {
     setOk(texto);
@@ -333,7 +351,13 @@ export function Inventario({ sesion, sucursalId }: Props) {
     <div className="panel">
       <div className="panel__cabecera inventario__cabecera">
         <div className="inventario__titulo">
-          <h1 className="panel__titulo">Inventario</h1>
+          <h1 className="panel__titulo inventario__titulo-principal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+              <path d="M3 8v9l9 5 9-5V8M12 13v9" />
+            </svg>
+            Inventario
+          </h1>
           <p className="panel__nota">
             {general ? 'Todas las sucursales' : `Sucursal ${sucursal?.codigo ?? '—'}`} ·{' '}
             {datos?.conAlerta ?? 0} productos por debajo del minimo
@@ -421,52 +445,70 @@ export function Inventario({ sesion, sucursalId }: Props) {
       ) : null}
 
       {filas.length > 0 ? (
-        <div className="tabla-envoltura">
-          <table className="tabla tabla--inventario">
-            <thead>
-              <tr>
-                <th className="col-sku">SKU</th>
-                <th className="col-producto">Producto</th>
-                <th className="numero col-total">Total</th>
-                {general ? <th className="col-reparto">Reparto por sucursal</th> : null}
-                <th className="numero col-minimo">Minimo</th>
-                <th className="numero col-costo">Costo</th>
-                <th className="numero col-venta">Venta</th>
-                <th className="col-acciones" />
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((fila) => (
-                <tr key={fila.productoId}>
-                  <td className="codigo col-sku">
-                    <span className="solo-angosto">SKU </span>
-                    {fila.sku}
-                  </td>
-                  <td className="col-producto">{fila.nombre}</td>
-                  <td className="numero col-total">
-                    <span className="solo-angosto inventario__etiqueta-total">Total</span>
-                    <span className={claseStock(fila)} title={estadoStock(fila)}>
-                      {fila.stock}
-                    </span>
-                    <span className="solo-angosto inventario__estado-stock">{estadoStock(fila)}</span>
-                  </td>
-                  {general ? (
-                    <td className="reparto col-reparto">
-                      <span className="solo-angosto">Por sucursal: </span>
-                      {repartoDe(fila)}
+        <>
+          <div className="tabla-envoltura inventario__tabla-envoltura">
+            <table className="tabla tabla--inventario">
+              <thead>
+                <tr>
+                  <th className="col-imagen" aria-label="Imagen" />
+                  <th className="col-sku">SKU</th>
+                  <th className="col-producto">Producto</th>
+                  <th className="numero col-total">Stock</th>
+                  {general ? <th className="col-reparto">Reparto por sucursal</th> : null}
+                  <th className="numero col-minimo">Minimo</th>
+                  <th className="numero col-costo">Costo</th>
+                  <th className="numero col-venta">Venta</th>
+                  <th className="col-categoria">Categoria</th>
+                  <th className="col-acciones">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filasPagina.map((fila) => (
+                  <tr key={fila.productoId}>
+                    <td className="col-imagen">
+                      {fila.imagenUrl ? (
+                        <img className="inventario__miniatura" src={fila.imagenUrl} alt="" loading="lazy" />
+                      ) : (
+                        <span className="inventario__miniatura inventario__miniatura--vacia" aria-hidden="true">
+                          <svg viewBox="0 0 24 24">
+                            <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+                            <path d="M3 8v9l9 5 9-5V8M12 13v9" />
+                          </svg>
+                        </span>
+                      )}
                     </td>
-                  ) : null}
-                  <td className="numero col-minimo">
-                    <span className="solo-angosto">Minimo </span>
-                    {fila.stockMinimo}
-                  </td>
-                  <td className="numero col-costo">
-                    <span className="solo-angosto">Costo </span>
-                    {dinero(fila.precioCosto)}
-                  </td>
-                  <td className="numero col-venta">{dinero(fila.precioVenta)}</td>
-                  <td className="col-acciones">
-                    <div className="acciones-fila">
+                    <td className="codigo col-sku">
+                      <span className="solo-angosto">SKU </span>
+                      {fila.sku}
+                    </td>
+                    <td className="col-producto">{fila.nombre}</td>
+                    <td className="numero col-total">
+                      <span className="solo-angosto inventario__etiqueta-total">Total</span>
+                      <span className={claseStock(fila)} title={estadoStock(fila)}>
+                        {fila.stock}
+                      </span>
+                      <span className="solo-angosto inventario__estado-stock">{estadoStock(fila)}</span>
+                    </td>
+                    {general ? (
+                      <td className="reparto col-reparto">
+                        <span className="solo-angosto">Por sucursal: </span>
+                        {repartoDe(fila)}
+                      </td>
+                    ) : null}
+                    <td className="numero col-minimo">
+                      <span className="solo-angosto">Minimo </span>
+                      {fila.stockMinimo}
+                    </td>
+                    <td className="numero col-costo">
+                      <span className="solo-angosto">Costo </span>
+                      {dinero(fila.precioCosto)}
+                    </td>
+                    <td className="numero col-venta">{dinero(fila.precioVenta)}</td>
+                    <td className="col-categoria">
+                      {fila.categoriaId ? nombrePorCategoria.get(fila.categoriaId) ?? '—' : '—'}
+                    </td>
+                    <td className="col-acciones">
+                      <div className="acciones-fila">
                       {puedeCatalogo ? (
                         <button
                           type="button"
@@ -599,13 +641,54 @@ export function Inventario({ sesion, sucursalId }: Props) {
                           </button>
                         ) : null}
                       </MenuAcciones>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="inventario__paginacion">
+            <span className="inventario__conteo">
+              Mostrando {indicePrimero}–{indiceUltimo} de {filas.length} productos
+            </span>
+            <div className="inventario__pagina-controles">
+              <button
+                type="button"
+                className="boton inventario__flecha"
+                onClick={() => setPagina((actual) => Math.max(1, actual - 1))}
+                disabled={paginaActual <= 1}
+                aria-label="Pagina anterior"
+              >
+                ‹
+              </button>
+              <span className="inventario__pagina-actual">{paginaActual}</span>
+              <button
+                type="button"
+                className="boton inventario__flecha"
+                onClick={() => setPagina((actual) => Math.min(paginas, actual + 1))}
+                disabled={paginaActual >= paginas}
+                aria-label="Pagina siguiente"
+              >
+                ›
+              </button>
+              <label className="inventario__por-pagina">
+                <span>Por pagina</span>
+                <select
+                  className="selector"
+                  value={porPagina}
+                  onChange={(evento) => setPorPagina(Number(evento.target.value))}
+                  aria-label="Productos por pagina"
+                >
+                  {[25, 50, 100].map((cantidad) => (
+                    <option key={cantidad} value={cantidad}>{cantidad}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        </>
       ) : null}
 
       {/* ---------- Alta y edicion del producto ---------- */}

@@ -106,6 +106,7 @@ export interface FilaStock {
   productoId: string;
   sku: string;
   nombre: string;
+  imagenUrl: string | null;
   precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
@@ -126,6 +127,7 @@ export interface FilaStockGeneral {
   productoId: string;
   sku: string;
   nombre: string;
+  imagenUrl: string | null;
   precioCosto: number;
   precioVenta: number;
   costoPromedio: number;

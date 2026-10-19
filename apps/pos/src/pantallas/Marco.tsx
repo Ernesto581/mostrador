@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { Sesion } from '../api/tipos';
 import { AvisoActualizacion } from '../componentes/AvisoActualizacion';
 import { IndicadorConexion } from '../componentes/IndicadorConexion';
@@ -51,11 +51,30 @@ function opcionesDe(sesion: Sesion): { id: Pestana; etiqueta: string }[] {
   ];
 }
 
+/** Iconos del menu de escritorio, dibujados en linea para no agregar dependencias. */
+function IconoSeccion({ seccion }: { seccion: Pestana }) {
+  const trazos: Record<Pestana, ReactNode> = {
+    mostrador: <path d="M3 4h2l2.2 11.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 1.9-1.5L22 8H6M10 21h.01M18 21h.01" />,
+    caja: <><path d="M3 9h18v11H3zM7 9V5h10v4" /><path d="M8 13h8" /></>,
+    inventario: <><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="M3 8v9l9 5 9-5V8M12 13v9" /></>,
+    ventas: <><path d="M5 3h14v18l-3.5-2-3.5 2-3.5-2L5 21z" /><path d="M8 8h8M8 12h8M8 16h4" /></>,
+    usuarios: <><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0M17 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5" /></>,
+    sucursales: <><path d="M3 10h18v10H3zM2 10l2-6h16l2 6M8 20v-6h5v6" /><path d="M7 8h.01M12 8h.01M17 8h.01" /></>,
+  };
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {trazos[seccion]}
+    </svg>
+  );
+}
+
 export function Marco({ sesion, onSalir }: Props) {
   const opciones = opcionesDe(sesion);
   // Se abre en la primera seccion que le toca a esta cuenta.
   const [pestana, setPestana] = useState<Pestana>(() => opcionesDe(sesion)[0]?.id ?? 'inventario');
   const [sucursalId, setSucursalId] = useState(sesion.sucursales[0]?.id ?? '');
+  const [busquedaInventario, setBusquedaInventario] = useState('');
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [nueva, setNueva] = useState<VersionNueva | null>(null);
   const [revision, setRevision] = useState<'inicial' | 'revisando' | 'aldia' | 'nueva' | 'sinRevisar'>(
@@ -139,6 +158,41 @@ export function Marco({ sesion, onSalir }: Props) {
 
   return (
     <div className="app">
+      <aside className="barra-lateral-escritorio" aria-label="Navegacion principal">
+        <div className="barra-lateral__marca">
+          <svg className="barra-lateral__carrito" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M3 5h3l3.2 16.1a2.8 2.8 0 0 0 2.7 2.2h12.2a2.8 2.8 0 0 0 2.7-2.1L30 10H8" />
+            <circle cx="13" cy="28" r="1.5" />
+            <circle cx="24" cy="28" r="1.5" />
+          </svg>
+          <span className="barra-lateral__nombre">{sesion.empresa.nombre || 'MI TIENDA'}</span>
+          <span className="barra-lateral__lema">PUNTO DE VENTA</span>
+        </div>
+
+        <nav className="barra-lateral__opciones" aria-label="Secciones">
+          {opciones.map((opcion) => (
+            <button
+              key={opcion.id}
+              type="button"
+              className={opcion.id === pestana ? 'barra-lateral__opcion barra-lateral__opcion--activa' : 'barra-lateral__opcion'}
+              aria-current={opcion.id === pestana ? 'page' : undefined}
+              onClick={() => elegir(opcion.id)}
+            >
+              <IconoSeccion seccion={opcion.id} />
+              <span>{opcion.etiqueta}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="barra-lateral__pie">
+          <span className="barra-lateral__estado">
+            <span className="barra-lateral__estado-punto" aria-hidden="true" />
+            Sucursal activa
+          </span>
+          <span>{sucursal?.codigo} · {sucursal?.nombre}</span>
+        </div>
+      </aside>
+
       <header className="barra">
         <button
           type="button"
@@ -151,13 +205,13 @@ export function Marco({ sesion, onSalir }: Props) {
           <span className="boton-menu__rayas" aria-hidden="true" />
         </button>
 
-        <div className="marca">
+        <div className="marca barra__marca">
           <span className="marca__punto" aria-hidden="true" />
           <span className="marca__nombre">{sesion.empresa.nombre || 'Mostrador'}</span>
           <span className="marca__lema">punto de venta</span>
         </div>
 
-        <nav className="pestanas" aria-label="Secciones">
+        <nav className="pestanas barra__pestanas" aria-label="Secciones">
           {opciones.map((opcion) => (
             <button
               key={opcion.id}
@@ -169,6 +223,22 @@ export function Marco({ sesion, onSalir }: Props) {
             </button>
           ))}
         </nav>
+
+        {seccion?.id === 'inventario' ? (
+          <label className="barra__busqueda">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-4-4" />
+            </svg>
+            <input
+              type="search"
+              value={busquedaInventario}
+              onChange={(evento) => setBusquedaInventario(evento.target.value)}
+              placeholder="Buscar productos..."
+              aria-label="Buscar productos del inventario"
+            />
+          </label>
+        ) : null}
 
         <div className="barra__datos">
           <IndicadorConexion />
@@ -301,7 +371,14 @@ export function Marco({ sesion, onSalir }: Props) {
 
       {seccion?.id === 'mostrador' ? <Vender sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'caja' ? <Caja sesion={sesion} sucursalId={sucursalId} /> : null}
-      {seccion?.id === 'inventario' ? <Inventario sesion={sesion} sucursalId={sucursalId} /> : null}
+      {seccion?.id === 'inventario' ? (
+        <Inventario
+          sesion={sesion}
+          sucursalId={sucursalId}
+          busquedaExterna={busquedaInventario}
+          alCambiarBusqueda={setBusquedaInventario}
+        />
+      ) : null}
       {seccion?.id === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'usuarios' ? <Usuarios /> : null}
       {seccion?.id === 'sucursales' ? <Sucursales /> : null}

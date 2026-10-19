@@ -266,6 +266,7 @@ export interface FilaStock {
   productoId: string;
   sku: string;
   nombre: string;
+  imagenUrl: string | null;
   precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
@@ -328,6 +329,7 @@ async function listarProductos(
       id: schema.products.id,
       sku: schema.products.sku,
       nombre: schema.products.name,
+      imagenUrl: schema.products.imageUrl,
       precioCosto: schema.products.costPrice,
       precioVenta: schema.products.salePrice,
       costoPromedio: schema.products.averageCost,
@@ -364,6 +366,7 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
       productoId: producto.id,
       sku: producto.sku,
       nombre: producto.nombre,
+      imagenUrl: producto.imagenUrl,
       precioCosto: producto.precioCosto,
       precioVenta: producto.precioVenta,
       costoPromedio: producto.costoPromedio,
@@ -395,6 +398,7 @@ export interface FilaStockGeneral {
   productoId: string;
   sku: string;
   nombre: string;
+  imagenUrl: string | null;
   precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
@@ -472,6 +476,7 @@ export async function stockGeneral(
       productoId: producto.id,
       sku: producto.sku,
       nombre: producto.nombre,
+      imagenUrl: producto.imagenUrl,
       precioCosto: producto.precioCosto,
       precioVenta: producto.precioVenta,
       costoPromedio: producto.costoPromedio,
