@@ -1,17 +1,17 @@
 /** Formato de dinero. Los importes SIEMPRE llegan y viajan en centavos enteros. */
 
-const CON_MONEDA = new Intl.NumberFormat('es-MX', {
+const CON_MONEDA = new Intl.NumberFormat('es-CU', {
   style: 'currency',
-  currency: 'MXN',
+  currency: 'CUP',
   minimumFractionDigits: 2,
 });
 
-const SOLO_NUMERO = new Intl.NumberFormat('es-MX', {
+const SOLO_NUMERO = new Intl.NumberFormat('es-CU', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-/** 1800 -> "$18.00" */
+/** 1800 -> "$18.00" (peso cubano, CUP) */
 export function dinero(centavos: number): string {
   return CON_MONEDA.format(centavos / 100);
 }

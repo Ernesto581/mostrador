@@ -73,7 +73,7 @@ export function formatear(
   monto: Centavos,
   opciones: { moneda?: string; locale?: string } = {},
 ): string {
-  const { moneda = 'MXN', locale = 'es-MX' } = opciones;
+  const { moneda = 'CUP', locale = 'es-CU' } = opciones;
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: moneda,

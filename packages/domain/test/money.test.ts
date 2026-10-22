@@ -48,6 +48,6 @@ describe('dinero', () => {
   });
 
   it('formatea como moneda', () => {
-    expect(formatear(centavos(1999), { moneda: 'MXN', locale: 'es-MX' })).toContain('19.99');
+    expect(formatear(centavos(1999), { moneda: 'CUP', locale: 'es-CU' })).toContain('19.99');
   });
 });
