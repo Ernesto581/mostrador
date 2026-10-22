@@ -27,6 +27,8 @@ export interface SucursalDelPanel {
   direccion: string | null;
   telefono: string | null;
   activa: boolean;
+  /** true: si el piso de venta no alcanza, el mostrador toma del almacen. */
+  ventaDesdeAlmacen: boolean;
 }
 
 export interface Sesion {
@@ -110,7 +112,10 @@ export interface FilaStock {
   precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
+  /** Total de la sucursal: piso de venta mas almacen. */
   stock: number;
+  piso: number;
+  almacen: number;
   stockMinimo: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
@@ -138,6 +143,50 @@ export interface FilaStockGeneral {
   categoriaId: string | null;
   /** Cuanto hay en cada sucursal. */
   reparto: RepartoSucursal[];
+}
+
+export type TipoUbicacion = 'piso_venta' | 'almacen';
+
+/** Piso de venta o almacen de una sucursal: donde vive el stock. */
+export interface Ubicacion {
+  id: string;
+  sucursalId: string;
+  sucursalCodigo: string;
+  sucursalNombre: string;
+  sucursalActiva: boolean;
+  codigo: string;
+  nombre: string;
+  tipo: TipoUbicacion;
+}
+
+export type EstadoTransferencia =
+  | 'borrador'
+  | 'en_transito'
+  | 'recibida'
+  | 'rechazada'
+  | 'cancelada';
+
+export interface LineaTransferencia {
+  id: string;
+  productoId: string;
+  sku: string;
+  nombre: string;
+  enviada: number;
+  recibida: number | null;
+}
+
+export interface Transferencia {
+  id: string;
+  folio: string;
+  estado: EstadoTransferencia;
+  motivo: string | null;
+  hayIncidencia: boolean;
+  creadaEn: string;
+  despachadaEn: string | null;
+  recibidaEn: string | null;
+  origen: Ubicacion;
+  destino: Ubicacion;
+  lineas: LineaTransferencia[];
 }
 
 export type TipoMovimiento =

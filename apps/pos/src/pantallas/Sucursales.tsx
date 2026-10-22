@@ -17,6 +17,7 @@ interface Borrador {
   tipo: 'tienda' | 'almacen';
   direccion: string;
   telefono: string;
+  ventaDesdeAlmacen: boolean;
 }
 
 const BORRADOR_VACIO: Borrador = {
@@ -26,6 +27,7 @@ const BORRADOR_VACIO: Borrador = {
   tipo: 'tienda',
   direccion: '',
   telefono: '',
+  ventaDesdeAlmacen: false,
 };
 
 export function Sucursales() {
@@ -69,6 +71,7 @@ export function Sucursales() {
           tipo: borrador.tipo,
           ...(borrador.direccion.trim() ? { direccion: borrador.direccion.trim() } : {}),
           ...(borrador.telefono.trim() ? { telefono: borrador.telefono.trim() } : {}),
+          ventaDesdeAlmacen: borrador.tipo === 'tienda' && borrador.ventaDesdeAlmacen,
         });
         terminarCon('Sucursal actualizada.');
       } else {
@@ -184,6 +187,7 @@ export function Sucursales() {
                             tipo: sucursal.tipo === 'almacen' ? 'almacen' : 'tienda',
                             direccion: sucursal.direccion ?? '',
                             telefono: sucursal.telefono ?? '',
+                            ventaDesdeAlmacen: sucursal.ventaDesdeAlmacen,
                           });
                         }}
                       >
@@ -272,6 +276,19 @@ export function Sucursales() {
                 onChange={(evento) => setBorrador({ ...borrador, telefono: evento.target.value })}
               />
             </label>
+
+            {borrador.id && borrador.tipo === 'tienda' ? (
+              <label className="opcion-casilla campo-ancho">
+                <input
+                  type="checkbox"
+                  checked={borrador.ventaDesdeAlmacen}
+                  onChange={(evento) =>
+                    setBorrador({ ...borrador, ventaDesdeAlmacen: evento.target.checked })
+                  }
+                />
+                <span>Vender tambien del almacen si el piso de venta no alcanza</span>
+              </label>
+            ) : null}
           </div>
 
           <div className="modal__acciones">

@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/cliente';
-import type { Categoria, Movimiento, RepartoSucursal, Sesion, TipoMovimiento } from '../api/tipos';
+import type {
+  Categoria,
+  Movimiento,
+  RepartoSucursal,
+  Sesion,
+  TipoMovimiento,
+  Transferencia,
+} from '../api/tipos';
 import { MenuAcciones } from '../componentes/MenuAcciones';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
 import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
@@ -29,11 +36,21 @@ interface FilaVista {
   precioCosto: number;
   precioVenta: number;
   stock: number;
+  piso?: number;
+  almacen?: number;
   stockMinimo: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
   reparto?: RepartoSucursal[];
 }
+
+const ETIQUETA_ESTADO: Record<string, string> = {
+  borrador: 'Borrador',
+  en_transito: 'En transito',
+  recibida: 'Recibida',
+  rechazada: 'Rechazada',
+  cancelada: 'Cancelada',
+};
 
 const TIPOS: { valor: TipoMovimiento; etiqueta: string }[] = [
   { valor: 'entrada_compra', etiqueta: 'Entrada por compra' },
@@ -76,9 +93,20 @@ interface FormularioMovimiento {
 
 interface FormularioTransferencia {
   fila: FilaVista;
-  origenSucursalId: string;
-  destinoSucursalId: string;
+  origenUbicacionId: string;
+  destinoUbicacionId: string;
   cantidad: string;
+  motivo: string;
+}
+
+interface FormularioRecepcion {
+  transferencia: Transferencia;
+  /** Lo que realmente llego, por id de linea. Empieza igual a lo enviado. */
+  cantidades: Record<string, string>;
+}
+
+interface FormularioRechazo {
+  transferencia: Transferencia;
   motivo: string;
 }
 
@@ -123,6 +151,9 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
   const [soloBajoMinimo, setSoloBajoMinimo] = useState(false);
   const [formulario, setFormulario] = useState<FormularioMovimiento | null>(null);
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
+  const [recepcion, setRecepcion] = useState<FormularioRecepcion | null>(null);
+  const [rechazo, setRechazo] = useState<FormularioRechazo | null>(null);
+  const [enTransferencias, setEnTransferencias] = useState(false);
   const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
@@ -133,8 +164,7 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
   const [ok, setOk] = useState<string | null>(null);
 
   const puedeMover = sesion.permisos.includes('inventory.adjust');
-  const puedeTransferir =
-    sesion.permisos.includes('inventory.transfer') && sesion.sucursales.length > 1;
+
   const puedeCatalogo = sesion.permisos.includes('catalog.manage');
 
   const { datos, cargando, error: errorLista, recargar } = useCarga(async () => {
@@ -159,6 +189,14 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
     [],
   );
 
+  const { datos: datosUbicaciones } = useCarga(() => api.ubicaciones(), []);
+
+  const { datos: datosTransferencias, cargando: cargandoTransferencias, recargar: recargarTransferencias } =
+    useCarga(() => api.transferencias({ limite: 100 }), []);
+
+  const puedeTransferir =
+    sesion.permisos.includes('inventory.transfer') && (datosUbicaciones?.ubicaciones.length ?? 0) > 1;
+
   const filas = datos?.filas ?? [];
   const paginas = Math.max(1, Math.ceil(filas.length / porPagina));
   const paginaActual = Math.min(pagina, paginas);
@@ -178,6 +216,8 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
     setOk(texto);
     setFormulario(null);
     setTransferencia(null);
+    setRecepcion(null);
+    setRechazo(null);
     setProducto(null);
     window.setTimeout(() => setOk(null), 4500);
   }
@@ -290,6 +330,15 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
     }
   }
 
+  /** Piso de venta de la sucursal (o su primera ubicacion): punto de partida de un traslado. */
+  function ubicacionInicialDe(sucursal: string): string {
+    const ubicaciones = datosUbicaciones?.ubicaciones ?? [];
+    const ubicacion =
+      ubicaciones.find((opcion) => opcion.sucursalId === sucursal && opcion.tipo === 'piso_venta') ??
+      ubicaciones.find((opcion) => opcion.sucursalId === sucursal);
+    return ubicacion?.id ?? '';
+  }
+
   async function transferir(): Promise<void> {
     if (!transferencia) {
       return;
@@ -300,8 +349,8 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
       setError('La cantidad debe ser un numero entero mayor a cero');
       return;
     }
-    if (!transferencia.destinoSucursalId) {
-      setError('Elige la sucursal de destino');
+    if (!transferencia.destinoUbicacionId) {
+      setError('Elige la ubicacion de destino');
       return;
     }
 
@@ -309,20 +358,77 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
     setError(null);
 
     try {
-      await api.transferir({
-        origenSucursalId: transferencia.origenSucursalId,
-        destinoSucursalId: transferencia.destinoSucursalId,
+      const { transferencia: creada } = await api.crearTransferencia({
+        origenUbicacionId: transferencia.origenUbicacionId,
+        destinoUbicacionId: transferencia.destinoUbicacionId,
         ...(transferencia.motivo.trim() ? { motivo: transferencia.motivo.trim() } : {}),
         lineas: [{ productoId: transferencia.fila.productoId, cantidad }],
       });
 
-      await recargar();
-      cerrarConMensaje('Transferencia registrada');
+      await Promise.all([recargar(), recargarTransferencias()]);
+      cerrarConMensaje(
+        creada.estado === 'recibida'
+          ? `Movido dentro del local: ${cantidad} piezas (${creada.folio}).`
+          : `Transferencia ${creada.folio} creada. Despachala desde la pestana Transferencias cuando salga la mercancia.`,
+      );
     } catch (fallo) {
       setError(mensajeDe(fallo));
     } finally {
       setGuardando(false);
     }
+  }
+
+  /** Ejecuta una accion sobre una transferencia y refresca stock y lista. */
+  async function accionTransferencia(ejecutar: () => Promise<unknown>, texto: string): Promise<void> {
+    setGuardando(true);
+    setError(null);
+
+    try {
+      await ejecutar();
+      await Promise.all([recargar(), recargarTransferencias()]);
+      cerrarConMensaje(texto);
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function confirmarRecepcion(): Promise<void> {
+    if (!recepcion) {
+      return;
+    }
+
+    const lineas = recepcion.transferencia.lineas.map((linea) => ({
+      lineaId: linea.id,
+      cantidadRecibida: Number(recepcion.cantidades[linea.id] ?? linea.enviada),
+    }));
+    if (lineas.some((linea) => !Number.isInteger(linea.cantidadRecibida) || linea.cantidadRecibida < 0)) {
+      setError('Escribe cantidades enteras, desde cero');
+      return;
+    }
+
+    const { id, folio } = recepcion.transferencia;
+    await accionTransferencia(
+      () => api.recibirTransferencia(id, lineas),
+      `Recepcion de ${folio} confirmada`,
+    );
+  }
+
+  async function confirmarRechazo(): Promise<void> {
+    if (!rechazo) {
+      return;
+    }
+    if (rechazo.motivo.trim().length < 3) {
+      setError('Escribe el motivo del rechazo');
+      return;
+    }
+
+    const { id, folio } = rechazo.transferencia;
+    await accionTransferencia(
+      () => api.rechazarTransferencia(id, rechazo.motivo.trim()),
+      `Transferencia ${folio} rechazada: la mercancia regreso al origen`,
+    );
   }
 
   function claseStock(fila: FilaVista): string {
@@ -368,17 +474,30 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
           <div className="pestanas inventario__vistas">
             <button
               type="button"
-              className={general ? 'pestana pestana--activa' : 'pestana'}
-              onClick={() => setGeneral(true)}
+              className={general && !enTransferencias ? 'pestana pestana--activa' : 'pestana'}
+              onClick={() => {
+                setGeneral(true);
+                setEnTransferencias(false);
+              }}
             >
               General
             </button>
             <button
               type="button"
-              className={general ? 'pestana' : 'pestana pestana--activa'}
-              onClick={() => setGeneral(false)}
+              className={!general && !enTransferencias ? 'pestana pestana--activa' : 'pestana'}
+              onClick={() => {
+                setGeneral(false);
+                setEnTransferencias(false);
+              }}
             >
               {sucursal?.codigo ?? 'Sucursal'}
+            </button>
+            <button
+              type="button"
+              className={enTransferencias ? 'pestana pestana--activa' : 'pestana'}
+              onClick={() => setEnTransferencias(true)}
+            >
+              Transferencias
             </button>
           </div>
 
@@ -430,9 +549,130 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
 
       <Aviso error={error ?? errorLista} ok={ok} />
 
-      {cargando ? <p className="panel__nota">Cargando…</p> : null}
+      {enTransferencias ? (
+        <div className="tabla-envoltura inventario__tabla-envoltura">
+          {cargandoTransferencias ? <p className="panel__nota">Cargando…</p> : null}
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Folio</th>
+                <th>Desde</th>
+                <th>Hacia</th>
+                <th>Productos</th>
+                <th>Estado</th>
+                <th className="col-acciones">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(datosTransferencias?.transferencias ?? []).map((fila) => {
+                const puedeDespachar =
+                  fila.estado === 'borrador' &&
+                  sesion.sucursales.some((opcion) => opcion.id === fila.origen.sucursalId);
+                const puedeRecibir =
+                  fila.estado === 'en_transito' &&
+                  sesion.sucursales.some((opcion) => opcion.id === fila.destino.sucursalId);
+                const puedeCancelar =
+                  fila.estado === 'borrador' &&
+                  sesion.sucursales.some((opcion) => opcion.id === fila.origen.sucursalId);
 
-      {!cargando && filas.length === 0 ? (
+                return (
+                  <tr key={fila.id}>
+                    <td className="codigo">
+                      {fila.folio}
+                      {fila.hayIncidencia ? (
+                        <span className="insignia insignia--baja">Incidencia</span>
+                      ) : null}
+                    </td>
+                    <td>
+                      {fila.origen.sucursalCodigo} · {fila.origen.nombre}
+                    </td>
+                    <td>
+                      {fila.destino.sucursalCodigo} · {fila.destino.nombre}
+                    </td>
+                    <td>
+                      {fila.lineas
+                        .map((linea) => `${linea.nombre} × ${linea.enviada}`)
+                        .join(', ')}
+                      {fila.motivo ? <span className="panel__nota"> · {fila.motivo}</span> : null}
+                    </td>
+                    <td>{ETIQUETA_ESTADO[fila.estado] ?? fila.estado}</td>
+                    <td className="col-acciones">
+                      <div className="acciones-fila">
+                        {puedeDespachar ? (
+                          <button
+                            type="button"
+                            className="boton boton--acento"
+                            disabled={guardando}
+                            onClick={() =>
+                              void accionTransferencia(
+                                () => api.despacharTransferencia(fila.id),
+                                `${fila.folio} despachada: la mercancia salio del origen`,
+                              )
+                            }
+                          >
+                            Despachar
+                          </button>
+                        ) : null}
+                        {puedeRecibir ? (
+                          <button
+                            type="button"
+                            className="boton boton--acento"
+                            onClick={() => {
+                              setError(null);
+                              setRecepcion({
+                                transferencia: fila,
+                                cantidades: Object.fromEntries(
+                                  fila.lineas.map((linea) => [linea.id, String(linea.enviada)]),
+                                ),
+                              });
+                            }}
+                          >
+                            Recibir
+                          </button>
+                        ) : null}
+                        {puedeRecibir ? (
+                          <button
+                            type="button"
+                            className="boton"
+                            onClick={() => {
+                              setError(null);
+                              setRechazo({ transferencia: fila, motivo: '' });
+                            }}
+                          >
+                            Rechazar
+                          </button>
+                        ) : null}
+                        {puedeCancelar ? (
+                          <button
+                            type="button"
+                            className="boton"
+                            disabled={guardando}
+                            onClick={() =>
+                              void accionTransferencia(
+                                () => api.cancelarTransferencia(fila.id),
+                                `${fila.folio} cancelada`,
+                              )
+                            }
+                          >
+                            Cancelar
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!cargandoTransferencias && (datosTransferencias?.transferencias.length ?? 0) === 0 ? (
+            <p className="vacio">Todavia no hay transferencias.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!enTransferencias && cargando ? <p className="panel__nota">Cargando…</p> : null}
+
+      {!enTransferencias && !cargando && filas.length === 0 ? (
         <div className="tarjeta">
           <p className="vacio">
             {soloBajoMinimo
@@ -444,7 +684,7 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
         </div>
       ) : null}
 
-      {filas.length > 0 ? (
+      {!enTransferencias && filas.length > 0 ? (
         <>
           <div className="tabla-envoltura inventario__tabla-envoltura">
             <table className="tabla tabla--inventario">
@@ -487,6 +727,12 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
                       <span className={claseStock(fila)} title={estadoStock(fila)}>
                         {fila.stock}
                       </span>
+                      {!general && fila.piso !== undefined ? (
+                        <span className="panel__nota inventario__desglose">
+                          {' '}
+                          piso {fila.piso} · almacen {fila.almacen ?? 0}
+                        </span>
+                      ) : null}
                       <span className="solo-angosto inventario__estado-stock">{estadoStock(fila)}</span>
                     </td>
                     {general ? (
@@ -571,8 +817,8 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
                             setError(null);
                             setTransferencia({
                               fila,
-                              origenSucursalId: sucursalId,
-                              destinoSucursalId: '',
+                              origenUbicacionId: ubicacionInicialDe(sucursalId),
+                              destinoUbicacionId: '',
                               cantidad: '',
                               motivo: '',
                             });
@@ -630,8 +876,8 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
                               setError(null);
                               setTransferencia({
                                 fila,
-                                origenSucursalId: sucursalId,
-                                destinoSucursalId: '',
+                                origenUbicacionId: ubicacionInicialDe(sucursalId),
+                                destinoUbicacionId: '',
                                 cantidad: '',
                                 motivo: '',
                               });
@@ -930,11 +1176,11 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
         </Modal>
       ) : null}
 
-      {/* ---------- Transferencia entre sucursales ---------- */}
+      {/* ---------- Transferencia entre ubicaciones ---------- */}
       {transferencia ? (
         <Modal
-          titulo="Transferir a otra sucursal"
-          nota={`${transferencia.fila.sku} · ${transferencia.fila.nombre} · hay ${transferencia.fila.stock} en total`}
+          titulo="Transferir stock"
+          nota={`${transferencia.fila.sku} · ${transferencia.fila.nombre} · hay ${transferencia.fila.stock} en total. Dentro del mismo local pasa al instante; entre locales se despacha y se recibe.`}
           onCerrar={() => setTransferencia(null)}
         >
           <div className="formulario">
@@ -942,16 +1188,18 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
               <span>Desde</span>
               <select
                 className="entrada"
-                value={transferencia.origenSucursalId}
+                value={transferencia.origenUbicacionId}
                 onChange={(evento) =>
-                  setTransferencia({ ...transferencia, origenSucursalId: evento.target.value })
+                  setTransferencia({ ...transferencia, origenUbicacionId: evento.target.value })
                 }
               >
-                {sesion.sucursales.map((opcion) => (
-                  <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} · {opcion.nombre}
-                  </option>
-                ))}
+                {(datosUbicaciones?.ubicaciones ?? [])
+                  .filter((opcion) => opcion.sucursalActiva)
+                  .map((opcion) => (
+                    <option key={opcion.id} value={opcion.id}>
+                      {opcion.sucursalCodigo} · {opcion.nombre}
+                    </option>
+                  ))}
               </select>
             </label>
 
@@ -959,17 +1207,19 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
               <span>Hacia</span>
               <select
                 className="entrada"
-                value={transferencia.destinoSucursalId}
+                value={transferencia.destinoUbicacionId}
                 onChange={(evento) =>
-                  setTransferencia({ ...transferencia, destinoSucursalId: evento.target.value })
+                  setTransferencia({ ...transferencia, destinoUbicacionId: evento.target.value })
                 }
               >
                 <option value="">Elige…</option>
-                {sesion.sucursales
-                  .filter((opcion) => opcion.id !== transferencia.origenSucursalId)
+                {(datosUbicaciones?.ubicaciones ?? [])
+                  .filter(
+                    (opcion) => opcion.sucursalActiva && opcion.id !== transferencia.origenUbicacionId,
+                  )
                   .map((opcion) => (
                     <option key={opcion.id} value={opcion.id}>
-                      {opcion.codigo} · {opcion.nombre}
+                      {opcion.sucursalCodigo} · {opcion.nombre}
                     </option>
                   ))}
               </select>
@@ -1010,6 +1260,84 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
               disabled={guardando}
             >
               {guardando ? 'Transfiriendo…' : 'Transferir'}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {/* ---------- Recepcion de una transferencia ---------- */}
+      {recepcion ? (
+        <Modal
+          titulo="Recibir transferencia"
+          nota={`${recepcion.transferencia.folio} · escribe lo que realmente llego. Si llega menos, queda marcada como incidencia.`}
+          onCerrar={() => setRecepcion(null)}
+        >
+          <div className="formulario">
+            {recepcion.transferencia.lineas.map((linea) => (
+              <label className="campo-ancho" key={linea.id}>
+                <span>
+                  {linea.sku} · {linea.nombre} (enviadas {linea.enviada})
+                </span>
+                <input
+                  className="entrada entrada--numero"
+                  inputMode="numeric"
+                  value={recepcion.cantidades[linea.id] ?? ''}
+                  onChange={(evento) =>
+                    setRecepcion({
+                      ...recepcion,
+                      cantidades: { ...recepcion.cantidades, [linea.id]: evento.target.value },
+                    })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="modal__acciones">
+            <button type="button" className="boton" onClick={() => setRecepcion(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void confirmarRecepcion()}
+              disabled={guardando}
+            >
+              {guardando ? 'Guardando…' : 'Confirmar recepcion'}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {/* ---------- Rechazo de una transferencia ---------- */}
+      {rechazo ? (
+        <Modal
+          titulo="Rechazar transferencia"
+          nota={`${rechazo.transferencia.folio} · la mercancia regresa completa a ${rechazo.transferencia.origen.sucursalCodigo} · ${rechazo.transferencia.origen.nombre}`}
+          onCerrar={() => setRechazo(null)}
+        >
+          <div className="formulario">
+            <label className="campo-ancho">
+              <span>Motivo</span>
+              <input
+                className="entrada"
+                value={rechazo.motivo}
+                onChange={(evento) => setRechazo({ ...rechazo, motivo: evento.target.value })}
+              />
+            </label>
+          </div>
+
+          <div className="modal__acciones">
+            <button type="button" className="boton" onClick={() => setRechazo(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void confirmarRechazo()}
+              disabled={guardando}
+            >
+              {guardando ? 'Guardando…' : 'Rechazar'}
             </button>
           </div>
         </Modal>

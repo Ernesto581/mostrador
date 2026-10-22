@@ -2,6 +2,7 @@ import type {
   Categoria,
   CierreCaja,
   DetalleVenta,
+  EstadoTransferencia,
   FilaStock,
   FilaStockGeneral,
   MetodoPago,
@@ -12,8 +13,10 @@ import type {
   Sesion,
   Sucursal,
   SucursalDelPanel,
+  Transferencia,
   Turno,
   TurnoAbiertoResumen,
+  Ubicacion,
   UsuarioDelPanel,
   VentaResumen,
   VentaRespuesta,
@@ -246,12 +249,43 @@ export const api = {
     motivo?: string;
   }) => pedir<{ movimiento: unknown }>('/inventory/movements', { metodo: 'POST', cuerpo }),
 
-  transferir: (cuerpo: {
-    origenSucursalId: string;
-    destinoSucursalId: string;
+  ubicaciones: () => pedir<{ ubicaciones: Ubicacion[] }>('/inventory/locations'),
+
+  transferencias: (filtros: {
+    sucursalId?: string;
+    estado?: EstadoTransferencia;
+    limite?: number;
+  }) => pedir<{ transferencias: Transferencia[] }>(`/inventory/transfers${parametros(filtros)}`),
+
+  crearTransferencia: (cuerpo: {
+    origenUbicacionId: string;
+    destinoUbicacionId: string;
     motivo?: string;
     lineas: { productoId: string; cantidad: number }[];
-  }) => pedir<{ movimientos: unknown[] }>('/inventory/transfers', { metodo: 'POST', cuerpo }),
+  }) =>
+    pedir<{ transferencia: Transferencia }>('/inventory/transfers', { metodo: 'POST', cuerpo }),
+
+  despacharTransferencia: (id: string) =>
+    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/dispatch`, {
+      metodo: 'POST',
+    }),
+
+  recibirTransferencia: (id: string, lineas?: { lineaId: string; cantidadRecibida: number }[]) =>
+    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/receive`, {
+      metodo: 'POST',
+      cuerpo: { lineas },
+    }),
+
+  rechazarTransferencia: (id: string, motivo: string) =>
+    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/reject`, {
+      metodo: 'POST',
+      cuerpo: { motivo },
+    }),
+
+  cancelarTransferencia: (id: string) =>
+    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/cancel`, {
+      metodo: 'POST',
+    }),
 
   /* ---------- Ventas ---------- */
 
@@ -307,6 +341,7 @@ export const api = {
       direccion?: string;
       telefono?: string;
       activa?: boolean;
+      ventaDesdeAlmacen?: boolean;
     },
   ) => pedir<{ sucursal: { id: string } }>(`/branches/${id}`, { metodo: 'PATCH', cuerpo }),
 
