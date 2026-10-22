@@ -315,7 +315,7 @@ export function Vender({ sesion, sucursalId }: Props) {
       // Si se cayo el internet, la venta no se pierde: se guarda en el telefono y se
       // sube sola al recuperar la senal.
       if (fallo instanceof ErrorApi && fallo.codigo === 'SIN_CONEXION') {
-        guardarVentaSinConexion(lineas, pagosEnviar);
+        await guardarVentaSinConexion(lineas, pagosEnviar);
         return;
       }
       setAviso(fallo instanceof ErrorApi ? fallo.message : 'No se pudo cerrar la venta');
@@ -325,21 +325,30 @@ export function Vender({ sesion, sucursalId }: Props) {
   }
 
   /** Guarda la venta en el telefono, con su folio, para subirla despues. */
-  function guardarVentaSinConexion(
+  async function guardarVentaSinConexion(
     lineas: { productoId: string; cantidad: number; descuentoPorcentaje?: number }[],
     pagosEnviar: { metodo: MetodoPago; monto: number }[],
-  ): void {
+  ): Promise<void> {
     if (!totales || !turno || !sucursal) {
       return;
     }
 
     const vendidoEn = new Date();
-    const folio = siguienteFolioLocal(sucursal.codigo, vendidoEn);
     const cobro = calcularCobro(
       totales.total,
       pagosEnviar.map((pago) => ({ metodo: pago.metodo, monto: centavos(pago.monto) })),
     );
-    const id = `local-${vendidoEn.getTime()}`;
+    // El identificador de la venta no puede repetirse: IndexedDB reemplaza la venta
+    // que tenga el mismo id.
+    const id = `local-${vendidoEn.getTime()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    let folio: string;
+    try {
+      folio = await siguienteFolioLocal(sucursal.codigo, vendidoEn);
+    } catch {
+      setAviso('No se pudo guardar la venta en el telefono. No la cierres: revisa el almacenamiento.');
+      return;
+    }
 
     const ventaLocal: VentaRespuesta = {
       id,
@@ -367,16 +376,22 @@ export function Vender({ sesion, sucursalId }: Props) {
       pagos: pagosEnviar.map((pago) => ({ metodo: pago.metodo, monto: pago.monto })),
     };
 
-    encolarVenta({
-      id,
-      folio,
-      sucursalId,
-      turnoId: turno.id,
-      vendidoEn: vendidoEn.toISOString(),
-      lineas,
-      pagos: pagosEnviar,
-      venta: ventaLocal,
-    });
+    // Primero queda guardada en el telefono; recien entonces se muestra como vendida.
+    try {
+      await encolarVenta({
+        id,
+        folio,
+        sucursalId,
+        turnoId: turno.id,
+        vendidoEn: vendidoEn.toISOString(),
+        lineas,
+        pagos: pagosEnviar,
+        venta: ventaLocal,
+      });
+    } catch {
+      setAviso('No se pudo guardar la venta en el telefono. No la cierres: revisa el almacenamiento.');
+      return;
+    }
 
     descontarDelCatalogo(sucursalId, lineas);
 

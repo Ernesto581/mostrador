@@ -27,7 +27,7 @@ Sistema de ventas, inventario y contabilidad para punto de venta y tienda.
 
 ```
 Celulares (Android/iPhone) - varios por sucursal, personales
-  React + Capacitor - SQLite cifrado - cola de sincronizacion
+  React + Capacitor - IndexedDB (copia local, cola de sincronizacion)
   Pantallas: vender, cobrar, devolver, cancelar, cierre de turno
 
         | HTTPS (iPhone: al abrir la app)
@@ -54,7 +54,7 @@ El stock **no se edita**: es la **suma con signo de sus movimientos**.
 
 - **Lo que baja al celular:** nombre, codigo de barras, precio de venta, IVA de venta, categoria y stock de su sucursal.
 - **Lo que nunca baja:** costo, costo promedio, margenes, utilidad, contabilidad, otras sucursales.
-- Base cifrada, PIN o biometria, aprobacion de dispositivo y **revocacion remota**.
+- Base local en **IndexedDB** (sin cifrado propio: IndexedDB no cifra; si el cliente lo exige, hay que definir y probar una solucion), PIN o biometria, aprobacion de dispositivo y **revocacion remota**.
 - Borrado de la base local al cerrar sesion o al ser revocado.
 - PIN de supervisor offline con caducidad (por ejemplo 7 dias sin sincronizar).
 
