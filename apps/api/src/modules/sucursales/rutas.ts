@@ -35,6 +35,7 @@ const esquemaEditar = z.object({
   direccion: z.string().trim().max(200).optional(),
   telefono: z.string().trim().max(40).optional(),
   activa: z.boolean().optional(),
+  ventaDesdeAlmacen: z.boolean().optional(),
 });
 
 const parametroId = z.object({ id: z.string().min(1) });
@@ -61,6 +62,7 @@ export async function rutasSucursales(app: FastifyInstance) {
         direccion: branches.address,
         telefono: branches.phone,
         activa: branches.active,
+        ventaDesdeAlmacen: branches.ventaDesdeAlmacen,
       })
       .from(branches)
       .where(and(eq(branches.companyId, sesion.empresaId), isNull(branches.deletedAt)))
@@ -124,13 +126,35 @@ export async function rutasSucursales(app: FastifyInstance) {
         phone: datos.telefono ?? null,
       });
 
-      // Toda sucursal tiene al menos un almacen: ahi cae el inventario que llega.
-      await tx.insert(warehouses).values({
-        id: nuevoId(),
-        branchId: sucursalId,
-        code: 'P1',
-        name: 'Principal',
-      });
+      // Toda sucursal tiene almacen; las tiendas ademas tienen piso de venta, de donde se vende.
+      await tx.insert(warehouses).values(
+        datos.tipo === 'tienda'
+          ? [
+              {
+                id: nuevoId(),
+                branchId: sucursalId,
+                code: 'PISO',
+                name: 'Piso de venta',
+                kind: 'piso_venta' as const,
+              },
+              {
+                id: nuevoId(),
+                branchId: sucursalId,
+                code: 'ALM',
+                name: 'Almacen',
+                kind: 'almacen' as const,
+              },
+            ]
+          : [
+              {
+                id: nuevoId(),
+                branchId: sucursalId,
+                code: 'P1',
+                name: 'Principal',
+                kind: 'almacen' as const,
+              },
+            ],
+      );
 
       await tx
         .insert(userBranchAccess)
@@ -165,6 +189,9 @@ export async function rutasSucursales(app: FastifyInstance) {
         ...(datos.direccion !== undefined ? { address: datos.direccion } : {}),
         ...(datos.telefono !== undefined ? { phone: datos.telefono } : {}),
         ...(datos.activa !== undefined ? { active: datos.activa } : {}),
+        ...(datos.ventaDesdeAlmacen !== undefined
+          ? { ventaDesdeAlmacen: datos.ventaDesdeAlmacen }
+          : {}),
         updatedAt: new Date(),
         revision: sql`${branches.revision} + 1`,
       })

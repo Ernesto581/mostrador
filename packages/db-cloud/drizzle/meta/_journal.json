@@ -15,6 +15,13 @@
       "when": 1792164143421,
       "tag": "0001_good_rhodey",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792672318898,
+      "tag": "0002_tranquil_proteus",
+      "breakpoints": true
     }
   ]
 }

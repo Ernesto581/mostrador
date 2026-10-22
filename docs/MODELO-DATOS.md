@@ -1,6 +1,6 @@
 # Modelo de datos
 
-Base de datos de la nube en **PostgreSQL** (paquete `@mostrador/db-cloud`, 37 tablas).
+Base de datos de la nube en **PostgreSQL** (paquete `@mostrador/db-cloud`, 39 tablas).
 En desarrollo y pruebas se usa **PGlite** (PostgreSQL real embebido), asi que no hace
 falta instalar ningun servidor para trabajar.
 
@@ -24,7 +24,7 @@ Las migraciones viven en `packages/db-cloud/drizzle/`.
 |---|---|
 | `companies` | La empresa: moneda, si el precio ya incluye impuesto, tasa por defecto |
 | `branches` | Sucursales (tipo tienda o almacen), con codigo unico por empresa |
-| `warehouses` | Almacenes dentro de cada sucursal |
+| `warehouses` | Ubicaciones de cada sucursal: `piso_venta` (de aqui se vende) o `almacen` (reserva) |
 | `users` | Usuarios, con credencial y PIN para el mostrador |
 | `roles` | Roles con su lista de permisos |
 | `user_roles` | Que roles tiene cada usuario |
@@ -47,6 +47,8 @@ Las migraciones viven en `packages/db-cloud/drizzle/`.
 | `inventory_movements` | **El kardex**: libro de movimientos append-only. El stock es su suma con signo |
 | `stock_balances` | Saldo por producto, sucursal y almacen (derivado del kardex) |
 | `stock_min_rules` | Minimos, maximos y punto de reorden |
+| `transfers` | Transferencias entre ubicaciones: `borrador`, `en_transito`, `recibida`, `rechazada`, `cancelada`. Dentro del mismo local queda `recibida` al crearla |
+| `transfer_lines` | Lineas de la transferencia: cantidad enviada y cantidad realmente recibida |
 
 ### Ventas
 | Tabla | Que guarda |

@@ -1,5 +1,5 @@
 import { schema, type Db } from '@mostrador/db-cloud';
-import type { TipoMovimientoInventario } from '@mostrador/db-cloud/schema';
+import type { TipoMovimientoInventario, TipoUbicacion } from '@mostrador/db-cloud/schema';
 import { type Centavos, type TipoMovimiento, signoMovimiento } from '@mostrador/domain';
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { BaseDatos } from '../../db/tipos.js';
@@ -55,19 +55,51 @@ async function leerSaldo(
   return Number(fila?.cantidad ?? 0);
 }
 
-/** Almacen principal de la sucursal: donde cae el stock si no se indica otro. */
-export async function almacenPrincipal(base: BaseDatos, sucursalId: string): Promise<string> {
-  const [almacen] = await base
+/** Ubicacion de una sucursal de un tipo dado: su piso de venta o su almacen. */
+export async function ubicacionDeSucursal(
+  base: BaseDatos,
+  sucursalId: string,
+  tipo: TipoUbicacion,
+): Promise<string> {
+  const [ubicacion] = await base
     .select({ id: schema.warehouses.id })
     .from(schema.warehouses)
-    .where(eq(schema.warehouses.branchId, sucursalId))
+    .where(
+      and(
+        eq(schema.warehouses.branchId, sucursalId),
+        eq(schema.warehouses.kind, tipo),
+        isNull(schema.warehouses.deletedAt),
+        eq(schema.warehouses.active, true),
+      ),
+    )
     .orderBy(asc(schema.warehouses.createdAt))
     .limit(1);
 
-  if (!almacen) {
-    throw new ErrorNoEncontrado('La sucursal no tiene almacen configurado');
+  if (!ubicacion) {
+    throw new ErrorNoEncontrado(
+      tipo === 'piso_venta'
+        ? 'La sucursal no tiene piso de venta configurado'
+        : 'La sucursal no tiene almacen configurado',
+    );
   }
-  return almacen.id;
+  return ubicacion.id;
+}
+
+/** Evita escribir en una ubicacion que pertenece a otra sucursal. */
+async function asegurarUbicacionDeSucursal(
+  base: BaseDatos,
+  ubicacionId: string,
+  sucursalId: string,
+): Promise<void> {
+  const [ubicacion] = await base
+    .select({ sucursalId: schema.warehouses.branchId })
+    .from(schema.warehouses)
+    .where(and(eq(schema.warehouses.id, ubicacionId), isNull(schema.warehouses.deletedAt)))
+    .limit(1);
+
+  if (!ubicacion || ubicacion.sucursalId !== sucursalId) {
+    throw new ErrorNoEncontrado('La ubicacion no pertenece a esta sucursal');
+  }
 }
 
 export async function productoExiste(
@@ -105,7 +137,11 @@ export async function aplicarMovimiento(
   base: BaseDatos,
   entrada: EntradaMovimiento,
 ): Promise<MovimientoAplicado> {
-  const almacenId = entrada.almacenId ?? (await almacenPrincipal(base, entrada.sucursalId));
+  const almacenId =
+    entrada.almacenId ?? (await ubicacionDeSucursal(base, entrada.sucursalId, 'almacen'));
+  if (entrada.almacenId) {
+    await asegurarUbicacionDeSucursal(base, entrada.almacenId, entrada.sucursalId);
+  }
   const signo = signoMovimiento(entrada.tipo as TipoMovimiento);
   const cantidadConSigno = signo * entrada.cantidad;
   const id = nuevoId();
@@ -194,66 +230,6 @@ export async function registrarMovimiento(
   return db.transaction(async (tx) => aplicarMovimiento(tx, entrada));
 }
 
-/** Mueve stock de una sucursal a otra: genera salida y entrada, en una sola operacion. */
-export async function transferir(
-  db: Db,
-  datos: {
-    empresaId: string;
-    origenSucursalId: string;
-    destinoSucursalId: string;
-    usuarioId?: string | undefined;
-    motivo?: string | undefined;
-    lineas: { productoId: string; cantidad: number }[];
-  },
-): Promise<MovimientoAplicado[]> {
-  if (datos.origenSucursalId === datos.destinoSucursalId) {
-    throw new ErrorNoEncontrado('El origen y el destino no pueden ser la misma sucursal');
-  }
-
-  const folio = `TR-${Date.now()}`;
-
-  return db.transaction(async (tx) => {
-    const aplicados: MovimientoAplicado[] = [];
-
-    for (const linea of datos.lineas) {
-      const producto = await productoExiste(tx, datos.empresaId, linea.productoId);
-      if (!producto) {
-        throw new ErrorNoEncontrado(`El producto ${linea.productoId} no existe`);
-      }
-
-      const salida = await aplicarMovimiento(tx, {
-        empresaId: datos.empresaId,
-        sucursalId: datos.origenSucursalId,
-        productoId: linea.productoId,
-        tipo: 'transferencia_salida',
-        cantidad: linea.cantidad,
-        costoUnitario: producto.costoPromedio as Centavos,
-        motivo: datos.motivo,
-        usuarioId: datos.usuarioId,
-        documentoTipo: 'transferencia',
-        documentoFolio: folio,
-      });
-
-      const entrada = await aplicarMovimiento(tx, {
-        empresaId: datos.empresaId,
-        sucursalId: datos.destinoSucursalId,
-        productoId: linea.productoId,
-        tipo: 'transferencia_entrada',
-        cantidad: linea.cantidad,
-        costoUnitario: producto.costoPromedio as Centavos,
-        motivo: datos.motivo,
-        usuarioId: datos.usuarioId,
-        documentoTipo: 'transferencia',
-        documentoFolio: folio,
-      });
-
-      aplicados.push(salida, entrada);
-    }
-
-    return aplicados;
-  });
-}
-
 export interface FiltroStock {
   empresaId: string;
   sucursalId: string;
@@ -270,37 +246,70 @@ export interface FilaStock {
   precioCosto: number;
   precioVenta: number;
   costoPromedio: number;
+  /** Total de la sucursal: piso de venta mas almacen. */
   stock: number;
+  piso: number;
+  almacen: number;
   stockMinimo: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
 }
 
-/** Stock de varios productos en una sucursal, sumando todos sus almacenes. */
-export async function stockDeProductos(
+/** Existencias de un producto en una sucursal, separadas por tipo de ubicacion. */
+export interface ExistenciaSucursal {
+  piso: number;
+  almacen: number;
+}
+
+export async function existenciasDeProductos(
   base: BaseDatos,
   sucursalId: string,
   productoIds: readonly string[],
-): Promise<Map<string, number>> {
+): Promise<Map<string, ExistenciaSucursal>> {
+  const existencias = new Map<string, ExistenciaSucursal>(
+    productoIds.map((id) => [id, { piso: 0, almacen: 0 }]),
+  );
   if (productoIds.length === 0) {
-    return new Map();
+    return existencias;
   }
 
   const filas = await base
     .select({
       productoId: schema.stockBalances.productId,
+      tipo: schema.warehouses.kind,
       cantidad: sql<number>`sum(${schema.stockBalances.quantity})`,
     })
     .from(schema.stockBalances)
+    .innerJoin(schema.warehouses, eq(schema.warehouses.id, schema.stockBalances.warehouseId))
     .where(
       and(
         eq(schema.stockBalances.branchId, sucursalId),
         inArray(schema.stockBalances.productId, [...productoIds]),
       ),
     )
-    .groupBy(schema.stockBalances.productId);
+    .groupBy(schema.stockBalances.productId, schema.warehouses.kind);
 
-  return new Map(filas.map((fila) => [fila.productoId, Number(fila.cantidad)]));
+  for (const fila of filas) {
+    const existencia = existencias.get(fila.productoId) ?? { piso: 0, almacen: 0 };
+    if (fila.tipo === 'piso_venta') {
+      existencia.piso += Number(fila.cantidad);
+    } else {
+      existencia.almacen += Number(fila.cantidad);
+    }
+    existencias.set(fila.productoId, existencia);
+  }
+
+  return existencias;
+}
+
+/** Disponible para vender en el piso de venta de la sucursal. */
+export async function stockDeProductos(
+  base: BaseDatos,
+  sucursalId: string,
+  productoIds: readonly string[],
+): Promise<Map<string, number>> {
+  const existencias = await existenciasDeProductos(base, sucursalId, productoIds);
+  return new Map([...existencias].map(([id, existencia]) => [id, existencia.piso]));
 }
 
 /** Productos activos de la empresa, con el filtro de busqueda aplicado. */
@@ -354,14 +363,15 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
     return [];
   }
 
-  const stockPorProducto = await stockDeProductos(
+  const existencias = await existenciasDeProductos(
     base,
     filtro.sucursalId,
     productos.map((producto) => producto.id),
   );
 
   const resultado: FilaStock[] = productos.map((producto) => {
-    const stock = stockPorProducto.get(producto.id) ?? 0;
+    const { piso, almacen } = existencias.get(producto.id) ?? { piso: 0, almacen: 0 };
+    const stock = piso + almacen;
     return {
       productoId: producto.id,
       sku: producto.sku,
@@ -371,6 +381,8 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
       precioVenta: producto.precioVenta,
       costoPromedio: producto.costoPromedio,
       stock,
+      piso,
+      almacen,
       stockMinimo: producto.stockMinimo,
       bajoMinimo: stock <= producto.stockMinimo,
       categoriaId: producto.categoriaId,

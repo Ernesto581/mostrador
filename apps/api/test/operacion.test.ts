@@ -241,35 +241,55 @@ describe('inventario', () => {
     expect(respuesta.json().movimientos[0].motivo).toBe('Producto vencido');
   });
 
-  it('transfiere stock entre sucursales', async () => {
+  it('transfiere stock entre locales: borrador, despacho y recepcion', async () => {
     const antesCentro = await stockDe('BEB-001');
     const antesBodega = await stockDe('BEB-001', semilla.sucursalSecundariaId);
 
-    const respuesta = await app.inject({
+    const creada = await app.inject({
       method: 'POST',
       url: '/api/v1/inventory/transfers',
       headers: auth(),
       payload: {
-        origenSucursalId: semilla.sucursalId,
-        destinoSucursalId: semilla.sucursalSecundariaId,
+        origenUbicacionId: semilla.pisoId,
+        destinoUbicacionId: semilla.almacenSecundariaId,
         motivo: 'Reabasto de bodega',
         lineas: [{ productoId: producto('BEB-001').id, cantidad: 5 }],
       },
     });
 
-    expect(respuesta.statusCode).toBe(201);
+    expect(creada.statusCode).toBe(201);
+    const transferencia = creada.json().transferencia;
+    expect(transferencia.estado).toBe('borrador');
+    expect(await stockDe('BEB-001')).toBe(antesCentro);
+
+    const despachada = await app.inject({
+      method: 'POST',
+      url: `/api/v1/inventory/transfers/${transferencia.id}/dispatch`,
+      headers: auth(),
+    });
+    expect(despachada.json().transferencia.estado).toBe('en_transito');
     expect(await stockDe('BEB-001')).toBe(antesCentro - 5);
+    expect(await stockDe('BEB-001', semilla.sucursalSecundariaId)).toBe(antesBodega);
+
+    const recibida = await app.inject({
+      method: 'POST',
+      url: `/api/v1/inventory/transfers/${transferencia.id}/receive`,
+      headers: auth(),
+      payload: {},
+    });
+    expect(recibida.json().transferencia.estado).toBe('recibida');
+    expect(recibida.json().transferencia.hayIncidencia).toBe(false);
     expect(await stockDe('BEB-001', semilla.sucursalSecundariaId)).toBe(antesBodega + 5);
   });
 
-  it('no permite transferir a la misma sucursal', async () => {
+  it('no permite transferir a la misma ubicacion', async () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/inventory/transfers',
       headers: auth(),
       payload: {
-        origenSucursalId: semilla.sucursalId,
-        destinoSucursalId: semilla.sucursalId,
+        origenUbicacionId: semilla.pisoId,
+        destinoUbicacionId: semilla.pisoId,
         lineas: [{ productoId: producto('BEB-001').id, cantidad: 1 }],
       },
     });
@@ -301,8 +321,8 @@ describe('inventario', () => {
       url: '/api/v1/inventory/transfers',
       headers: auth(),
       payload: {
-        origenSucursalId: semilla.sucursalId,
-        destinoSucursalId: semilla.sucursalSecundariaId,
+        origenUbicacionId: semilla.pisoId,
+        destinoUbicacionId: semilla.almacenSecundariaId,
         lineas: [{ productoId: producto('ABA-002').id, cantidad: 9999 }],
       },
     });
@@ -328,17 +348,25 @@ describe('inventario', () => {
       },
     });
 
-    // 10 de esas piezas se van a la bodega.
-    await app.inject({
+    // 10 de esas piezas se van a la bodega (del almacen, donde llego la compra).
+    const creada = await app.inject({
       method: 'POST',
       url: '/api/v1/inventory/transfers',
       headers: auth(),
       payload: {
-        origenSucursalId: semilla.sucursalId,
-        destinoSucursalId: semilla.sucursalSecundariaId,
+        origenUbicacionId: semilla.almacenId,
+        destinoUbicacionId: semilla.almacenSecundariaId,
         motivo: 'Reparto a bodega',
         lineas: [{ productoId: azucar.id, cantidad: 10 }],
       },
+    });
+    const id = creada.json().transferencia.id;
+    await app.inject({ method: 'POST', url: `/api/v1/inventory/transfers/${id}/dispatch`, headers: auth() });
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/inventory/transfers/${id}/receive`,
+      headers: auth(),
+      payload: {},
     });
 
     const respuesta = await app.inject({

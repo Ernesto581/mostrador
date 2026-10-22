@@ -37,7 +37,7 @@ En construccion. Fase 0 (diseno) y base del proyecto.
 | Paquete | Estado |
 |---|---|
 | `@mostrador/domain` | Reglas de nucleo implementadas con pruebas |
-| `@mostrador/db-cloud` | Modelo de datos completo (37 tablas) con migraciones y pruebas |
+| `@mostrador/db-cloud` | Modelo de datos completo (39 tablas) con migraciones y pruebas |
 | `apps/api` | Catalogo, inventario (kardex) y ventas con cobro mixto |
 | `apps/pos` | Punto de venta, panel de administracion (productos, inventario, ventas, usuarios) y **caja con cierre de turno** |
 | `@mostrador/storage` | Pendiente |

@@ -68,7 +68,7 @@ export const sales = pgTable(
       .references(() => users.id),
     customerId: text().references(() => customers.id),
     status: text().$type<EstadoVenta>().notNull().default('completada'),
-    currency: text().notNull().default('MXN'),
+    currency: text().notNull().default('CUP'),
     subtotal: importe().notNull().default(0),
     discountTotal: importe().notNull().default(0),
     taxTotal: importe().notNull().default(0),

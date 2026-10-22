@@ -9,6 +9,8 @@ import {
 import { columnasSync, porcentaje } from './comun.js';
 
 export type TipoSucursal = 'tienda' | 'almacen';
+/** Piso de venta: de aqui sale lo que se vende. Almacen: reserva que se transfiere al piso. */
+export type TipoUbicacion = 'piso_venta' | 'almacen';
 export type PlataformaDispositivo = 'android' | 'ios' | 'web';
 export type EstadoDispositivo = 'pendiente' | 'aprobado' | 'revocado';
 
@@ -18,7 +20,7 @@ export const companies = pgTable('companies', {
   name: text().notNull(),
   legalName: text(),
   taxId: text(),
-  currency: text().notNull().default('MXN'),
+  currency: text().notNull().default('CUP'),
   /** true: el precio de venta ya incluye el impuesto (lo normal en tienda). */
   pricesIncludeTax: boolean().notNull().default(true),
   /** Tasa de impuesto por defecto en base 100. 0 = sin impuestos. */
@@ -40,11 +42,16 @@ export const branches = pgTable(
     address: text(),
     phone: text(),
     active: boolean().notNull().default(true),
+    /**
+     * false (lo normal): el mostrador vende solo del piso de venta.
+     * true: si el piso no alcanza, la venta toma el resto del almacen.
+     */
+    ventaDesdeAlmacen: boolean().notNull().default(false),
   },
   (tabla) => [uniqueIndex('branches_company_code_uq').on(tabla.companyId, tabla.code)],
 );
 
-/** Almacen dentro de una sucursal. Toda sucursal tiene al menos uno. */
+/** Ubicacion de inventario dentro de una sucursal: piso de venta o almacen. */
 export const warehouses = pgTable('warehouses', {
   ...columnasSync(),
   branchId: text()
@@ -52,6 +59,7 @@ export const warehouses = pgTable('warehouses', {
     .references(() => branches.id),
   code: text().notNull(),
   name: text().notNull(),
+  kind: text().$type<TipoUbicacion>().notNull().default('almacen'),
   active: boolean().notNull().default(true),
 });
 

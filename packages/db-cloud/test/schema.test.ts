@@ -28,7 +28,7 @@ beforeAll(async () => {
   await db.insert(t.companies).values({
     id: ID.empresa,
     name: 'Mi Tienda',
-    currency: 'MXN',
+    currency: 'CUP',
     pricesIncludeTax: true,
     defaultTaxRate: 0,
   });
@@ -204,7 +204,7 @@ describe('modelo de datos', () => {
     const roles = await db.select().from(t.roles);
 
     expect(empresa).toHaveLength(1);
-    expect(empresa[0]?.currency).toBe('MXN');
+    expect(empresa[0]?.currency).toBe('CUP');
     expect(sucursales).toHaveLength(2);
     expect(sucursales.map((s) => s.code).sort()).toEqual(['NORTE', 'SUR']);
     expect(roles[0]?.permissions).toContain('sale.sell');

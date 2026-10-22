@@ -13,7 +13,11 @@ import type { BaseDatos } from '../../db/tipos.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado, envolverRegla } from '../../errors.js';
 import { siguienteFolioDevolucion, siguienteFolioVenta } from '../../servicios/folio.js';
 import { nuevoId } from '../../util/id.js';
-import { aplicarMovimiento, stockDeProductos } from '../inventario/servicio.js';
+import {
+  aplicarMovimiento,
+  existenciasDeProductos,
+  ubicacionDeSucursal,
+} from '../inventario/servicio.js';
 
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'transferencia';
 
@@ -152,14 +156,23 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
     );
 
     // No se vende mas de lo que hay: el inventario nunca queda en negativo.
-    const stock = await stockDeProductos(tx, entrada.sucursalId, idsProductos);
+    // Por defecto solo cuenta el piso de venta; el almacen se usa si el local lo permite.
+    const [sucursalVenta] = await tx
+      .select({ ventaDesdeAlmacen: schema.branches.ventaDesdeAlmacen })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, entrada.sucursalId))
+      .limit(1);
+    const existencias = await existenciasDeProductos(tx, entrada.sucursalId, idsProductos);
     const faltantes: string[] = [];
     for (const linea of totales.lineas) {
       const producto = porId.get(linea.productoId)!;
       if (producto.esServicio) {
         continue;
       }
-      const disponible = stock.get(linea.productoId) ?? 0;
+      const existencia = existencias.get(linea.productoId) ?? { piso: 0, almacen: 0 };
+      const disponible = sucursalVenta?.ventaDesdeAlmacen
+        ? existencia.piso + existencia.almacen
+        : existencia.piso;
       if (disponible < linea.cantidad) {
         faltantes.push(
           `${producto.nombre}: hay ${disponible} y se intentan vender ${linea.cantidad}`,
@@ -250,25 +263,37 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
       })),
     );
 
+    // Primero sale del piso de venta; el resto (solo si el local vende desde almacen) del almacen.
+    const restantePiso = new Map([...existencias].map(([id, existencia]) => [id, existencia.piso]));
     for (const linea of totales.lineas) {
       const producto = porId.get(linea.productoId)!;
       if (producto.esServicio) {
         continue;
       }
-      await aplicarMovimiento(tx, {
-        empresaId: entrada.empresaId,
-        sucursalId: entrada.sucursalId,
-        productoId: linea.productoId,
-        tipo: 'salida_venta',
-        cantidad: linea.cantidad,
-        costoUnitario: centavos(producto.costoPromedio),
-        usuarioId: entrada.usuarioId,
-        dispositivoId: entrada.dispositivoId,
-        documentoTipo: 'venta',
-        documentoId: ventaId,
-        documentoFolio: folio,
-        ocurridoEn: vendidoEn,
-      });
+      const desdePiso = Math.min(linea.cantidad, restantePiso.get(linea.productoId) ?? 0);
+      restantePiso.set(linea.productoId, (restantePiso.get(linea.productoId) ?? 0) - desdePiso);
+      const partes = [
+        { tipo: 'piso_venta' as const, cantidad: desdePiso },
+        { tipo: 'almacen' as const, cantidad: linea.cantidad - desdePiso },
+      ].filter((parte) => parte.cantidad > 0);
+
+      for (const parte of partes) {
+        await aplicarMovimiento(tx, {
+          empresaId: entrada.empresaId,
+          sucursalId: entrada.sucursalId,
+          almacenId: await ubicacionDeSucursal(tx, entrada.sucursalId, parte.tipo),
+          productoId: linea.productoId,
+          tipo: 'salida_venta',
+          cantidad: parte.cantidad,
+          costoUnitario: centavos(producto.costoPromedio),
+          usuarioId: entrada.usuarioId,
+          dispositivoId: entrada.dispositivoId,
+          documentoTipo: 'venta',
+          documentoId: ventaId,
+          documentoFolio: folio,
+          ocurridoEn: vendidoEn,
+        });
+      }
     }
 
     return {
@@ -345,6 +370,8 @@ export async function cancelarVenta(
     }
 
     const ahora = new Date();
+    // La mercancia cancelada regresa al piso de venta.
+    const pisoId = await ubicacionDeSucursal(tx, encontrada.venta.branchId, 'piso_venta');
 
     for (const linea of encontrada.lineas) {
       if (!linea.productId) {
@@ -353,6 +380,7 @@ export async function cancelarVenta(
       await aplicarMovimiento(tx, {
         empresaId: datos.empresaId,
         sucursalId: encontrada.venta.branchId,
+        almacenId: pisoId,
         productoId: linea.productId,
         tipo: 'devolucion_cliente',
         cantidad: linea.quantity,
@@ -498,6 +526,9 @@ export async function registrarDevolucion(
       })),
     );
 
+    // La mercancia devuelta regresa al piso de venta.
+    const pisoId = await ubicacionDeSucursal(tx, encontrada.venta.branchId, 'piso_venta');
+
     for (const item of aInsertar) {
       if (!item.reingresar || !item.linea.productId) {
         continue;
@@ -505,6 +536,7 @@ export async function registrarDevolucion(
       await aplicarMovimiento(tx, {
         empresaId: datos.empresaId,
         sucursalId: encontrada.venta.branchId,
+        almacenId: pisoId,
         productoId: item.linea.productId,
         tipo: 'devolucion_cliente',
         cantidad: item.cantidad,

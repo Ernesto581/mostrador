@@ -122,7 +122,7 @@ export async function rutasAuth(app: FastifyInstance) {
     return {
       empresa: {
         nombre: empresa?.nombre ?? '',
-        moneda: empresa?.moneda ?? 'MXN',
+        moneda: empresa?.moneda ?? 'CUP',
         preciosConImpuestoIncluido: empresa?.preciosConImpuestoIncluido ?? true,
       },
       usuario: {

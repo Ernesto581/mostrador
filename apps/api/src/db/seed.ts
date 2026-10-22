@@ -33,6 +33,7 @@ export interface ProductoEjemplo {
 export interface ResultadoSemilla {
   empresaId: string;
   sucursalId: string;
+  pisoId: string;
   almacenId: string;
   sucursalSecundariaId: string;
   almacenSecundariaId: string;
@@ -97,6 +98,7 @@ export async function sembrarDatosIniciales(
 
   const empresaId = nuevoId();
   const sucursalId = nuevoId();
+  const pisoId = nuevoId();
   const almacenId = nuevoId();
   const sucursalSecundariaId = nuevoId();
   const almacenSecundariaId = nuevoId();
@@ -106,7 +108,7 @@ export async function sembrarDatosIniciales(
   await db.insert(schema.companies).values({
     id: empresaId,
     name: nombreEmpresa,
-    currency: 'MXN',
+    currency: 'CUP',
     pricesIncludeTax: true,
     defaultTaxRate: 0,
   });
@@ -123,8 +125,15 @@ export async function sembrarDatosIniciales(
   ]);
 
   await db.insert(schema.warehouses).values([
-    { id: almacenId, branchId: sucursalId, code: 'P1', name: 'Principal' },
-    { id: almacenSecundariaId, branchId: sucursalSecundariaId, code: 'P1', name: 'Principal' },
+    { id: pisoId, branchId: sucursalId, code: 'PISO', name: 'Piso de venta', kind: 'piso_venta' },
+    { id: almacenId, branchId: sucursalId, code: 'ALM', name: 'Almacen', kind: 'almacen' },
+    {
+      id: almacenSecundariaId,
+      branchId: sucursalSecundariaId,
+      code: 'P1',
+      name: 'Principal',
+      kind: 'almacen',
+    },
   ]);
 
   const definicionesRoles = [
@@ -215,7 +224,7 @@ export async function sembrarDatosIniciales(
         await aplicarMovimiento(tx, {
           empresaId,
           sucursalId,
-          almacenId,
+          almacenId: pisoId,
           productoId,
           tipo: 'inventario_inicial',
           cantidad: definicion.inicial,
@@ -238,6 +247,7 @@ export async function sembrarDatosIniciales(
   return {
     empresaId,
     sucursalId,
+    pisoId,
     almacenId,
     sucursalSecundariaId,
     almacenSecundariaId,
