@@ -6,7 +6,9 @@ import { construirServidor } from '../src/server.js';
 let app: FastifyInstance;
 let semilla: ResultadoSemilla;
 let token = '';
+let tokenAdmin = '';
 let turnoId = '';
+let ventaTarjetaId = '';
 
 beforeAll(async () => {
   app = await construirServidor();
@@ -23,6 +25,14 @@ beforeAll(async () => {
     payload: { username: semilla.usuarioCajero, password: semilla.passwordCajero },
   });
   token = respuesta.json().token as string;
+
+  // Las devoluciones las autoriza el administrador: el cajero no las puede hacer.
+  const respuestaAdmin = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'ernesto', password: 'mostrador123' },
+  });
+  tokenAdmin = respuestaAdmin.json().token as string;
 });
 
 afterAll(async () => {
@@ -111,6 +121,7 @@ describe('caja y cierre de turno', () => {
       },
     });
     expect(tarjeta.statusCode).toBe(201);
+    ventaTarjetaId = tarjeta.json().venta.id as string;
   });
 
   it('no deja sacar mas efectivo del que hay en la caja', async () => {
@@ -148,6 +159,29 @@ describe('caja y cierre de turno', () => {
     expect(respuesta.statusCode).toBe(201);
   });
 
+  it('una devolucion pagada en efectivo sale de la caja', async () => {
+    const detalle = await app.inject({
+      method: 'GET',
+      url: `/api/v1/sales/${ventaTarjetaId}`,
+      headers: auth(),
+    });
+    const lineaId = detalle.json().lineas[0].id as string;
+
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: `/api/v1/sales/${ventaTarjetaId}/returns`,
+      headers: { authorization: `Bearer ${tokenAdmin}` },
+      payload: {
+        motivo: 'Producto en mal estado',
+        metodoReembolso: 'efectivo',
+        lineas: [{ lineaId, cantidad: 1 }],
+      },
+    });
+
+    expect(respuesta.statusCode).toBe(201);
+    expect(respuesta.json().devolucion.total).toBe(2500);
+  });
+
   it('el resumen cuadra el efectivo que deberia haber', async () => {
     const respuesta = await app.inject({
       method: 'GET',
@@ -163,9 +197,11 @@ describe('caja y cierre de turno', () => {
     expect(resumen.porMetodo.efectivo).toBe(5000);
     expect(resumen.porMetodo.tarjeta).toBe(2500);
     expect(resumen.movimientos.retiros).toBe(1000);
+    expect(resumen.devoluciones.efectivo).toBe(2500);
 
     // 200.00 de fondo + 50.00 cobrados en efectivo − 26.00 de cambio − 10.00 retirados
-    expect(resumen.efectivoEsperado).toBe(20000 + 5000 - 2600 - 1000);
+    // − 25.00 devueltos en efectivo
+    expect(resumen.efectivoEsperado).toBe(20000 + 5000 - 2600 - 1000 - 2500);
   });
 
   it('cierra el turno con el arqueo y guarda la diferencia', async () => {
@@ -173,14 +209,14 @@ describe('caja y cierre de turno', () => {
       method: 'POST',
       url: `/api/v1/shifts/${turnoId}/cerrar`,
       headers: auth(),
-      payload: { contado: 21400, notas: 'Contado por la manana' },
+      payload: { contado: 18900, notas: 'Contado por la manana' },
     });
 
     expect(respuesta.statusCode).toBe(200);
     const { cierre } = respuesta.json();
 
-    expect(cierre.esperado).toBe(21400);
-    expect(cierre.contado).toBe(21400);
+    expect(cierre.esperado).toBe(18900);
+    expect(cierre.contado).toBe(18900);
     expect(cierre.diferencia).toBe(0);
     expect(cierre.folio).toMatch(/^CIERRE-/);
   });

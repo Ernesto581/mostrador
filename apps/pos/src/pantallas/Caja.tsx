@@ -278,6 +278,10 @@ export function Caja({ sesion, sucursalId }: Props) {
                 <span>Gastos pagados de la caja</span>
                 <span className="numero">−{dinero(resumen.movimientos.gastos)}</span>
               </div>
+              <div className="fila-dato">
+                <span>Devoluciones pagadas en efectivo</span>
+                <span className="numero">−{dinero(resumen.devoluciones.efectivo)}</span>
+              </div>
             </div>
           </div>
         </>

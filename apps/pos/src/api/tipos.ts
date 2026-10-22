@@ -299,6 +299,8 @@ export interface ResumenTurno {
   ventas: { cantidad: number; articulos: number; total: number; cambio: number };
   porMetodo: Record<string, number>;
   movimientos: { ingresos: number; retiros: number; gastos: number };
+  /** Devoluciones del turno. Las pagadas en efectivo ya salieron de la caja. */
+  devoluciones: { cantidad: number; efectivo: number };
   /** Efectivo que deberia haber en la caja. */
   efectivoEsperado: number;
 }

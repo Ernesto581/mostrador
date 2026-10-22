@@ -39,7 +39,7 @@ En construccion. Fase 0 (diseno) y base del proyecto.
 | `@mostrador/domain` | Reglas de nucleo implementadas con pruebas |
 | `@mostrador/db-cloud` | Modelo de datos completo (39 tablas) con migraciones y pruebas |
 | `apps/api` | Catalogo, inventario (kardex) y ventas con cobro mixto |
-| `apps/pos` | Punto de venta, panel de administracion (productos, inventario, ventas, usuarios) y **caja con cierre de turno** |
+| `apps/pos` | Punto de venta con copia local en IndexedDB, panel de administracion (productos, inventario por piso y almacen, transferencias, ventas, usuarios) y **caja con cierre de turno** |
 | `@mostrador/storage` | Pendiente |
 | `@mostrador/sync` | Pendiente |
 | `apps/web` | Pendiente |

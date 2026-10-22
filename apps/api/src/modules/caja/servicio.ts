@@ -11,6 +11,7 @@ export interface Turno {
   sucursalId: string;
   abiertoPor: string;
   abiertoEn: Date;
+  cerradoEn: Date | null;
   fondoInicial: number;
   estado: string;
   notas: string | null;
@@ -21,6 +22,8 @@ export interface ResumenTurno {
   ventas: { cantidad: number; articulos: number; total: number; cambio: number };
   porMetodo: Record<string, number>;
   movimientos: { ingresos: number; retiros: number; gastos: number };
+  /** Devoluciones hechas durante el turno. Las pagadas en efectivo salen de la caja. */
+  devoluciones: { cantidad: number; efectivo: number };
   efectivoEsperado: number;
 }
 
@@ -90,6 +93,7 @@ function aTurno(fila: typeof schema.shifts.$inferSelect): Turno {
     sucursalId: fila.branchId,
     abiertoPor: fila.openedByUserId,
     abiertoEn: fila.openedAt,
+    cerradoEn: fila.closedAt,
     fondoInicial: fila.initialCash,
     estado: fila.status,
     notas: fila.notes,
@@ -118,7 +122,7 @@ export async function turnoAbierto(base: BaseDatos, sucursalId: string): Promise
  * Cuenta como esta la caja del turno.
  *
  * El efectivo esperado es: fondo inicial + lo cobrado en efectivo − el cambio entregado
- * + ingresos − retiros − gastos pagados de la caja.
+ * + ingresos − retiros − gastos pagados de la caja − devoluciones pagadas en efectivo.
  */
 export async function resumenTurno(base: BaseDatos, turnoId: string): Promise<ResumenTurno> {
   const turno = await turnoPorId(base, turnoId);
@@ -168,13 +172,35 @@ export async function resumenTurno(base: BaseDatos, turnoId: string): Promise<Re
     }
   }
 
+  // Devoluciones de la sucursal hechas mientras el turno estuvo abierto.
+  const [devueltas] = await base
+    .select({
+      cantidad: sql<number>`count(*)::int`,
+      efectivo: sql<number>`coalesce(sum(case when ${schema.returns.refundMethod} = 'efectivo' then ${schema.returns.total} else 0 end), 0)::int`,
+    })
+    .from(schema.returns)
+    .where(
+      and(
+        eq(schema.returns.branchId, turno.sucursalId),
+        gte(schema.returns.createdAt, turno.abiertoEn),
+        turno.cerradoEn ? lte(schema.returns.createdAt, turno.cerradoEn) : undefined,
+        isNull(schema.returns.deletedAt),
+      ),
+    );
+
+  const devoluciones = {
+    cantidad: Number(devueltas?.cantidad ?? 0),
+    efectivo: Number(devueltas?.efectivo ?? 0),
+  };
+
   const efectivoEsperado =
     turno.fondoInicial +
     (porMetodo.efectivo ?? 0) -
     Number(ventas?.cambio ?? 0) +
     movimientos.ingresos -
     movimientos.retiros -
-    movimientos.gastos;
+    movimientos.gastos -
+    devoluciones.efectivo;
 
   return {
     turno,
@@ -186,6 +212,7 @@ export async function resumenTurno(base: BaseDatos, turnoId: string): Promise<Re
     },
     porMetodo,
     movimientos,
+    devoluciones,
     efectivoEsperado,
   };
 }
