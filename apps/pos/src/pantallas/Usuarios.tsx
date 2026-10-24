@@ -182,7 +182,7 @@ export function Usuarios() {
         </button>
       </div>
 
-      <Aviso error={error ?? errorLista} ok={ok} />
+      {borrador || contraUsuario || porBorrar ? null : <Aviso error={error ?? errorLista} ok={ok} />}
 
       {cargando ? <p className="panel__nota">Cargando…</p> : null}
 
@@ -348,6 +348,8 @@ export function Usuarios() {
             </div>
           </div>
 
+          <Aviso error={error} ok={null} />
+
           <div className="modal__acciones">
             <button type="button" className="boton" onClick={() => setBorrador(null)}>
               Cancelar
@@ -374,6 +376,8 @@ export function Usuarios() {
               onChange={(evento) => setNuevaPassword(evento.target.value)}
             />
           </label>
+
+          <Aviso error={error} ok={null} />
 
           <div className="modal__acciones">
             <button type="button" className="boton" onClick={() => setContraUsuario(null)}>
