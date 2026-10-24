@@ -6,6 +6,7 @@ import {
   type Db,
 } from '@mostrador/db-cloud';
 import fp from 'fastify-plugin';
+import { sql } from 'drizzle-orm';
 
 /**
  * Conexion a la base de datos.
@@ -33,6 +34,13 @@ export const pluginBaseDeDatos = fp(
         }
       }
 
+      // Compatibilidad con bases antiguas: asegura columnas nuevas.
+      try {
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS venta_desde_almacen boolean NOT NULL DEFAULT false`);
+      } catch (error) {
+        app.log.warn({ err: error }, 'No se pudo asegurar la columna venta_desde_almacen');
+      }
+
       app.decorate('db', db as unknown as Db);
       app.addHook('onClose', async () => {
         await db.$client.end();
@@ -43,6 +51,14 @@ export const pluginBaseDeDatos = fp(
 
     const db = await crearDbPglite(PGLITE_DIR);
     await migrarDbPglite(db);
+
+    // Compatibilidad con bases antiguas: asegura columnas nuevas.
+    try {
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS venta_desde_almacen boolean NOT NULL DEFAULT false`);
+    } catch (error) {
+      app.log.warn({ err: error }, 'No se pudo asegurar la columna venta_desde_almacen');
+    }
+
     app.decorate('db', db);
     app.addHook('onClose', async () => {
       await db.$client.close();
