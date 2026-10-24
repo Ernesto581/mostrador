@@ -2516,7 +2516,7 @@ button {
   }
 
   .inventario__busqueda {
-    display: none;
+    display: block;
   }
 
   .inventario__titulo-principal {
