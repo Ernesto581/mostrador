@@ -58,6 +58,11 @@ export const pluginBaseDeDatos = fp(
     } catch (error) {
       app.log.warn({ err: error }, 'No se pudo asegurar la columna venta_desde_almacen');
     }
+    try {
+      await db.execute(sql`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'almacen'`);
+    } catch (error) {
+      app.log.warn({ err: error }, 'No se pudo asegurar la columna kind');
+    }
 
     app.decorate('db', db);
     app.addHook('onClose', async () => {
