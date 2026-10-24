@@ -70,3 +70,4 @@ export const pluginBaseDeDatos = fp(
   },
   { name: 'base-de-datos' },
 );
+
