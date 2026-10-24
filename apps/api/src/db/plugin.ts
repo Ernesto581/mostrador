@@ -64,6 +64,46 @@ export const pluginBaseDeDatos = fp(
       app.log.warn({ err: error }, 'No se pudo asegurar la columna kind');
     }
 
+    // Asegura las tablas de transferencias en bases antiguas.
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS transfers (
+          id text PRIMARY KEY NOT NULL,
+          created_at timestamp with time zone DEFAULT now() NOT NULL,
+          updated_at timestamp with time zone DEFAULT now() NOT NULL,
+          deleted_at timestamp with time zone,
+          origin_branch_id text,
+          revision integer DEFAULT 1 NOT NULL,
+          company_id text NOT NULL,
+          folio text NOT NULL,
+          from_warehouse_id text NOT NULL,
+          to_warehouse_id text NOT NULL,
+          from_branch_id text NOT NULL,
+          to_branch_id text NOT NULL,
+          status text DEFAULT 'borrador' NOT NULL,
+          reason text,
+          has_discrepancy boolean DEFAULT false NOT NULL,
+          created_by_user_id text NOT NULL,
+          dispatched_by_user_id text,
+          dispatched_at timestamp with time zone,
+          received_by_user_id text,
+          received_at timestamp with time zone
+        )
+      `);
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS transfer_lines (
+          id text PRIMARY KEY NOT NULL,
+          transfer_id text NOT NULL,
+          product_id text NOT NULL,
+          quantity_sent integer NOT NULL,
+          quantity_received integer,
+          created_at timestamp with time zone DEFAULT now() NOT NULL
+        )
+      `);
+    } catch (error) {
+      app.log.warn({ err: error }, 'No se pudo asegurar las tablas de transferencias');
+    }
+
     app.decorate('db', db);
     app.addHook('onClose', async () => {
       await db.$client.close();
