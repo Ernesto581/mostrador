@@ -132,7 +132,29 @@ export async function rutasUsuarios(app: FastifyInstance) {
     const datos = validar(esquemaCrear, request.body);
 
     const rol = await buscarRol(app, sesion.empresaId, datos.rol);
+
+    // Aviso claro si el nombre de usuario ya esta en uso (evita el mensaje generico).
+    const [repetido] = await app.db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.companyId, sesion.empresaId),
+          eq(users.username, datos.username),
+          isNull(users.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (repetido) {
+      throw new ErrorDeAplicacion(
+        `Ya existe un usuario con el nombre "${datos.username}"`,
+        409,
+        'USUARIO_REPETIDO',
+      );
+    }
+
     const usuarioId = nuevoId();
+    const sucursalesUnicas = [...new Set(datos.sucursalIds)];
 
     await app.db.transaction(async (tx) => {
       await tx.insert(users).values({
@@ -147,7 +169,7 @@ export async function rutasUsuarios(app: FastifyInstance) {
       await tx.insert(userRoles).values({ userId: usuarioId, roleId: rol.id });
 
       await tx.insert(userBranchAccess).values(
-        datos.sucursalIds.map((sucursalId) => ({ userId: usuarioId, branchId: sucursalId })),
+        sucursalesUnicas.map((sucursalId) => ({ userId: usuarioId, branchId: sucursalId })),
       );
     });
 
