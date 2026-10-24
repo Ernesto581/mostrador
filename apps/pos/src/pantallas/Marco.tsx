@@ -429,24 +429,6 @@ export function Marco({ sesion, onSalir }: Props) {
 
         <div className="barra-lateral__pie">
           <IndicadorConexion />
-          {sesion.sucursales.length > 1 ? (
-            <select
-              className="selector"
-              value={sucursalId}
-              onChange={(evento) => setSucursalId(evento.target.value)}
-              aria-label="Sucursal"
-            >
-              {sesion.sucursales.map((opcion) => (
-                <option key={opcion.id} value={opcion.id}>
-                  {opcion.codigo} � {opcion.nombre}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="vendedor">
-              {sucursal?.codigo} � {sucursal?.nombre}
-            </span>
-          )}
           <span className="vendedor">{sesion.usuario.nombre}</span>
           <button type="button" className="boton boton--fantasma barra__salir" onClick={onSalir}>
             Salir
