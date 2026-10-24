@@ -428,10 +428,6 @@ export function Marco({ sesion, onSalir }: Props) {
         </nav>
 
         <div className="barra-lateral__pie">
-          <span className="barra-lateral__estado">
-            <span className="barra-lateral__estado-punto" aria-hidden="true" />
-            Sucursal activa
-          </span>
           <IndicadorConexion />
           {sesion.sucursales.length > 1 ? (
             <select
@@ -607,3 +603,4 @@ export function Marco({ sesion, onSalir }: Props) {
     </div>
   );
 }
+
