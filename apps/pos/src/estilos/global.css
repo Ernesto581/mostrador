@@ -3058,3 +3058,5 @@ button {
     grid-template-columns: minmax(0, 1fr) minmax(5rem, 7rem) auto;
   }
 }
+
+@media (min-width: 768px) { .barra { display: none; } }
