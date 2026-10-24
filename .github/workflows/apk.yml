@@ -1,4 +1,4 @@
-name: Compilar el APK
+﻿name: Compilar el APK
 
 # Compila la app de Android en la nube, la firma con tu llave y la publica como
 # "release". Asi la app puede actualizarse sola, sin volver a instalarla.
@@ -68,7 +68,7 @@ jobs:
         working-directory: apps/pos/android
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: ${{ github.run_number }}
+          VERSION_NAME: "1.28 beta"
           KEYSTORE_PATH: ${{ github.workspace }}/firma.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -84,7 +84,7 @@ jobs:
 
       - name: Escribir el numero de version
         run: |
-          printf '{"versionCode": %s, "versionName": "%s"}' "${{ github.run_number }}" "${{ github.run_number }}" > version.json
+          printf '{"versionCode": %s, "versionName": "%s"}' "${{ github.run_number }}" "1.28 beta" > version.json
           cat version.json
 
       - name: Publicar la version
@@ -107,3 +107,4 @@ jobs:
           name: mostrador-apk
           path: mostrador.apk
           if-no-files-found: error
+
