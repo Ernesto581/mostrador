@@ -7,6 +7,7 @@ import { aCentavos, dinero, fechaLarga } from '../util/dinero';
 interface Props {
   sesion: Sesion;
   sucursalId: string;
+  titulo?: string;
 }
 
 const ETIQUETA_METODO: Record<string, string> = {
@@ -21,7 +22,7 @@ const ETIQUETA_MOVIMIENTO: Record<string, string> = {
   gasto: 'Gasto pagado de la caja',
 };
 
-export function Caja({ sesion, sucursalId }: Props) {
+export function Caja({ sesion, sucursalId, titulo }: Props) {
   const [abrir, setAbrir] = useState(false);
   const [movimiento, setMovimiento] = useState<null | 'ingreso' | 'retiro' | 'gasto'>(null);
   const [cerrar, setCerrar] = useState(false);
@@ -36,6 +37,8 @@ export function Caja({ sesion, sucursalId }: Props) {
   const [ok, setOk] = useState<string | null>(null);
 
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
+  const puedeAbrir = sesion.permisos.includes('sale.sell');
+  const puedeCerrar = sesion.permisos.includes('cash.close');
 
   const { datos, cargando, error: errorLista, recargar } = useCarga(
     () => api.turnoActual(sucursalId),
@@ -160,14 +163,14 @@ export function Caja({ sesion, sucursalId }: Props) {
     <div className="panel">
       <div className="panel__cabecera">
         <div>
-          <h1 className="panel__titulo">Caja</h1>
+          <h1 className="panel__titulo">{titulo ?? 'Caja'}</h1>
           <p className="panel__nota">
             Sucursal {sucursal?.codigo ?? '—'} ·{' '}
             {turno ? 'turno abierto' : 'sin turno abierto'}
           </p>
         </div>
 
-        {turno ? (
+        {turno && puedeCerrar ? (
           <div className="barra-filtros caja__acciones">
             <button
               type="button"
@@ -206,7 +209,7 @@ export function Caja({ sesion, sucursalId }: Props) {
               Cerrar turno
             </button>
           </div>
-        ) : (
+        ) : !turno && puedeAbrir ? (
           <button
             type="button"
             className="boton boton--acento"
@@ -218,7 +221,7 @@ export function Caja({ sesion, sucursalId }: Props) {
           >
             Abrir turno
           </button>
-        )}
+        ) : null}
       </div>
 
       <Aviso error={error ?? errorLista} ok={ok} />
@@ -291,8 +294,12 @@ export function Caja({ sesion, sucursalId }: Props) {
         <div className="tarjeta">
           <p className="vacio">
             No hay turno abierto en esta sucursal.
-            <br />
-            Abre uno para empezar a vender y llevar el control del efectivo.
+            {puedeAbrir ? (
+              <>
+                <br />
+                Abre uno para empezar a vender y llevar el control del efectivo.
+              </>
+            ) : null}
           </p>
         </div>
       ) : null}

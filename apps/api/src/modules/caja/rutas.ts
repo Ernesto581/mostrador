@@ -2,7 +2,7 @@ import { centavos } from '@mostrador/domain';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { PERMISOS } from '../../auth/permisos.js';
-import { asegurarPermiso, asegurarSucursal, exigirSesion, sesionDe } from '../../auth/sesion.js';
+import { asegurarPermiso, asegurarSucursal, exigirSesion, sesionDe, type Sesion } from '../../auth/sesion.js';
 import { validar } from '../../errors.js';
 import {
   abrirTurno,
@@ -40,6 +40,18 @@ const esquemaMovimiento = z.object({
   motivo: z.string().trim().min(3, 'Escribe el motivo').max(200),
 });
 
+/** Ver turnos y cierres no es lo mismo que abrir o cerrar la caja. */
+function asegurarConsultaCaja(sesion: Sesion): void {
+  if (
+    sesion.permisos.has(PERMISOS.CERRAR_CAJA) ||
+    sesion.permisos.has(PERMISOS.CANCELAR_VENTA) ||
+    sesion.permisos.has(PERMISOS.VER_UTILIDAD)
+  ) {
+    return;
+  }
+  asegurarPermiso(sesion, PERMISOS.CERRAR_CAJA);
+}
+
 const esquemaConsultaCierres = z.object({
   sucursalId: z.string().min(1).optional(),
   desde: z.coerce.date().optional(),
@@ -66,7 +78,8 @@ export async function rutasCaja(app: FastifyInstance) {
 
   app.get('/shifts/abiertos', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
-    asegurarPermiso(sesion, PERMISOS.CERRAR_CAJA);
+    // El administrador supervisa turnos, pero no los abre ni los cierra.
+    asegurarConsultaCaja(sesion);
 
     return { turnos: await turnosAbiertos(app.db, sesion.empresaId) };
   });
@@ -136,7 +149,7 @@ export async function rutasCaja(app: FastifyInstance) {
 
   app.get('/cash-closures', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
-    asegurarPermiso(sesion, PERMISOS.CERRAR_CAJA);
+    asegurarConsultaCaja(sesion);
     const consulta = validar(esquemaConsultaCierres, request.query);
 
     const cierres = await listarCierres(app.db, {

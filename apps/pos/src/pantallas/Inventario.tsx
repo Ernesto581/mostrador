@@ -20,9 +20,13 @@ import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
  * mermas y ajustes, se transfiere entre sucursales y se consulta el kardex.
  */
 
+export type VistaMercancia = 'productos' | 'existencias' | 'transferencias';
+
 interface Props {
   sesion: Sesion;
   sucursalId: string;
+  /** Cuando viene del menu del administrador, abre solo esa parte de la mercancia. */
+  vista?: VistaMercancia;
   busquedaExterna?: string;
   alCambiarBusqueda?: (texto: string) => void;
 }
@@ -141,7 +145,7 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
   };
 }
 
-export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqueda }: Props) {
+export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambiarBusqueda }: Props) {
   const [general, setGeneral] = useState(true);
   const [busquedaInterna, setBusquedaInterna] = useState('');
   const buscar = busquedaExterna ?? busquedaInterna;
@@ -153,7 +157,8 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
   const [recepcion, setRecepcion] = useState<FormularioRecepcion | null>(null);
   const [rechazo, setRechazo] = useState<FormularioRechazo | null>(null);
-  const [enTransferencias, setEnTransferencias] = useState(false);
+  const [verTransferencias, setVerTransferencias] = useState(false);
+  const enTransferencias = vista === 'transferencias' || (vista === undefined && verTransferencias);
   const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
@@ -462,22 +467,35 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
               <path d="m12 3 9 5-9 5-9-5 9-5Z" />
               <path d="M3 8v9l9 5 9-5V8M12 13v9" />
             </svg>
-            Inventario
+            {vista === 'productos' ? 'Productos' : vista === 'transferencias' ? 'Transferencias' : 'Inventario'}
           </h1>
           <p className="panel__nota">
-            {general ? 'Todas las sucursales' : `Sucursal ${sucursal?.codigo ?? '—'}`} ·{' '}
-            {datos?.conAlerta ?? 0} productos por debajo del minimo
+            {vista === 'productos'
+              ? 'Catálogo, códigos de barras, costos, precios y categorías.'
+              : vista === 'transferencias'
+                ? 'Traslados de productos entre tiendas y almacenes.'
+                : vista === 'existencias'
+                  ? 'Existencias por ubicación, entradas, salidas, mermas y stock mínimo.'
+                  : null}
+            {vista === 'transferencias' ? null : (
+              <>
+                {vista ? ' ' : null}
+                {general ? 'Todas las sucursales' : `Sucursal ${sucursal?.codigo ?? '—'}`} ·{' '}
+                {datos?.conAlerta ?? 0} productos por debajo del minimo
+              </>
+            )}
           </p>
         </div>
 
         <div className="barra-filtros inventario__controles">
+          {vista === 'transferencias' ? null : (
           <div className="pestanas inventario__vistas">
             <button
               type="button"
               className={general && !enTransferencias ? 'pestana pestana--activa' : 'pestana'}
               onClick={() => {
                 setGeneral(true);
-                setEnTransferencias(false);
+                setVerTransferencias(false);
               }}
             >
               General
@@ -487,20 +505,24 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
               className={!general && !enTransferencias ? 'pestana pestana--activa' : 'pestana'}
               onClick={() => {
                 setGeneral(false);
-                setEnTransferencias(false);
+                setVerTransferencias(false);
               }}
             >
               {sucursal?.codigo ?? 'Sucursal'}
             </button>
+            {vista ? null : (
             <button
               type="button"
               className={enTransferencias ? 'pestana pestana--activa' : 'pestana'}
-              onClick={() => setEnTransferencias(true)}
+              onClick={() => setVerTransferencias(true)}
             >
               Transferencias
             </button>
+            )}
           </div>
+          )}
 
+          {vista === 'transferencias' ? null : (
           <label className="opcion-casilla inventario__filtro-minimo">
             <input
               type="checkbox"
@@ -509,8 +531,9 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
             />
             Solo bajo el minimo
           </label>
+          )}
 
-          {puedeCatalogo ? (
+          {puedeCatalogo && vista !== 'existencias' && vista !== 'transferencias' ? (
             <button
               type="button"
               className="boton inventario__categorias"
@@ -523,7 +546,7 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
             </button>
           ) : null}
 
-          {puedeCatalogo ? (
+          {puedeCatalogo && vista !== 'existencias' && vista !== 'transferencias' ? (
             <button
               type="button"
               className="boton boton--acento inventario__nuevo"
@@ -538,6 +561,7 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
         </div>
       </div>
 
+      {vista === 'transferencias' ? null : (
       <div className="barra-filtros inventario__busqueda">
         <input
           className="entrada buscador"
@@ -546,6 +570,7 @@ export function Inventario({ sesion, sucursalId, busquedaExterna, alCambiarBusqu
           onChange={(evento) => setBuscar(evento.target.value)}
         />
       </div>
+      )}
 
       <Aviso error={error ?? errorLista} ok={ok} />
 

@@ -1266,6 +1266,10 @@ button {
   padding: 0.9rem 1rem;
 }
 
+.tarjeta > .boton {
+  margin-top: 0.75rem;
+}
+
 .tarjeta__titulo {
   margin: 0 0 0.7rem;
   font-family: var(--fuente-mono);
@@ -2036,7 +2040,7 @@ button {
   bottom: 0;
   left: 0;
   z-index: 45;
-  width: min(19rem, 86vw);
+  width: min(22rem, 92vw);
   flex-direction: column;
   background: var(--tinta-alta);
   border-right: 1px solid var(--tinta-borde);
@@ -2104,7 +2108,20 @@ button {
   padding: 0.6rem;
 }
 
+.menu-lateral__grupo {
+  margin: 0.85rem 0.35rem 0.2rem;
+  font-family: var(--fuente-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--texto-tenue);
+}
+
 .menu-opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
   width: 100%;
   padding: 0.72rem 0.8rem;
   text-align: left;
@@ -2117,6 +2134,36 @@ button {
   font-size: 0.95rem;
   font-weight: 600;
   transition: all 0.14s ease;
+}
+
+.menu-opcion svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 0.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.menu-opcion__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.menu-opcion__nota {
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--texto-tenue);
+}
+
+.menu-opcion--activa .menu-opcion__nota {
+  color: rgba(240, 231, 219, 0.78);
 }
 
 .menu-opcion:hover {
@@ -2269,29 +2316,44 @@ button {
   .barra-lateral__opciones {
     display: flex;
     flex-direction: column;
-    gap: 0.22rem;
-    padding-top: 0.8rem;
+    gap: 0.15rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-top: 0.85rem;
+    padding-bottom: 0.6rem;
+  }
+
+  .barra-lateral__grupo {
+    margin: 0.85rem 0.7rem 0.2rem;
+    font-family: var(--fuente-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--texto-tenue);
   }
 
   .barra-lateral__opcion {
-    display: flex;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
     align-items: center;
-    gap: 0.75rem;
+    column-gap: 0.7rem;
     min-height: 42px;
     width: 100%;
-    padding: 0 0.75rem;
+    padding: 0.45rem 0.7rem;
     border: 1px solid transparent;
     border-radius: var(--radio-chico);
     background: transparent;
     color: var(--texto-tenue);
     text-align: left;
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     font-weight: 600;
     transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
   }
 
   .barra-lateral__opcion svg {
-    flex: 0 0 auto;
+    grid-column: 1;
     width: 19px;
     height: 19px;
     fill: none;
@@ -2299,6 +2361,48 @@ button {
     stroke-width: 1.7;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  .barra-lateral__opcion-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    min-width: 0;
+  }
+
+  .barra-lateral__opcion-titulo {
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .barra-lateral__opcion-nota {
+    font-size: 0.66rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--texto-tenue);
+  }
+
+  .barra-lateral__opcion--con-nota {
+    align-items: start;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .barra-lateral__opcion--con-nota svg {
+    margin-top: 0.08rem;
+  }
+
+  .barra-lateral__opcion--activa .barra-lateral__opcion-nota {
+    color: rgba(240, 231, 219, 0.78);
+  }
+
+  .app--admin {
+    padding-left: 292px;
+  }
+
+  .barra-lateral-escritorio--admin {
+    width: 292px;
   }
 
   .barra-lateral__opcion:hover {
