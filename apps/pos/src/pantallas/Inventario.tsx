@@ -565,9 +565,10 @@ export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambi
       <div className="barra-filtros inventario__busqueda">
         <input
           className="entrada buscador"
-          placeholder="Buscar producto"
+          placeholder="Buscar existencias..."
           value={buscar}
           onChange={(evento) => setBuscar(evento.target.value)}
+          aria-label="Buscar existencias"
         />
       </div>
       )}
