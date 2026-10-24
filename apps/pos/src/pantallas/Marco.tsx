@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+﻿import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { Sesion } from '../api/tipos';
 import { AvisoActualizacion } from '../componentes/AvisoActualizacion';
 import { IndicadorConexion } from '../componentes/IndicadorConexion';
@@ -91,7 +91,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             id: 'inventario' as const,
             etiqueta: 'Inventario',
             etiquetaCorta: 'Inventario',
-            descripcion: 'Existencias por ubicación, entradas, salidas, mermas y stock mínimo.',
+            descripcion: 'Existencias por ubicaciÃ³n, entradas, salidas, mermas y stock mÃ­nimo.',
             grupo: 'principal' as const,
           },
         ]
@@ -135,7 +135,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             id: 'informes' as const,
             etiqueta: 'Informes',
             etiquetaCorta: 'Informes',
-            descripcion: 'Ventas, utilidad, productos más vendidos y exportación a Excel/PDF.',
+            descripcion: 'Ventas, utilidad, productos mÃ¡s vendidos y exportaciÃ³n a Excel/PDF.',
             grupo: 'principal' as const,
           },
         ]
@@ -258,7 +258,7 @@ function ListaMenu({
           return null;
         }
 
-        const etiquetaGrupo = grupo === 'configuracion' ? 'Configuración' : null;
+        const etiquetaGrupo = grupo === 'configuracion' ? 'ConfiguraciÃ³n' : null;
 
         return (
           <div key={grupo}>
@@ -363,7 +363,7 @@ export function Marco({ sesion, onSalir }: Props) {
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
   // Si la seccion guardada no existe para esta cuenta, se muestra la primera.
   const seccion = opciones.find((opcion) => opcion.id === pestana) ?? opciones[0];
-  const lema = admin ? 'administración' : 'punto de venta';
+  const lema = admin ? 'administraciÃ³n' : 'punto de venta';
 
   // El menu solo tiene sentido en el telefono: si la ventana se agranda (o el
   // telefono se acuesta y ya cabe la barra completa) se cierra solo.
@@ -432,7 +432,29 @@ export function Marco({ sesion, onSalir }: Props) {
             <span className="barra-lateral__estado-punto" aria-hidden="true" />
             Sucursal activa
           </span>
-          <span>{sucursal?.codigo} · {sucursal?.nombre}</span>
+          <IndicadorConexion />
+          {sesion.sucursales.length > 1 ? (
+            <select
+              className="selector"
+              value={sucursalId}
+              onChange={(evento) => setSucursalId(evento.target.value)}
+              aria-label="Sucursal"
+            >
+              {sesion.sucursales.map((opcion) => (
+                <option key={opcion.id} value={opcion.id}>
+                  {opcion.codigo} � {opcion.nombre}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="vendedor">
+              {sucursal?.codigo} � {sucursal?.nombre}
+            </span>
+          )}
+          <span className="vendedor">{sesion.usuario.nombre}</span>
+          <button type="button" className="boton boton--fantasma barra__salir" onClick={onSalir}>
+            Salir
+          </button>
         </div>
       </aside>
 
@@ -467,31 +489,6 @@ export function Marco({ sesion, onSalir }: Props) {
           ))}
         </nav>
 
-        <div className="barra__datos">
-          <IndicadorConexion />
-          {sesion.sucursales.length > 1 ? (
-            <select
-              className="selector"
-              value={sucursalId}
-              onChange={(evento) => setSucursalId(evento.target.value)}
-              aria-label="Sucursal"
-            >
-              {sesion.sucursales.map((opcion) => (
-                <option key={opcion.id} value={opcion.id}>
-                  {opcion.codigo} · {opcion.nombre}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="vendedor">
-              {sucursal?.codigo} · {sucursal?.nombre}
-            </span>
-          )}
-          <span className="vendedor">{sesion.usuario.nombre}</span>
-          <button type="button" className="boton boton--fantasma barra__salir" onClick={onSalir}>
-            Salir
-          </button>
-        </div>
       </header>
 
       {/* Fuera de la barra a proposito: la barra tiene desenfoque y eso atrapa a
@@ -519,7 +516,7 @@ export function Marco({ sesion, onSalir }: Props) {
             aria-label="Cerrar el menu"
             onClick={() => setMenuAbierto(false)}
           >
-            ×
+            Ã—
           </button>
         </div>
 
@@ -538,14 +535,14 @@ export function Marco({ sesion, onSalir }: Props) {
               >
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} · {opcion.nombre}
+                    {opcion.codigo} Â· {opcion.nombre}
                   </option>
                 ))}
               </select>
             </label>
           ) : (
             <span className="vendedor">
-              {sucursal?.codigo} · {sucursal?.nombre}
+              {sucursal?.codigo} Â· {sucursal?.nombre}
             </span>
           )}
 
@@ -565,7 +562,7 @@ export function Marco({ sesion, onSalir }: Props) {
               onClick={() => void revisar()}
               disabled={revision === 'revisando'}
             >
-              {revision === 'revisando' ? 'Revisando…' : 'Buscar actualizacion'}
+              {revision === 'revisando' ? 'Revisandoâ€¦' : 'Buscar actualizacion'}
             </button>
             {revision === 'aldia' ? (
               <span className="menu-lateral__nota">Esta es la ultima version</span>
