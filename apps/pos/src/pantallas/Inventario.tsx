@@ -533,7 +533,7 @@ export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambi
           </label>
           )}
 
-          {puedeCatalogo && vista !== 'existencias' && vista !== 'transferencias' ? (
+          {puedeCatalogo && vista !== 'transferencias' ? (
             <button
               type="button"
               className="boton inventario__categorias"
@@ -546,7 +546,7 @@ export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambi
             </button>
           ) : null}
 
-          {puedeCatalogo && vista !== 'existencias' && vista !== 'transferencias' ? (
+          {puedeCatalogo && vista !== 'transferencias' ? (
             <button
               type="button"
               className="boton boton--acento inventario__nuevo"

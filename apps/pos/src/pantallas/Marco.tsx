@@ -85,17 +85,6 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
       descripcion: 'Resumen de ventas, ingresos, gastos, utilidad y alertas de inventario.',
       grupo: 'principal',
     },
-    ...(permisos.has('catalog.manage')
-      ? [
-          {
-            id: 'productos' as const,
-            etiqueta: 'Productos',
-            etiquetaCorta: 'Productos',
-            descripcion: 'Catálogo, códigos de barras, costos, precios y categorías.',
-            grupo: 'principal' as const,
-          },
-        ]
-      : []),
     ...(permisos.has('inventory.adjust')
       ? [
           {
@@ -336,7 +325,6 @@ export function Marco({ sesion, onSalir }: Props) {
   const opciones = opcionesDe(sesion);
   const [pestana, setPestana] = useState<Seccion>(() => opcionesDe(sesion)[0]?.id ?? 'panel');
   const [sucursalId, setSucursalId] = useState(sesion.sucursales[0]?.id ?? '');
-  const [busquedaInventario, setBusquedaInventario] = useState('');
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [nueva, setNueva] = useState<VersionNueva | null>(null);
   const [revision, setRevision] = useState<'inicial' | 'revisando' | 'aldia' | 'nueva' | 'sinRevisar'>(
@@ -422,8 +410,6 @@ export function Marco({ sesion, onSalir }: Props) {
     window.scrollTo({ top: 0 });
   };
 
-  const muestraBusqueda = seccion?.id === 'inventario' || seccion?.id === 'productos';
-
   return (
     <div className={admin ? 'app app--admin' : 'app'}>
       <aside className={admin ? 'barra-lateral-escritorio barra-lateral-escritorio--admin' : 'barra-lateral-escritorio'} aria-label="Navegacion principal">
@@ -480,22 +466,6 @@ export function Marco({ sesion, onSalir }: Props) {
             </button>
           ))}
         </nav>
-
-        {muestraBusqueda ? (
-          <label className="barra__busqueda">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-4-4" />
-            </svg>
-            <input
-              type="search"
-              value={busquedaInventario}
-              onChange={(evento) => setBusquedaInventario(evento.target.value)}
-              placeholder={seccion?.id === 'productos' ? 'Buscar productos...' : 'Buscar existencias...'}
-              aria-label={seccion?.id === 'productos' ? 'Buscar productos del catálogo' : 'Buscar existencias'}
-            />
-          </label>
-        ) : null}
 
         <div className="barra__datos">
           <IndicadorConexion />
@@ -622,22 +592,11 @@ export function Marco({ sesion, onSalir }: Props) {
       {seccion?.id === 'cajas' ? (
         <Caja sesion={sesion} sucursalId={sucursalId} titulo="Cajas y turnos" />
       ) : null}
-      {seccion?.id === 'productos' ? (
-        <Inventario
-          sesion={sesion}
-          sucursalId={sucursalId}
-          vista="productos"
-          busquedaExterna={busquedaInventario}
-          alCambiarBusqueda={setBusquedaInventario}
-        />
-      ) : null}
       {seccion?.id === 'inventario' ? (
         <Inventario
           sesion={sesion}
           sucursalId={sucursalId}
           {...(admin ? { vista: 'existencias' as const } : {})}
-          busquedaExterna={busquedaInventario}
-          alCambiarBusqueda={setBusquedaInventario}
         />
       ) : null}
       {seccion?.id === 'transferencias' ? (
