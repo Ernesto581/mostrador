@@ -42,3 +42,11 @@ export const auditLog = pgTable(
   },
   (tabla) => [index('audit_log_entity_idx').on(tabla.entity, tabla.entityId)],
 );
+
+/** Operaciones sincronizadas (idempotencia por opId). */
+export const syncOperations = pgTable('sync_operations', {
+  opId: text().primaryKey(),
+  companyId: text().notNull(),
+  tipo: text().notNull(),
+  processedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});

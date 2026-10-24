@@ -29,6 +29,13 @@
       "when": 1792868127612,
       "tag": "0003_slimy_big_bertha",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792869251588,
+      "tag": "0004_large_scalphunter",
+      "breakpoints": true
     }
   ]
 }
