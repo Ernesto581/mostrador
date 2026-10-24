@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   pgTable,
@@ -79,7 +80,11 @@ export const users = pgTable(
     pinHash: text(),
     active: boolean().notNull().default(true),
   },
-  (tabla) => [uniqueIndex('users_company_username_uq').on(tabla.companyId, tabla.username)],
+  (tabla) => [
+    uniqueIndex('users_company_username_uq')
+      .on(tabla.companyId, tabla.username)
+      .where(sql`deleted_at is null`),
+  ],
 );
 
 /** Rol con su lista de permisos. */
