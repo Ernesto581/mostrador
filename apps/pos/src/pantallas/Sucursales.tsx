@@ -439,13 +439,6 @@ export function Sucursales() {
             </label>
 
 
-            <label className="campo-ancho">
-              <span>Longitud</span>
-              <input
-                className="entrada"
-                value={borrador.lng}
-                onChange={(evento) => setBorrador({ ...borrador, lng: evento.target.value })}
-              />
             </label>
 
 
@@ -474,8 +467,8 @@ export function Sucursales() {
               <label className="opcion-casilla" key={dia} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <input type="checkbox" checked={borrador.horarios[dia]?.activo ?? false} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), activo: evento.target.checked } } })} />
                 <span style={{ minWidth: '6rem' }}>{dia}</span>
-                <input className="entrada" type="time" value={borrador.horarios[dia]?.desde ?? '09:00'} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), desde: evento.target.value } } })} />
-                <input className="entrada" type="time" value={borrador.horarios[dia]?.hasta ?? '18:00'} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), hasta: evento.target.value } } })} />
+                <input className="entrada" type="time" style={{ flex: 1, textAlign: "center" }} value={borrador.horarios[dia]?.desde ?? '09:00'} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), desde: evento.target.value } } })} />
+                <input className="entrada" type="time" style={{ flex: 1, textAlign: "center" }} value={borrador.horarios[dia]?.hasta ?? '18:00'} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), hasta: evento.target.value } } })} />
               </label>
             ))}
           </div>
@@ -527,3 +520,4 @@ export function Sucursales() {
     </div>
   );
 }
+
