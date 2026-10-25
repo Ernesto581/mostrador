@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/cliente';
 import type { SucursalDelPanel } from '../api/tipos';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
@@ -63,6 +63,24 @@ const BORRADOR_VACIO: Borrador = {
 export function Sucursales() {
   const [borrador, setBorrador] = useState<Borrador | null>(null);
   const archivoFoto = useRef<HTMLInputElement>(null);
+  const [codigosPais, setCodigosPais] = useState<string[]>(['+53', '+1', '+52', '+34', '+54', '+57', '+56', '+51', '+55', '+58', '+33', '+49', '+39', '+44']);
+
+  useEffect(() => {
+    fetch('https://restcountries.com/v3.1/all?fields=idd')
+      .then((r) => r.json())
+      .then((data: { idd?: { root?: string; suffixes?: string[] } }[]) => {
+        const codigos = new Set<string>();
+        for (const pais of data) {
+          const root = pais.idd?.root;
+          const suffixes = pais.idd?.suffixes ?? [''];
+          if (root) {
+            for (const s of suffixes) codigos.add(`${root}${s}`);
+          }
+        }
+        if (codigos.size > 0) setCodigosPais([...codigos].sort());
+      })
+      .catch(() => {});
+  }, []);
   const [porQuitar, setPorQuitar] = useState<SucursalDelPanel | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -389,24 +407,25 @@ export function Sucursales() {
               />
             </label>
 
-            <label className="campo-ancho">
+            <label className="campo-ancho campo-ancho--ancho">
               <span>WhatsApp</span>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <select
+                <input
                   className="entrada"
-                  value={borrador.whatsapp.startsWith('+') ? borrador.whatsapp.split(' ')[0] : '+53'}
+                  list="codigos-pais"
+                  placeholder="+53"
+                  value={borrador.whatsapp.startsWith('+') ? borrador.whatsapp.split(' ')[0] : ''}
                   onChange={(evento) => {
                     const numero = borrador.whatsapp.replace(/^\+\d+\s*/, '');
                     setBorrador({ ...borrador, whatsapp: `${evento.target.value} ${numero}`.trim() });
                   }}
-                  style={{ maxWidth: '6rem' }}
-                >
-                  <option value="+53">+53</option>
-                  <option value="+1">+1</option>
-                  <option value="+52">+52</option>
-                  <option value="+34">+34</option>
-                  <option value="+54">+54</option>
-                </select>
+                  style={{ maxWidth: '7rem' }}
+                />
+                <datalist id="codigos-pais">
+                  {codigosPais.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
                 <input
                   className="entrada"
                   placeholder="numero"
