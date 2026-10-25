@@ -497,7 +497,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             >
               {sesion.sucursales.map((opcion) => (
                 <option key={opcion.id} value={opcion.id}>
-                  {opcion.codigo} ï¿½ï¿½ {opcion.nombre}
+                  {opcion.nombre}
                 </option>
               ))}
             </select>
@@ -512,7 +512,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                 setVerTransferencias(false);
               }}
             >
-              {sucursal?.codigo ?? 'Sucursal'}
+              {sucursal?.nombre ?? 'Sucursal'}
             </button>
             {vista ? null : (
             <button
@@ -1080,7 +1080,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   <option value="">Elegir sucursalâ€¦</option>
                   {sesion.sucursales.map((opcion) => (
                     <option key={opcion.id} value={opcion.id}>
-                      {opcion.codigo} Â· {opcion.nombre}
+                  {opcion.nombre}
                     </option>
                   ))}
                 </select>
@@ -1152,7 +1152,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               >
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} Â· {opcion.nombre}
+                  {opcion.nombre}
                   </option>
                 ))}
               </select>
