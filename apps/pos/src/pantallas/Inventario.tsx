@@ -503,17 +503,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </select>
           ) : null}
           {vista === 'transferencias' ? null : (
-          <div className="pestanas inventario__vistas">
-            <button
-              type="button"
-              className={!enTransferencias ? 'pestana pestana--activa' : 'pestana'}
-              onClick={() => {
-                setGeneral(false);
-                setVerTransferencias(false);
-              }}
-            >
-              {sucursal?.nombre ?? 'Sucursal'}
-            </button>
             {vista ? null : (
             <button
               type="button"
