@@ -13,7 +13,7 @@
   },
   "scripts": {
     "postinstall": "npm run build:libs && npm run build -w @mostrador/api",
-    "build:libs": "npm run build -w @mostrador/domain && npm run build -w @mostrador/db-cloud",
+    "build:libs": "npm run build -w @mostrador/domain && npm run build -w @mostrador/db-cloud && npm run build -w @mostrador/storage && npm run build -w @mostrador/sync",
     "build": "npm run build:libs && npm run build -w @mostrador/api && npm run build -w @mostrador/pos",
     "test": "npm run build && npm run test --workspaces --if-present",
     "typecheck": "npm run build && npm run typecheck --workspaces --if-present",
