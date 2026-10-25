@@ -258,7 +258,7 @@ function ListaMenu({
           return null;
         }
 
-        const etiquetaGrupo = grupo === 'configuracion' ? 'ConfiguraciÃ³n' : null;
+        const etiquetaGrupo = grupo === 'configuracion' ? 'Configuración' : null;
 
         return (
           <div key={grupo}>
@@ -585,4 +585,5 @@ export function Marco({ sesion, onSalir }: Props) {
     </div>
   );
 }
+
 
