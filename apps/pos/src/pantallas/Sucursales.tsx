@@ -439,7 +439,6 @@ export function Sucursales() {
             </label>
 
 
-            </label>
 
 
             {borrador.id && borrador.tipo === 'tienda' ? (
