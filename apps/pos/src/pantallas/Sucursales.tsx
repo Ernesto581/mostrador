@@ -465,30 +465,6 @@ export function Sucursales() {
               />
             </label>
 
-            <label className="campo-ancho">
-              <span>Tipo</span>
-              <select
-                className="entrada"
-                value={borrador.tipo}
-                onChange={(evento) =>
-                  setBorrador({ ...borrador, tipo: evento.target.value as 'tienda' | 'almacen' })
-                }
-              >
-                <option value="tienda">Tienda (vende al publico)</option>
-                <option value="almacen">Bodega (solo guarda)</option>
-              </select>
-            </label>
-
-
-
-            <label className="campo-ancho">
-              <span>Telefono (opcional)</span>
-              <input
-                className="entrada"
-                value={borrador.telefono}
-                onChange={(evento) => setBorrador({ ...borrador, telefono: evento.target.value })}
-              />
-            </label>
 
             {borrador.id && borrador.tipo === 'tienda' ? (
               <label className="opcion-casilla campo-ancho">
