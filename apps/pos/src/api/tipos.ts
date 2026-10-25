@@ -29,6 +29,15 @@ export interface SucursalDelPanel {
   activa: boolean;
   /** true: si el piso de venta no alcanza, el mostrador toma del almacen. */
   ventaDesdeAlmacen: boolean;
+  descripcion?: string | null;
+  tipoNegocio?: string | null;
+  fotoUrl?: string | null;
+  provincia?: string | null;
+  municipio?: string | null;
+  whatsapp?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  horarios?: Record<string, { desde: string; hasta: string; activo: boolean }> | null;
 }
 
 export interface Sesion {
