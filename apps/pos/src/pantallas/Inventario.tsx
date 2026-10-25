@@ -147,7 +147,7 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
 
 export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busquedaExterna, alCambiarBusqueda }: Props) {
   const [sucursalId, setSucursalId] = useState(sucursalInicial);
-  const [general, setGeneral] = useState(false);
+  const [general] = useState(false);
   const [busquedaInterna, setBusquedaInterna] = useState('');
   const buscar = busquedaExterna ?? busquedaInterna;
   const setBuscar = alCambiarBusqueda ?? setBusquedaInterna;
@@ -212,7 +212,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const indiceUltimo = Math.min(inicio + porPagina, filas.length);
   const categorias: Categoria[] = datosCategorias?.categorias ?? [];
   const nombrePorCategoria = new Map(categorias.map((categoria) => [categoria.id, categoria.nombre]));
-  const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
+  // const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
 
   useEffect(() => {
     setPagina(1);
@@ -513,8 +513,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               Transferencias
             </button>
             )}
-          </div>
-          )}
           </div>
           )}
 
