@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useRef, useState } from 'react';
 import { api } from '../api/cliente';
 import type { SucursalDelPanel } from '../api/tipos';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
@@ -62,6 +62,7 @@ const BORRADOR_VACIO: Borrador = {
 
 export function Sucursales() {
   const [borrador, setBorrador] = useState<Borrador | null>(null);
+  const archivoFoto = useRef<HTMLInputElement>(null);
   const [porQuitar, setPorQuitar] = useState<SucursalDelPanel | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -311,6 +312,48 @@ export function Sucursales() {
               />
             </label>
 
+            <div className="campo-ancho campo-ancho--ancho">
+              <span>Foto</span>
+              <div style={{ border: '1px solid var(--tinta-borde)', borderRadius: 'var(--radio-chico)', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+                {borrador.fotoUrl ? (
+                  <img src={borrador.fotoUrl} alt="Foto de la sucursal" style={{ maxWidth: '100%', maxHeight: '160px', borderRadius: 'var(--radio-chico)' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--texto-tenue)', fontSize: '0.8rem' }}>
+                    Sin foto
+                  </div>
+                )}
+                <input
+                  ref={archivoFoto}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(evento) => {
+                    const archivo = evento.target.files?.[0];
+                    if (!archivo) return;
+                    const lector = new FileReader();
+                    lector.onload = () => setBorrador((actual) => actual ? { ...actual, fotoUrl: String(lector.result) } : actual);
+                    lector.readAsDataURL(archivo);
+                  }}
+                />
+                <div className="acciones-fila">
+                  <button type="button" className="boton" onClick={() => archivoFoto.current?.click()}>
+                    {borrador.fotoUrl ? 'Cambiar imagen' : 'Seleccionar imagen'}
+                  </button>
+                  {borrador.fotoUrl ? (
+                    <button type="button" className="boton" onClick={() => setBorrador((actual) => actual ? { ...actual, fotoUrl: '' } : actual)}>
+                      Quitar
+                    </button>
+                  ) : null}
+                </div>
+                <input
+                  className="entrada"
+                  placeholder="o pega una URL de imagen"
+                  value={borrador.fotoUrl.startsWith('data:') ? '' : borrador.fotoUrl}
+                  onChange={(evento) => setBorrador({ ...borrador, fotoUrl: evento.target.value })}
+                />
+              </div>
+            </div>
+
             <label className="campo-ancho">
               <span>Tipo de negocio</span>
               <select
@@ -324,15 +367,6 @@ export function Sucursales() {
                 <option value="ferreteria">Ferreteria</option>
                 <option value="otro">Otro</option>
               </select>
-            </label>
-
-            <label className="campo-ancho">
-              <span>Foto (URL)</span>
-              <input
-                className="entrada"
-                value={borrador.fotoUrl}
-                onChange={(evento) => setBorrador({ ...borrador, fotoUrl: evento.target.value })}
-              />
             </label>
 
             <label className="campo-ancho">
