@@ -438,23 +438,6 @@ export function Sucursales() {
               />
             </label>
 
-            <label className="campo-ancho">
-              <span>WhatsApp</span>
-              <input
-                className="entrada"
-                value={borrador.whatsapp}
-                onChange={(evento) => setBorrador({ ...borrador, whatsapp: evento.target.value })}
-              />
-            </label>
-
-            <label className="campo-ancho">
-              <span>Latitud</span>
-              <input
-                className="entrada"
-                value={borrador.lat}
-                onChange={(evento) => setBorrador({ ...borrador, lat: evento.target.value })}
-              />
-            </label>
 
             <label className="campo-ancho">
               <span>Longitud</span>
@@ -480,7 +463,7 @@ export function Sucursales() {
             ) : null}
           </div>
 
-          <div className="campo-ancho campo-ancho--ancho">
+          <div className="campo-ancho campo-ancho--ancho" style={{ marginTop: "1rem" }}>
             <span>Horarios de trabajo</span>
             {DIAS.map((dia) => (
               <label className="opcion-casilla" key={dia} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
