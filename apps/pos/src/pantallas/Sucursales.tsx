@@ -479,7 +479,6 @@ export function Sucursales() {
               </label>
             ))}
           </div>
-          </div>
           <div className="modal__acciones">
             <button type="button" className="boton" onClick={() => setBorrador(null)}>
               Cancelar
