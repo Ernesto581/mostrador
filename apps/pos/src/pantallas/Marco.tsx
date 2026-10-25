@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { Sesion } from '../api/tipos';
 import { AvisoActualizacion } from '../componentes/AvisoActualizacion';
 import { IndicadorConexion } from '../componentes/IndicadorConexion';
@@ -91,7 +91,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             id: 'inventario' as const,
             etiqueta: 'Inventario',
             etiquetaCorta: 'Inventario',
-            descripcion: 'Existencias por ubicaciÃ³n, entradas, salidas, mermas y stock mÃ­nimo.',
+            descripcion: 'Existencias por ubicación, entradas, salidas, mermas y stock mínimo.',
             grupo: 'principal' as const,
           },
         ]
@@ -135,7 +135,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             id: 'informes' as const,
             etiqueta: 'Informes',
             etiquetaCorta: 'Informes',
-            descripcion: 'Ventas, utilidad, productos mÃ¡s vendidos y exportaciÃ³n a Excel/PDF.',
+            descripcion: 'Ventas, utilidad, productos más vendidos y exportación a Excel/PDF.',
             grupo: 'principal' as const,
           },
         ]
