@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api/cliente';
 import type {
   Categoria,
@@ -476,7 +476,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               : vista === 'transferencias'
                 ? 'Traslados de productos entre tiendas y almacenes.'
                 : vista === 'existencias'
-                  ? 'Existencias por ubicaciÃ³n, entradas, salidas, mermas y stock mÃ­nimo.'
+                  ? 'Existencias por ubicación, entradas, salidas, mermas y stock mínimo.'
                   : null}
             {vista === 'transferencias' ? null : (
               <>
