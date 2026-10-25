@@ -145,7 +145,8 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
   };
 }
 
-export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambiarBusqueda }: Props) {
+export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busquedaExterna, alCambiarBusqueda }: Props) {
+  const [sucursalId, setSucursalId] = useState(sucursalInicial);
   const [general, setGeneral] = useState(false);
   const [busquedaInterna, setBusquedaInterna] = useState('');
   const buscar = busquedaExterna ?? busquedaInterna;
@@ -488,6 +489,20 @@ export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambi
         </div>
 
         <div className="barra-filtros inventario__controles">
+          {sesion.sucursales.length > 1 ? (
+            <select
+              className="selector"
+              value={sucursalId}
+              onChange={(evento) => setSucursalId(evento.target.value)}
+              aria-label="Sucursal"
+            >
+              {sesion.sucursales.map((opcion) => (
+                <option key={opcion.id} value={opcion.id}>
+                  {opcion.codigo} �� {opcion.nombre}
+                </option>
+              ))}
+            </select>
+          ) : null}
           {vista === 'transferencias' ? null : (
           <div className="pestanas inventario__vistas">
             <button
