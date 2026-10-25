@@ -503,6 +503,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </select>
           ) : null}
           {vista === 'transferencias' ? null : (
+          <div className="pestanas inventario__vistas">
             {vista ? null : (
             <button
               type="button"
@@ -512,6 +513,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               Transferencias
             </button>
             )}
+          </div>
+          )}
           </div>
           )}
 
