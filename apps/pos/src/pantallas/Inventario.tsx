@@ -146,7 +146,7 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
 }
 
 export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambiarBusqueda }: Props) {
-  const [general, setGeneral] = useState(true);
+  const [general, setGeneral] = useState(false);
   const [busquedaInterna, setBusquedaInterna] = useState('');
   const buscar = busquedaExterna ?? busquedaInterna;
   const setBuscar = alCambiarBusqueda ?? setBusquedaInterna;
@@ -492,17 +492,7 @@ export function Inventario({ sesion, sucursalId, vista, busquedaExterna, alCambi
           <div className="pestanas inventario__vistas">
             <button
               type="button"
-              className={general && !enTransferencias ? 'pestana pestana--activa' : 'pestana'}
-              onClick={() => {
-                setGeneral(true);
-                setVerTransferencias(false);
-              }}
-            >
-              General
-            </button>
-            <button
-              type="button"
-              className={!general && !enTransferencias ? 'pestana pestana--activa' : 'pestana'}
+              className={!enTransferencias ? 'pestana pestana--activa' : 'pestana'}
               onClick={() => {
                 setGeneral(false);
                 setVerTransferencias(false);
