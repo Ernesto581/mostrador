@@ -420,26 +420,6 @@ export function Sucursales() {
               </select>
             </label>
 
-            <label className="campo-ancho">
-              <span>Provincia</span>
-              <input
-                className="entrada"
-                value={borrador.provincia}
-                onChange={(evento) => setBorrador({ ...borrador, provincia: evento.target.value })}
-              />
-            </label>
-
-            <label className="campo-ancho">
-              <span>Municipio</span>
-              <input
-                className="entrada"
-                value={borrador.municipio}
-                onChange={(evento) => setBorrador({ ...borrador, municipio: evento.target.value })}
-              />
-            </label>
-
-
-
 
             {borrador.id && borrador.tipo === 'tienda' ? (
               <label className="opcion-casilla campo-ancho">
