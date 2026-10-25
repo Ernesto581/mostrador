@@ -345,14 +345,65 @@ export function Sucursales() {
                     </button>
                   ) : null}
                 </div>
-                <input
-                  className="entrada"
-                  placeholder="o pega una URL de imagen"
-                  value={borrador.fotoUrl.startsWith('data:') ? '' : borrador.fotoUrl}
-                  onChange={(evento) => setBorrador({ ...borrador, fotoUrl: evento.target.value })}
-                />
               </div>
             </div>
+
+            <label className="campo-ancho campo-ancho--ancho">
+              <span>Direccion / Calle</span>
+              <input
+                className="entrada"
+                value={borrador.direccion}
+                onChange={(evento) => setBorrador({ ...borrador, direccion: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho">
+              <span>Provincia</span>
+              <input
+                className="entrada"
+                value={borrador.provincia}
+                onChange={(evento) => setBorrador({ ...borrador, provincia: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho">
+              <span>Municipio</span>
+              <input
+                className="entrada"
+                value={borrador.municipio}
+                onChange={(evento) => setBorrador({ ...borrador, municipio: evento.target.value })}
+              />
+            </label>
+
+            <label className="campo-ancho">
+              <span>WhatsApp</span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <select
+                  className="entrada"
+                  value={borrador.whatsapp.startsWith('+') ? borrador.whatsapp.split(' ')[0] : '+53'}
+                  onChange={(evento) => {
+                    const numero = borrador.whatsapp.replace(/^\+\d+\s*/, '');
+                    setBorrador({ ...borrador, whatsapp: `${evento.target.value} ${numero}`.trim() });
+                  }}
+                  style={{ maxWidth: '6rem' }}
+                >
+                  <option value="+53">+53</option>
+                  <option value="+1">+1</option>
+                  <option value="+52">+52</option>
+                  <option value="+34">+34</option>
+                  <option value="+54">+54</option>
+                </select>
+                <input
+                  className="entrada"
+                  placeholder="numero"
+                  value={borrador.whatsapp.replace(/^\+\d+\s*/, '')}
+                  onChange={(evento) => {
+                    const codigo = borrador.whatsapp.startsWith('+') ? borrador.whatsapp.split(' ')[0] : '+53';
+                    setBorrador({ ...borrador, whatsapp: `${codigo} ${evento.target.value}`.trim() });
+                  }}
+                />
+              </div>
+            </label>
 
             <label className="campo-ancho">
               <span>Tipo de negocio</span>
@@ -428,14 +479,7 @@ export function Sucursales() {
               </select>
             </label>
 
-            <label className="campo-ancho">
-              <span>Direccion (opcional)</span>
-              <input
-                className="entrada"
-                value={borrador.direccion}
-                onChange={(evento) => setBorrador({ ...borrador, direccion: evento.target.value })}
-              />
-            </label>
+
 
             <label className="campo-ancho">
               <span>Telefono (opcional)</span>
