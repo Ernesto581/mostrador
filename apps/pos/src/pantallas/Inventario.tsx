@@ -1572,3 +1572,4 @@ function Categorias({ categorias, onCerrar, onCambio }: PropsCategorias) {
     </Modal>
   );
 }
+
