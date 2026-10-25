@@ -465,15 +465,20 @@ export function Sucursales() {
 
           <div className="campo-ancho campo-ancho--ancho" style={{ marginTop: "1rem" }}>
             <span>Horarios de trabajo</span>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.3rem' }}>
+              <span style={{ minWidth: '6rem' }}></span>
+              <span style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: 'var(--texto-tenue)' }}>Desde</span>
+              <span style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: 'var(--texto-tenue)' }}>Hasta</span>
+            </div>
             {DIAS.map((dia) => (
               <label className="opcion-casilla" key={dia} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <input type="checkbox" checked={borrador.horarios[dia]?.activo ?? false} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), activo: evento.target.checked } } })} />
                 <span style={{ minWidth: '6rem' }}>{dia}</span>
                 <input className="entrada" type="time" value={borrador.horarios[dia]?.desde ?? '09:00'} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), desde: evento.target.value } } })} />
-                <span>a</span>
                 <input className="entrada" type="time" value={borrador.horarios[dia]?.hasta ?? '18:00'} onChange={(evento) => setBorrador({ ...borrador, horarios: { ...borrador.horarios, [dia]: { ...(borrador.horarios[dia] ?? { desde: '09:00', hasta: '18:00', activo: true }), hasta: evento.target.value } } })} />
               </label>
             ))}
+          </div>
           </div>
           <div className="modal__acciones">
             <button type="button" className="boton" onClick={() => setBorrador(null)}>
