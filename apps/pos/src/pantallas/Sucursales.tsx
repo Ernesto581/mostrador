@@ -311,6 +311,20 @@ export function Sucursales() {
                 onChange={(evento) => setBorrador({ ...borrador, descripcion: evento.target.value })}
               />
             </label>
+            <label className="campo-ancho">
+              <span>Tipo de negocio</span>
+              <select
+                className="entrada"
+                value={borrador.tipoNegocio}
+                onChange={(evento) => setBorrador({ ...borrador, tipoNegocio: evento.target.value })}
+              >
+                <option value="tienda">Tienda</option>
+                <option value="restaurante">Restaurante</option>
+                <option value="farmacia">Farmacia</option>
+                <option value="ferreteria">Ferreteria</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
 
             <div className="campo-ancho campo-ancho--ancho">
               <span>Foto</span>
@@ -405,20 +419,6 @@ export function Sucursales() {
               </div>
             </label>
 
-            <label className="campo-ancho">
-              <span>Tipo de negocio</span>
-              <select
-                className="entrada"
-                value={borrador.tipoNegocio}
-                onChange={(evento) => setBorrador({ ...borrador, tipoNegocio: evento.target.value })}
-              >
-                <option value="tienda">Tienda</option>
-                <option value="restaurante">Restaurante</option>
-                <option value="farmacia">Farmacia</option>
-                <option value="ferreteria">Ferreteria</option>
-                <option value="otro">Otro</option>
-              </select>
-            </label>
 
 
             {borrador.id && borrador.tipo === 'tienda' ? (
