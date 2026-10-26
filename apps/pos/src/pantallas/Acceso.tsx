@@ -178,9 +178,9 @@ export function Acceso({ onEntrar }: { onEntrar: (sesion: Sesion) => void }) {
           </button>
         ) : (
           <p className="acceso__nota">
-            Datos de ejemplo: admin / mostrador123
+            Ingresa con tu usuario y contrasena.
             <br />
-            Cambia la contrasena al empezar a usar el sistema
+            Si olvidaste tu contrasena, contacta al administrador.
           </p>
         )}
       </form>
