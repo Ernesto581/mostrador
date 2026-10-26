@@ -36,6 +36,13 @@
       "when": 1792869251588,
       "tag": "0004_large_scalphunter",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792929851529,
+      "tag": "0005_cooing_franklin_storm",
+      "breakpoints": true
     }
   ]
 }

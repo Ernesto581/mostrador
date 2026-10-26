@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Categoria,
   CierreCaja,
   DetalleVenta,
@@ -98,7 +98,7 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
       : undefined;
 
     const mensaje = error
-      ? [error.mensaje, error.detalle].filter(Boolean).join(' — ')
+      ? [error.mensaje, error.detalle].filter(Boolean).join(' â€” ')
       : esJson
         ? 'No se pudo completar la operacion'
         : `El servidor respondio una pagina en vez de datos (HTTP ${respuesta.status}). El API no esta publicado en esta direccion.`;
@@ -327,6 +327,15 @@ export const api = {
     tipo: 'tienda' | 'almacen';
     direccion?: string;
     telefono?: string;
+    descripcion?: string;
+    tipoNegocio?: string;
+    fotoUrl?: string;
+    provincia?: string;
+    municipio?: string;
+    whatsapp?: string;
+    lat?: number;
+    lng?: number;
+    horarios?: Record<string, { desde: string; hasta: string; activo: boolean }>;
   }) =>
     pedir<{ sucursal: { id: string; codigo: string; nombre: string } }>('/branches', {
       metodo: 'POST',
@@ -342,6 +351,15 @@ export const api = {
       telefono?: string;
       activa?: boolean;
       ventaDesdeAlmacen?: boolean;
+      descripcion?: string;
+      tipoNegocio?: string;
+      fotoUrl?: string;
+      provincia?: string;
+      municipio?: string;
+      whatsapp?: string;
+      lat?: number;
+      lng?: number;
+      horarios?: Record<string, { desde: string; hasta: string; activo: boolean }>;
     },
   ) => pedir<{ sucursal: { id: string } }>(`/branches/${id}`, { metodo: 'PATCH', cuerpo }),
 
@@ -411,4 +429,15 @@ export const api = {
     pedir<{ cierres: CierreCaja[] }>(`/cash-closures${parametros(filtros)}`),
 
   turnosAbiertos: () => pedir<{ turnos: TurnoAbiertoResumen[] }>('/shifts/abiertos'),
+
+  /* ---------- Sincronizacion ---------- */
+
+  syncPush: (operaciones: { opId: string; tipo: string; payload?: unknown }[]) =>
+    pedir<{ resultados: { opId: string; ok: boolean; duplicada: boolean }[] }>('/sync/push', {
+      metodo: 'POST',
+      cuerpo: { operaciones },
+    }),
+
+  syncPull: (cursor?: number) =>
+    pedir<{ cambios: unknown[]; cursor: number }>(`/sync/pull${parametros({ cursor })}`),
 };

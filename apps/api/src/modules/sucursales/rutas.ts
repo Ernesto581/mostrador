@@ -21,12 +21,20 @@ const esquemaCrear = z.object({
     .trim()
     .min(1, 'Escribe un codigo')
     .max(12, 'El codigo es muy largo')
-    // El codigo va dentro de los folios (SUC1-20260101-0001): sin espacios ni simbolos.
     .regex(/^[A-Za-z0-9-]+$/, 'Solo letras, numeros y guiones, sin espacios'),
   nombre: z.string().trim().min(1, 'Escribe el nombre').max(120),
   tipo: z.enum(['tienda', 'almacen']).default('tienda'),
   direccion: z.string().trim().max(200).optional(),
   telefono: z.string().trim().max(40).optional(),
+  descripcion: z.string().trim().max(500).optional(),
+  tipoNegocio: z.string().trim().max(80).optional(),
+  fotoUrl: z.string().trim().max(500).optional(),
+  provincia: z.string().trim().max(80).optional(),
+  municipio: z.string().trim().max(80).optional(),
+  whatsapp: z.string().trim().max(40).optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  horarios: z.record(z.string(), z.object({ desde: z.string(), hasta: z.string(), activo: z.boolean() })).optional(),
 });
 
 const esquemaEditar = z.object({
@@ -36,6 +44,15 @@ const esquemaEditar = z.object({
   telefono: z.string().trim().max(40).optional(),
   activa: z.boolean().optional(),
   ventaDesdeAlmacen: z.boolean().optional(),
+  descripcion: z.string().trim().max(500).optional(),
+  tipoNegocio: z.string().trim().max(80).optional(),
+  fotoUrl: z.string().trim().max(500).optional(),
+  provincia: z.string().trim().max(80).optional(),
+  municipio: z.string().trim().max(80).optional(),
+  whatsapp: z.string().trim().max(40).optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  horarios: z.record(z.string(), z.object({ desde: z.string(), hasta: z.string(), activo: z.boolean() })).optional(),
 });
 
 const parametroId = z.object({ id: z.string().min(1) });
@@ -63,6 +80,15 @@ export async function rutasSucursales(app: FastifyInstance) {
         telefono: branches.phone,
         activa: branches.active,
         ventaDesdeAlmacen: branches.ventaDesdeAlmacen,
+        descripcion: branches.descripcion,
+        tipoNegocio: branches.tipoNegocio,
+        fotoUrl: branches.fotoUrl,
+        provincia: branches.provincia,
+        municipio: branches.municipio,
+        whatsapp: branches.whatsapp,
+        lat: branches.lat,
+        lng: branches.lng,
+        horarios: branches.horarios,
       })
       .from(branches)
       .where(and(eq(branches.companyId, sesion.empresaId), isNull(branches.deletedAt)))
@@ -124,6 +150,15 @@ export async function rutasSucursales(app: FastifyInstance) {
         type: datos.tipo,
         address: datos.direccion ?? null,
         phone: datos.telefono ?? null,
+        descripcion: datos.descripcion ?? null,
+        tipoNegocio: datos.tipoNegocio ?? null,
+        fotoUrl: datos.fotoUrl ?? null,
+        provincia: datos.provincia ?? null,
+        municipio: datos.municipio ?? null,
+        whatsapp: datos.whatsapp ?? null,
+        lat: datos.lat ?? null,
+        lng: datos.lng ?? null,
+        horarios: datos.horarios ?? null,
       });
 
       // Toda sucursal tiene almacen; las tiendas ademas tienen piso de venta, de donde se vende.
@@ -192,6 +227,15 @@ export async function rutasSucursales(app: FastifyInstance) {
         ...(datos.ventaDesdeAlmacen !== undefined
           ? { ventaDesdeAlmacen: datos.ventaDesdeAlmacen }
           : {}),
+        ...(datos.descripcion !== undefined ? { descripcion: datos.descripcion } : {}),
+        ...(datos.tipoNegocio !== undefined ? { tipoNegocio: datos.tipoNegocio } : {}),
+        ...(datos.fotoUrl !== undefined ? { fotoUrl: datos.fotoUrl } : {}),
+        ...(datos.provincia !== undefined ? { provincia: datos.provincia } : {}),
+        ...(datos.municipio !== undefined ? { municipio: datos.municipio } : {}),
+        ...(datos.whatsapp !== undefined ? { whatsapp: datos.whatsapp } : {}),
+        ...(datos.lat !== undefined ? { lat: datos.lat } : {}),
+        ...(datos.lng !== undefined ? { lng: datos.lng } : {}),
+        ...(datos.horarios !== undefined ? { horarios: datos.horarios } : {}),
         updatedAt: new Date(),
         revision: sql`${branches.revision} + 1`,
       })

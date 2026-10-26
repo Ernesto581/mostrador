@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  doublePrecision,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -48,6 +50,15 @@ export const branches = pgTable(
      * true: si el piso no alcanza, la venta toma el resto del almacen.
      */
     ventaDesdeAlmacen: boolean().notNull().default(false),
+    descripcion: text(),
+    tipoNegocio: text(),
+    fotoUrl: text(),
+    provincia: text(),
+    municipio: text(),
+    whatsapp: text(),
+    lat: doublePrecision(),
+    lng: doublePrecision(),
+    horarios: jsonb().$type<Record<string, { desde: string; hasta: string; activo: boolean }>>(),
   },
   (tabla) => [uniqueIndex('branches_company_code_uq').on(tabla.companyId, tabla.code)],
 );
