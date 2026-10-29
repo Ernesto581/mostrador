@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+﻿import { useRef, useState } from 'react';
 import { api } from '../api/cliente';
 import type { SucursalDelPanel } from '../api/tipos';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
@@ -65,22 +65,8 @@ export function Sucursales() {
   const archivoFoto = useRef<HTMLInputElement>(null);
   const [codigosPais, setCodigosPais] = useState<string[]>(['+53', '+1', '+52', '+34', '+54', '+57', '+56', '+51', '+55', '+58', '+33', '+49', '+39', '+44']);
 
-  useEffect(() => {
-    fetch('https://restcountries.com/v3.1/all?fields=idd')
-      .then((r) => r.json())
-      .then((data: { idd?: { root?: string; suffixes?: string[] } }[]) => {
-        const codigos = new Set<string>();
-        for (const pais of data) {
-          const root = pais.idd?.root;
-          const suffixes = pais.idd?.suffixes ?? [''];
-          if (root) {
-            for (const s of suffixes) codigos.add(`${root}${s}`);
-          }
-        }
-        if (codigos.size > 0) setCodigosPais([...codigos].sort());
-      })
-      .catch(() => {});
-  }, []);
+  // Los codigos de pais se cargan de una lista fija para evitar bloqueos CORS
+  // al consultar servicios externos desde el navegador.
   const [porQuitar, setPorQuitar] = useState<SucursalDelPanel | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);

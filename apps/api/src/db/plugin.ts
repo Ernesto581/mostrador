@@ -37,6 +37,15 @@ export const pluginBaseDeDatos = fp(
       // Compatibilidad con bases antiguas: asegura columnas nuevas.
       try {
         await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS venta_desde_almacen boolean NOT NULL DEFAULT false`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS descripcion text`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS tipo_negocio text`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS foto_url text`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS provincia text`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS municipio text`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS whatsapp text`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS lat double precision`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS lng double precision`);
+        await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS horarios jsonb`);
       } catch (error) {
         app.log.warn({ err: error }, 'No se pudo asegurar la columna venta_desde_almacen');
       }
@@ -55,8 +64,17 @@ export const pluginBaseDeDatos = fp(
     // Compatibilidad con bases antiguas: asegura columnas nuevas.
     try {
       await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS venta_desde_almacen boolean NOT NULL DEFAULT false`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS descripcion text`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS tipo_negocio text`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS foto_url text`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS provincia text`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS municipio text`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS whatsapp text`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS lat double precision`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS lng double precision`);
+      await db.execute(sql`ALTER TABLE branches ADD COLUMN IF NOT EXISTS horarios jsonb`);
     } catch (error) {
-      app.log.warn({ err: error }, 'No se pudo asegurar la columna venta_desde_almacen');
+      app.log.warn({ err: error }, 'No se pudo asegurar las columnas nuevas de branches');
     }
     try {
       await db.execute(sql`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'almacen'`);
