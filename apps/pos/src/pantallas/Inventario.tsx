@@ -147,6 +147,49 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
   };
 }
 
+/**
+ * Reduce la foto antes de subirla: las camaras del telefono sacan 3-4 MB y en el
+ * almacenamiento gratuito de Supabase eso se acaba rapido. 1200 px de lado mayor
+ * es mas que suficiente para una miniatura de inventario.
+ */
+async function prepararImagen(archivo: File): Promise<File> {
+  try {
+    const mapa = await createImageBitmap(archivo);
+    const mayor = Math.max(mapa.width, mapa.height);
+    const escala = Math.min(1, 1200 / mayor);
+
+    if (escala === 1 && archivo.size <= 600 * 1024) {
+      mapa.close();
+      return archivo;
+    }
+
+    const lienzo = document.createElement('canvas');
+    lienzo.width = Math.max(1, Math.round(mapa.width * escala));
+    lienzo.height = Math.max(1, Math.round(mapa.height * escala));
+    const contexto = lienzo.getContext('2d');
+    if (!contexto) {
+      mapa.close();
+      return archivo;
+    }
+
+    contexto.drawImage(mapa, 0, 0, lienzo.width, lienzo.height);
+    mapa.close();
+
+    const reducida = await new Promise<Blob | null>((resolver) =>
+      lienzo.toBlob(resolver, 'image/jpeg', 0.82),
+    );
+    if (!reducida) {
+      return archivo;
+    }
+
+    return new File([reducida], archivo.name.replace(/\.[^.]+$/, '') + '.jpg', {
+      type: 'image/jpeg',
+    });
+  } catch {
+    return archivo;
+  }
+}
+
 export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busquedaExterna, alCambiarBusqueda }: Props) {
   const [sucursalId, setSucursalId] = useState(sucursalInicial);
   const [general] = useState(false);
@@ -239,7 +282,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     setSubiendoImagen(true);
     setError(null);
     try {
-      const { url } = await api.subirImagenProducto(archivo);
+      const lista = await prepararImagen(archivo);
+      const { url } = await api.subirImagenProducto(lista);
       setProducto((actual) => (actual ? { ...actual, imagenUrl: url } : actual));
     } catch (fallo) {
       setError(mensajeDe(fallo));
