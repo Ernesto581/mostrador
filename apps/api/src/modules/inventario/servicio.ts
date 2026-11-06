@@ -394,6 +394,8 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
 
 export interface FiltroStockGeneral {
   empresaId: string;
+  /** Sucursales a las que la sesion tiene acceso. Vacio = ninguna. */
+  sucursalIds?: string[] | undefined;
   buscar?: string | undefined;
   soloBajoMinimo?: boolean | undefined;
   limite?: number | undefined;
@@ -442,6 +444,10 @@ export async function stockGeneral(
     return [];
   }
 
+  if (filtro.sucursalIds && filtro.sucursalIds.length === 0) {
+    return [];
+  }
+
   const ids = productos.map((producto) => producto.id);
 
   const filas = await base
@@ -458,6 +464,9 @@ export async function stockGeneral(
       and(
         eq(schema.branches.companyId, filtro.empresaId),
         inArray(schema.stockBalances.productId, ids),
+        ...(filtro.sucursalIds
+          ? [inArray(schema.stockBalances.branchId, filtro.sucursalIds)]
+          : []),
       ),
     )
     .groupBy(
@@ -507,6 +516,8 @@ export interface FiltroMovimientos {
   empresaId: string;
   productoId?: string | undefined;
   sucursalId?: string | undefined;
+  /** Sucursales a las que la sesion tiene acceso. Vacio = ninguna. */
+  sucursalIds?: string[] | undefined;
   desde?: Date | undefined;
   hasta?: Date | undefined;
   limite?: number | undefined;
@@ -521,6 +532,11 @@ export async function listarMovimientos(base: BaseDatos, filtro: FiltroMovimient
   }
   if (filtro.sucursalId) {
     condiciones.push(eq(schema.inventoryMovements.branchId, filtro.sucursalId));
+  } else if (filtro.sucursalIds) {
+    if (filtro.sucursalIds.length === 0) {
+      return [];
+    }
+    condiciones.push(inArray(schema.inventoryMovements.branchId, filtro.sucursalIds));
   }
   if (filtro.desde) {
     condiciones.push(gte(schema.inventoryMovements.occurredAt, filtro.desde));

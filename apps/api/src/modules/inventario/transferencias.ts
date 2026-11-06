@@ -52,11 +52,16 @@ export interface TransferenciaVista {
 
 type FilaTransferencia = typeof schema.transfers.$inferSelect;
 
-/** Todas las ubicaciones de la empresa, con los datos de su sucursal. */
+/** Ubicaciones de las sucursales a las que la sesion tiene acceso. */
 export async function listarUbicaciones(
   base: BaseDatos,
   empresaId: string,
+  sucursalIds?: string[],
 ): Promise<UbicacionVista[]> {
+  if (sucursalIds && sucursalIds.length === 0) {
+    return [];
+  }
+
   return base
     .select({
       id: schema.warehouses.id,
@@ -75,6 +80,9 @@ export async function listarUbicaciones(
         eq(schema.branches.companyId, empresaId),
         isNull(schema.branches.deletedAt),
         isNull(schema.warehouses.deletedAt),
+        ...(sucursalIds
+          ? [inArray(schema.warehouses.branchId, sucursalIds)]
+          : []),
       ),
     )
     .orderBy(asc(schema.branches.code), asc(schema.warehouses.kind));

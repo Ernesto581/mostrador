@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { PERMISOS } from '../../auth/permisos.js';
 import { asegurarPermiso, exigirSesion, sesionDe } from '../../auth/sesion.js';
-import { ErrorDeAplicacion, ErrorNoEncontrado, validar } from '../../errors.js';
+import { ErrorDeAplicacion, ErrorNoEncontrado, ErrorSinPermiso, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
 
 /**
@@ -70,6 +70,15 @@ export async function rutasSucursales(app: FastifyInstance) {
    */
   app.get('/branches', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
+    // La lista completa es para administracion y usuarios. El vendedor ya recibe
+    // sus propias sucursales en /auth/me: no necesita las demas.
+    if (
+      !sesion.permisos.has(PERMISOS.GESTIONAR_SUCURSALES) &&
+      !sesion.permisos.has(PERMISOS.GESTIONAR_USUARIOS)
+    ) {
+      throw new ErrorSinPermiso('No tienes permiso para ver las sucursales');
+    }
+
     const lista = await app.db
       .select({
         id: branches.id,

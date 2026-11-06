@@ -7,6 +7,7 @@ import {
   asegurarPermiso,
   asegurarSucursal,
   exigirSesion,
+  puedeVerCostos,
   sesionDe,
   type Sesion,
 } from '../../auth/sesion.js';
@@ -148,19 +149,41 @@ export async function rutasInventario(app: FastifyInstance) {
       limite: consulta.limite,
     });
 
+    const verCostos = puedeVerCostos(sesion);
+
     return {
       sucursalId: consulta.sucursalId,
       conAlerta: stock.filter((fila) => fila.bajoMinimo).length,
-      stock,
+      stock: stock.map((fila) => ({
+        productoId: fila.productoId,
+        sku: fila.sku,
+        nombre: fila.nombre,
+        imagenUrl: fila.imagenUrl,
+        precioVenta: fila.precioVenta,
+        stock: fila.stock,
+        piso: fila.piso,
+        almacen: fila.almacen,
+        stockMinimo: fila.stockMinimo,
+        bajoMinimo: fila.bajoMinimo,
+        categoriaId: fila.categoriaId,
+        ...(verCostos
+          ? { precioCosto: fila.precioCosto, costoPromedio: fila.costoPromedio }
+          : {}),
+      })),
     };
   });
 
   app.get('/inventory/stock-general', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
+    // La vista consolidada es herramienta de administracion, almacen y contabilidad.
+    if (!puedeVerCostos(sesion)) {
+      throw new ErrorSinPermiso('No tienes permiso para ver el inventario general');
+    }
     const consulta = validar(esquemaConsultaStockGeneral, request.query);
 
     const stock = await stockGeneral(app.db, {
       empresaId: sesion.empresaId,
+      sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id),
       buscar: consulta.buscar,
       soloBajoMinimo: consulta.soloBajoMinimo,
       limite: consulta.limite,
@@ -176,17 +199,39 @@ export async function rutasInventario(app: FastifyInstance) {
   app.get('/inventory/movements', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
     const consulta = validar(esquemaConsultaMovimientos, request.query);
+    if (consulta.sucursalId) {
+      asegurarSucursal(sesion, consulta.sucursalId);
+    }
 
     const movimientos = await listarMovimientos(app.db, {
       empresaId: sesion.empresaId,
       productoId: consulta.productoId,
-      sucursalId: consulta.sucursalId,
+      ...(consulta.sucursalId
+        ? { sucursalId: consulta.sucursalId }
+        : { sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id) }),
       desde: consulta.desde,
       hasta: consulta.hasta,
       limite: consulta.limite,
     });
 
-    return { movimientos };
+    const verCostos = puedeVerCostos(sesion);
+
+    return {
+      movimientos: movimientos.map((fila) => ({
+        id: fila.id,
+        tipo: fila.tipo,
+        cantidad: fila.cantidad,
+        motivo: fila.motivo,
+        documentoTipo: fila.documentoTipo,
+        documentoFolio: fila.documentoFolio,
+        ocurridoEn: fila.ocurridoEn,
+        productoId: fila.productoId,
+        producto: fila.producto,
+        sku: fila.sku,
+        sucursalId: fila.sucursalId,
+        ...(verCostos ? { costoUnitario: fila.costoUnitario } : {}),
+      })),
+    };
   });
 
   app.post('/inventory/movements', { preHandler: [preHandler] }, async (request, reply) => {
@@ -214,7 +259,11 @@ export async function rutasInventario(app: FastifyInstance) {
 
   app.get('/inventory/locations', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
-    const ubicaciones = await listarUbicaciones(app.db, sesion.empresaId);
+    const ubicaciones = await listarUbicaciones(
+      app.db,
+      sesion.empresaId,
+      sesion.sucursales.map((sucursal) => sucursal.id),
+    );
     return { ubicaciones };
   });
 

@@ -6,6 +6,7 @@ import {
   calcularCobro,
   calcularTotales,
   centavos,
+  porcentajeDe,
   redondear,
 } from '@mostrador/domain';
 import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
@@ -20,6 +21,15 @@ import {
 } from '../inventario/servicio.js';
 
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'transferencia';
+
+/**
+ * Descuento maximo por linea que el servidor acepta.
+ *
+ * El mostrador solo ofrece 0, 5, 10 y 15%. El limite se valida aqui, no en la
+ * pantalla: un cliente modificado podria mandar 100% y regalar la mercancia.
+ * Para descuentos mayores hara falta un PIN de supervisor (pendiente).
+ */
+export const LIMITE_DESCUENTO_PORCENTAJE = 15;
 
 export interface LineaVentaSolicitada {
   productoId: string;
@@ -148,6 +158,20 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
     });
 
     const totales = envolverRegla(() => calcularTotales(lineasCalculo, config));
+
+    // El descuento se valida con los precios reales del catalogo, no con lo que
+    // diga el telefono. Cubre tanto el porcentaje como el monto fijo.
+    for (const linea of totales.lineas) {
+      const maximo = porcentajeDe(linea.importeBruto, LIMITE_DESCUENTO_PORCENTAJE);
+      if (linea.descuento > maximo) {
+        throw new ErrorDeAplicacion(
+          `El descuento de ${linea.nombre} supera el maximo permitido (${LIMITE_DESCUENTO_PORCENTAJE}%)`,
+          422,
+          'DESCUENTO_EXCEDIDO',
+        );
+      }
+    }
+
     const cobro = envolverRegla(() =>
       calcularCobro(
         totales.total,
@@ -557,6 +581,8 @@ export async function registrarDevolucion(
 export interface FiltroVentas {
   empresaId: string;
   sucursalId?: string | undefined;
+  /** Sucursales a las que la sesion tiene acceso. Vacio = ninguna. */
+  sucursalIds?: string[] | undefined;
   desde?: Date | undefined;
   hasta?: Date | undefined;
   limite?: number | undefined;
@@ -570,6 +596,11 @@ export async function listarVentas(base: BaseDatos, filtro: FiltroVentas) {
 
   if (filtro.sucursalId) {
     condiciones.push(eq(schema.sales.branchId, filtro.sucursalId));
+  } else if (filtro.sucursalIds) {
+    if (filtro.sucursalIds.length === 0) {
+      return [];
+    }
+    condiciones.push(inArray(schema.sales.branchId, filtro.sucursalIds));
   }
   if (filtro.desde) {
     condiciones.push(gte(schema.sales.soldAt, filtro.desde));

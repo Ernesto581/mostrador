@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { hashearSecreto } from '../../auth/password.js';
 import { PERMISOS } from '../../auth/permisos.js';
-import { asegurarPermiso, exigirSesion, sesionDe } from '../../auth/sesion.js';
+import { asegurarPermiso, asegurarSucursal, exigirSesion, sesionDe } from '../../auth/sesion.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
 
@@ -38,6 +38,7 @@ export async function rutasUsuarios(app: FastifyInstance) {
 
   app.get('/roles', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.GESTIONAR_USUARIOS);
     const lista = await app.db
       .select({
         id: roles.id,
@@ -130,6 +131,9 @@ export async function rutasUsuarios(app: FastifyInstance) {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_USUARIOS);
     const datos = validar(esquemaCrear, request.body);
+    for (const sucursalId of datos.sucursalIds) {
+      asegurarSucursal(sesion, sucursalId);
+    }
 
     const rol = await buscarRol(app, sesion.empresaId, datos.rol);
 
@@ -182,6 +186,11 @@ export async function rutasUsuarios(app: FastifyInstance) {
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_USUARIOS);
     const { id } = validar(parametroId, request.params);
     const datos = validar(esquemaEditar, request.body);
+    if (datos.sucursalIds) {
+      for (const sucursalId of datos.sucursalIds) {
+        asegurarSucursal(sesion, sucursalId);
+      }
+    }
 
     const usuario = await buscarUsuario(app, sesion.empresaId, id);
 

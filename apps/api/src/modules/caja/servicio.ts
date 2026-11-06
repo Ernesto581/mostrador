@@ -1,5 +1,5 @@
 import { schema, type Db } from '@mostrador/db-cloud';
-import { and, asc, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import type { BaseDatos } from '../../db/tipos.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
@@ -85,6 +85,11 @@ async function turnoPorId(base: BaseDatos, turnoId: string): Promise<Turno> {
   }
 
   return aTurno(fila);
+}
+
+/** Turno por id, para comprobar su sucursal antes de operar sobre el. */
+export async function obtenerTurno(base: BaseDatos, turnoId: string): Promise<Turno> {
+  return turnoPorId(base, turnoId);
 }
 
 function aTurno(fila: typeof schema.shifts.$inferSelect): Turno {
@@ -341,6 +346,8 @@ export async function cerrarTurno(
 export interface FiltroCierres {
   empresaId: string;
   sucursalId?: string | undefined;
+  /** Sucursales a las que la sesion tiene acceso. Vacio = ninguna. */
+  sucursalIds?: string[] | undefined;
   desde?: Date | undefined;
   hasta?: Date | undefined;
   limite?: number | undefined;
@@ -352,6 +359,11 @@ export async function listarCierres(base: BaseDatos, filtro: FiltroCierres) {
 
   if (filtro.sucursalId) {
     condiciones.push(eq(schema.cashClosures.branchId, filtro.sucursalId));
+  } else if (filtro.sucursalIds) {
+    if (filtro.sucursalIds.length === 0) {
+      return [];
+    }
+    condiciones.push(inArray(schema.cashClosures.branchId, filtro.sucursalIds));
   }
   if (filtro.desde) {
     condiciones.push(gte(schema.cashClosures.closedAt, filtro.desde));
@@ -383,8 +395,26 @@ export async function listarCierres(base: BaseDatos, filtro: FiltroCierres) {
     .limit(filtro.limite ?? 60);
 }
 
-/** Turnos abiertos de toda la empresa (para ver quien tiene caja abierta). */
-export async function turnosAbiertos(base: BaseDatos, empresaId: string) {
+/** Turnos abiertos de las sucursales a las que la sesion tiene acceso. */
+export async function turnosAbiertos(
+  base: BaseDatos,
+  empresaId: string,
+  sucursalIds?: string[],
+) {
+  if (sucursalIds && sucursalIds.length === 0) {
+    return [];
+  }
+
+  const condiciones = [
+    eq(schema.branches.companyId, empresaId),
+    eq(schema.shifts.status, 'abierto'),
+    isNull(schema.shifts.deletedAt),
+  ];
+
+  if (sucursalIds) {
+    condiciones.push(inArray(schema.shifts.branchId, sucursalIds));
+  }
+
   return base
     .select({
       id: schema.shifts.id,
@@ -397,12 +427,6 @@ export async function turnosAbiertos(base: BaseDatos, empresaId: string) {
     .from(schema.shifts)
     .innerJoin(schema.branches, eq(schema.branches.id, schema.shifts.branchId))
     .innerJoin(schema.users, eq(schema.users.id, schema.shifts.openedByUserId))
-    .where(
-      and(
-        eq(schema.branches.companyId, empresaId),
-        eq(schema.shifts.status, 'abierto'),
-        isNull(schema.shifts.deletedAt),
-      ),
-    )
+    .where(and(...condiciones))
     .orderBy(asc(schema.branches.code));
 }

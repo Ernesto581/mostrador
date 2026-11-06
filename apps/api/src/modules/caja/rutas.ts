@@ -8,6 +8,7 @@ import {
   abrirTurno,
   cerrarTurno,
   listarCierres,
+  obtenerTurno,
   registrarMovimientoCaja,
   resumenTurno,
   turnoAbierto,
@@ -81,7 +82,13 @@ export async function rutasCaja(app: FastifyInstance) {
     // El administrador supervisa turnos, pero no los abre ni los cierra.
     asegurarConsultaCaja(sesion);
 
-    return { turnos: await turnosAbiertos(app.db, sesion.empresaId) };
+    return {
+      turnos: await turnosAbiertos(
+        app.db,
+        sesion.empresaId,
+        sesion.sucursales.map((sucursal) => sucursal.id),
+      ),
+    };
   });
 
   app.post('/shifts', { preHandler: [preHandler] }, async (request, reply) => {
@@ -109,7 +116,10 @@ export async function rutasCaja(app: FastifyInstance) {
     asegurarPermiso(sesion, PERMISOS.CERRAR_CAJA);
     const { id } = validar(parametroId, request.params);
 
-    return { resumen: await resumenTurno(app.db, id) };
+    const resumen = await resumenTurno(app.db, id);
+    asegurarSucursal(sesion, resumen.turno.sucursalId);
+
+    return { resumen };
   });
 
   app.post('/shifts/:id/cerrar', { preHandler: [preHandler] }, async (request) => {
@@ -117,6 +127,9 @@ export async function rutasCaja(app: FastifyInstance) {
     asegurarPermiso(sesion, PERMISOS.CERRAR_CAJA);
     const { id } = validar(parametroId, request.params);
     const datos = validar(esquemaCerrar, request.body);
+
+    const turno = await obtenerTurno(app.db, id);
+    asegurarSucursal(sesion, turno.sucursalId);
 
     return cerrarTurno(app.db, {
       empresaId: sesion.empresaId,
@@ -152,9 +165,15 @@ export async function rutasCaja(app: FastifyInstance) {
     asegurarConsultaCaja(sesion);
     const consulta = validar(esquemaConsultaCierres, request.query);
 
+    if (consulta.sucursalId) {
+      asegurarSucursal(sesion, consulta.sucursalId);
+    }
+
     const cierres = await listarCierres(app.db, {
       empresaId: sesion.empresaId,
-      sucursalId: consulta.sucursalId,
+      ...(consulta.sucursalId
+        ? { sucursalId: consulta.sucursalId }
+        : { sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id) }),
       desde: consulta.desde,
       hasta: consulta.hasta,
       limite: consulta.limite,

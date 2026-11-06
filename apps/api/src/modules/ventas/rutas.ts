@@ -2,7 +2,13 @@ import { centavos } from '@mostrador/domain';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { PERMISOS } from '../../auth/permisos.js';
-import { asegurarPermiso, asegurarSucursal, exigirSesion, sesionDe } from '../../auth/sesion.js';
+import {
+  asegurarPermiso,
+  asegurarSucursal,
+  exigirSesion,
+  sesionDe,
+  type Sesion,
+} from '../../auth/sesion.js';
 import { ErrorNoEncontrado, validar } from '../../errors.js';
 import {
   cancelarVenta,
@@ -69,6 +75,16 @@ const esquemaDevolucion = z.object({
     .min(1),
 });
 
+/** Carga una venta comprobando que la sesion pueda operar en su sucursal. */
+async function ventaConAcceso(app: FastifyInstance, sesion: Sesion, ventaId: string) {
+  const encontrada = await obtenerVenta(app.db, sesion.empresaId, ventaId);
+  if (!encontrada) {
+    throw new ErrorNoEncontrado('La venta no existe');
+  }
+  asegurarSucursal(sesion, encontrada.venta.branchId);
+  return encontrada;
+}
+
 export async function rutasVentas(app: FastifyInstance) {
   const preHandler = exigirSesion(app);
 
@@ -77,6 +93,13 @@ export async function rutasVentas(app: FastifyInstance) {
     asegurarPermiso(sesion, PERMISOS.VENDER);
     const datos = validar(esquemaVenta, request.body);
     asegurarSucursal(sesion, datos.sucursalId);
+
+    const pideDescuento = datos.lineas.some(
+      (linea) => (linea.descuentoPorcentaje ?? 0) > 0 || (linea.descuentoMonto ?? 0) > 0,
+    );
+    if (pideDescuento) {
+      asegurarPermiso(sesion, PERMISOS.APLICAR_DESCUENTO);
+    }
 
     const venta = await registrarVenta(app.db, {
       empresaId: sesion.empresaId,
@@ -110,9 +133,17 @@ export async function rutasVentas(app: FastifyInstance) {
     const sesion = sesionDe(request);
     const consulta = validar(esquemaConsultaVentas, request.query);
 
+    if (consulta.sucursalId) {
+      asegurarSucursal(sesion, consulta.sucursalId);
+    }
+
+    // Sin sucursal explicita se listan solo las sucursales de la sesion.
+    // Nunca se devuelven ventas de una sucursal a la que no se tiene acceso.
     const ventas = await listarVentas(app.db, {
       empresaId: sesion.empresaId,
-      sucursalId: consulta.sucursalId,
+      ...(consulta.sucursalId
+        ? { sucursalId: consulta.sucursalId }
+        : { sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id) }),
       desde: consulta.desde,
       hasta: consulta.hasta,
       limite: consulta.limite,
@@ -125,10 +156,7 @@ export async function rutasVentas(app: FastifyInstance) {
     const sesion = sesionDe(request);
     const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
 
-    const encontrada = await obtenerVenta(app.db, sesion.empresaId, id);
-    if (!encontrada) {
-      throw new ErrorNoEncontrado('La venta no existe');
-    }
+    const encontrada = await ventaConAcceso(app, sesion, id);
 
     return {
       venta: encontrada.venta,
@@ -142,6 +170,7 @@ export async function rutasVentas(app: FastifyInstance) {
     asegurarPermiso(sesion, PERMISOS.CANCELAR_VENTA);
     const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
     const { motivo } = validar(esquemaCancelacion, request.body);
+    await ventaConAcceso(app, sesion, id);
 
     const resultado = await cancelarVenta(app.db, {
       empresaId: sesion.empresaId,
@@ -158,6 +187,7 @@ export async function rutasVentas(app: FastifyInstance) {
     asegurarPermiso(sesion, PERMISOS.CANCELAR_VENTA);
     const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
     const datos = validar(esquemaDevolucion, request.body);
+    await ventaConAcceso(app, sesion, id);
 
     const devolucion = await registrarDevolucion(app.db, {
       empresaId: sesion.empresaId,

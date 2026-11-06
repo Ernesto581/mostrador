@@ -4,7 +4,13 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { PERMISOS } from '../../auth/permisos.js';
-import { asegurarPermiso, exigirSesion, sesionDe } from '../../auth/sesion.js';
+import {
+  asegurarPermiso,
+  asegurarSucursal,
+  exigirSesion,
+  puedeVerCostos,
+  sesionDe,
+} from '../../auth/sesion.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
 import { registrarMovimiento, stockDeProductos } from '../inventario/servicio.js';
@@ -50,6 +56,9 @@ export async function rutasCatalogo(app: FastifyInstance) {
   app.get('/products', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
     const consulta = validar(esquemaConsultaProductos, request.query);
+    if (consulta.sucursalId) {
+      asegurarSucursal(sesion, consulta.sucursalId);
+    }
 
     const condiciones = [
       eq(products.companyId, sesion.empresaId),
@@ -93,9 +102,21 @@ export async function rutasCatalogo(app: FastifyInstance) {
         )
       : undefined;
 
+    const verCostos = puedeVerCostos(sesion);
+
     return {
       productos: filas.map((fila) => ({
-        ...fila,
+        id: fila.id,
+        sku: fila.sku,
+        nombre: fila.nombre,
+        precioVenta: fila.precioVenta,
+        tasaImpuesto: fila.tasaImpuesto,
+        stockMinimo: fila.stockMinimo,
+        esServicio: fila.esServicio,
+        categoriaId: fila.categoriaId,
+        ...(verCostos
+          ? { precioCosto: fila.precioCosto, costoPromedio: fila.costoPromedio }
+          : {}),
         stock: stock ? (stock.get(fila.id) ?? 0) : null,
       })),
     };
@@ -108,6 +129,9 @@ export async function rutasCatalogo(app: FastifyInstance) {
       z.object({ sucursalId: z.string().min(1).optional() }),
       request.query,
     );
+    if (sucursalId) {
+      asegurarSucursal(sesion, sucursalId);
+    }
 
     const [fila] = await app.db
       .select({
@@ -138,13 +162,29 @@ export async function rutasCatalogo(app: FastifyInstance) {
       ? ((await stockDeProductos(app.db, sucursalId, [fila.id])).get(fila.id) ?? 0)
       : null;
 
-    return { producto: { ...fila, stock } };
+    const verCostos = puedeVerCostos(sesion);
+
+    return {
+      producto: {
+        id: fila.id,
+        sku: fila.sku,
+        nombre: fila.nombre,
+        precioVenta: fila.precioVenta,
+        tasaImpuesto: fila.tasaImpuesto,
+        esServicio: fila.esServicio,
+        ...(verCostos ? { costoPromedio: fila.costoPromedio } : {}),
+        stock,
+      },
+    };
   });
 
   app.post('/products', { preHandler: [preHandler] }, async (request, reply) => {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
     const datos = validar(esquemaCrearProducto, request.body);
+    if (datos.sucursalId) {
+      asegurarSucursal(sesion, datos.sucursalId);
+    }
 
     const [empresa] = await app.db
       .select({ tasaPorDefecto: schema.companies.defaultTaxRate })

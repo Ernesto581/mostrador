@@ -63,7 +63,7 @@ const BORRADOR_VACIO: Borrador = {
 export function Sucursales() {
   const [borrador, setBorrador] = useState<Borrador | null>(null);
   const archivoFoto = useRef<HTMLInputElement>(null);
-  const [codigosPais, setCodigosPais] = useState<string[]>(['+53', '+1', '+52', '+34', '+54', '+57', '+56', '+51', '+55', '+58', '+33', '+49', '+39', '+44']);
+  const [codigosPais] = useState<string[]>(['+53', '+1', '+52', '+34', '+54', '+57', '+56', '+51', '+55', '+58', '+33', '+49', '+39', '+44']);
 
   // Los codigos de pais se cargan de una lista fija para evitar bloqueos CORS
   // al consultar servicios externos desde el navegador.

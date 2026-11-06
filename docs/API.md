@@ -85,12 +85,18 @@ POST /api/v1/products
 }
 ```
 
+**Sobre los costos:** `precioCosto` y `costoPromedio` solo se devuelven a roles con
+`report.profit`, `catalog.manage` o `inventory.adjust`. El vendedor recibe unicamente
+precio de venta, impuesto y stock de su sucursal: si pierde el telefono no se lleva los
+costos ni el margen del negocio.
+
 ### Inventario
 
 | Metodo | Ruta | Permiso | Que hace |
 |---|---|---|---|
 | `GET` | `/api/v1/inventory/stock` | — | Stock de la sucursal. Filtros: `sucursalId`, `buscar`, `soloBajoMinimo`, `limite` |
-| `GET` | `/api/v1/inventory/movements` | — | **Kardex**: la historia de movimientos. Filtros: `productoId`, `sucursalId`, `desde`, `hasta`, `limite` |
+| `GET` | `/api/v1/inventory/stock-general` | `report.profit`, `catalog.manage` o `inventory.adjust` | Inventario consolidado y reparto por sucursal |
+| `GET` | `/api/v1/inventory/movements` | — | **Kardex**: historia de movimientos. Solo de las sucursales de la sesion |
 | `POST` | `/api/v1/inventory/movements` | `inventory.adjust` | Registra compra, ajuste, merma o devolucion a proveedor |
 | `POST` | `/api/v1/inventory/transfers` | `inventory.transfer` | Mueve stock entre sucursales |
 
@@ -127,7 +133,7 @@ no dependa de que el cliente sepa la regla:
 
 | Metodo | Ruta | Permiso | Que hace |
 |---|---|---|---|
-| `POST` | `/api/v1/sales` | `sale.sell` | Registra la venta: recalcula total, cambio y descuenta el stock |
+| `POST` | `/api/v1/sales` | `sale.sell` (+ `sale.discount` si hay descuento) | Registra la venta: recalcula total, cambio y descuenta el stock |
 | `GET` | `/api/v1/sales` | — | Listado. Filtros: `sucursalId`, `desde`, `hasta`, `limite` |
 | `GET` | `/api/v1/sales/:id` | — | Detalle con lineas y pagos |
 | `POST` | `/api/v1/sales/:id/void` | `sale.void` | Cancela la venta y devuelve el stock |
@@ -162,6 +168,15 @@ POST /api/v1/sales
 alcanza el stock, la venta se registra igual y se devuelve el motivo en `advertencias`.
 Asi el vendedor nunca se queda sin poder cobrar cuando varios celulares trabajan sin red.
 
+**Sobre los descuentos:** se valida contra los precios reales del catalogo, no contra lo
+que mande el telefono. Hace falta el permiso `sale.discount` y el maximo es **15% por
+linea** (cubre tanto `descuentoPorcentaje` como `descuentoMonto`). Si se supera responde
+`422 DESCUENTO_EXCEDIDO`. Descuentos mayores requeriran PIN de supervisor.
+
+**Sobre el alcance:** una sesion solo puede listar, ver, cancelar o devolver ventas de las
+sucursales que tiene asignadas. Sin `sucursalId` se listan solo esas; con una sucursal
+ajena responde `403 SIN_PERMISO`.
+
 **Sobre las devoluciones:** se devuelve por linea de la venta, y no se puede devolver
 mas de lo vendido (ni contar dos veces una devolucion ya hecha). `reingresar: false`
 sirve para producto dañado, que no vuelve al inventario.
@@ -186,6 +201,7 @@ sirve para producto dañado, que no vuelve al inventario.
 | `NO_ENCONTRADO` | 404 | La ruta o el recurso no existen |
 | `DUPLICADO` | 409 | Codigo de barras o SKU repetido |
 | `VENTA_YA_CANCELADA` | 409 | Se intento cancelar dos veces la misma venta |
+| `DESCUENTO_EXCEDIDO` | 422 | El descuento supera el 15% permitido por linea |
 | `CANTIDAD_EXCEDIDA` | 409 | Se intenta devolver mas de lo vendido |
 | `ERROR_INTERNO` | 500 | Falla inesperada (no se muestra el detalle al cliente) |
 
@@ -196,6 +212,10 @@ sirve para producto dañado, que no vuelve al inventario.
 - **El token lleva solo el id del usuario.** Los permisos y las sucursales se leen frescos
   de la base en cada peticion, asi que revocar el acceso tiene efecto inmediato.
 - **Los permisos se validan en el servidor**, no ocultando botones.
+- **Cada sesion opera solo en sus sucursales.** Ventas, kardex, turnos y cierres se
+  filtran por `user_branch_access`; pedir una sucursal ajena responde `403`.
+- **Los costos no viajan al telefono del vendedor.** Catalogo, stock y kardex omiten
+  `precioCosto`, `costoPromedio` y `costoUnitario` salvo para roles autorizados.
 
 ## Permisos
 

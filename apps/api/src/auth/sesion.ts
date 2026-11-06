@@ -2,7 +2,7 @@ import { schema } from '@mostrador/db-cloud';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ErrorDeAutenticacion, ErrorSinPermiso } from '../errors.js';
-import type { Permiso } from './permisos.js';
+import { PERMISOS, type Permiso } from './permisos.js';
 
 export interface SucursalSesion {
   id: string;
@@ -97,4 +97,19 @@ export function asegurarSucursal(sesion: Sesion, sucursalId: string): void {
   if (!sesion.sucursales.some((sucursal) => sucursal.id === sucursalId)) {
     throw new ErrorSinPermiso('No tienes acceso a esa sucursal');
   }
+}
+
+/**
+ * Costos, margenes y utilidad.
+ *
+ * La app del vendedor nunca debe recibirlos: si el telefono se pierde, no se
+ * lleva cuanto cuesta la mercancia ni el margen del negocio. Solo los ven la
+ * administracion, el almacen y la contabilidad.
+ */
+export function puedeVerCostos(sesion: Sesion): boolean {
+  return (
+    sesion.permisos.has(PERMISOS.VER_UTILIDAD) ||
+    sesion.permisos.has(PERMISOS.GESTIONAR_CATALOGO) ||
+    sesion.permisos.has(PERMISOS.AJUSTAR_INVENTARIO)
+  );
 }
