@@ -20,6 +20,40 @@ const TIPOS: Record<string, string> = {
 export async function rutasSubidas(app: FastifyInstance) {
   const preHandler = exigirSesion(app);
 
+  /**
+   * Diagnostico para administracion: dice si el almacenamiento esta configurado
+   * y que responde Supabase, sin mostrar la clave.
+   */
+  app.get('/uploads/estado', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
+
+    const base = app.config.SUPABASE_URL;
+    const clave = app.config.SUPABASE_SECRET_KEY ?? app.config.SUPABASE_SERVICE_ROLE_KEY;
+    const bucket = app.config.SUPABASE_BUCKET;
+
+    if (!base || !clave) {
+      return {
+        configurado: false,
+        bucket,
+        alcanzable: false,
+        detalle: 'Falta SUPABASE_URL o SUPABASE_SECRET_KEY',
+      };
+    }
+
+    const respuesta = await fetch(`${base.replace(/\/+$/, '')}/storage/v1/bucket/${bucket}`, {
+      headers: { Authorization: `Bearer ${clave}`, apikey: clave },
+    });
+
+    return {
+      configurado: true,
+      bucket,
+      estadoHttp: respuesta.status,
+      alcanzable: respuesta.ok,
+      detalle: respuesta.ok ? null : await detalleDeRespuesta(respuesta),
+    };
+  });
+
   app.post('/uploads/producto', { preHandler: [preHandler] }, async (request, reply) => {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
@@ -86,22 +120,26 @@ async function subirASupabase(datos: {
     headers: cabeceras,
   });
 
-  if (existente.status === 404) {
+  // Supabase responde 400 (no 404) cuando el bucket no existe. En ambos casos
+  // se intenta crear; si ya existe, la creacion devuelve 409 y se ignora.
+  if (existente.status === 404 || existente.status === 400) {
     const creacion = await fetch(`${datos.base}/storage/v1/bucket`, {
       method: 'POST',
       headers: { ...cabeceras, 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: datos.bucket, name: datos.bucket, public: true }),
     });
     if (!creacion.ok && creacion.status !== 409) {
+      const detalle = await detalleDeRespuesta(creacion);
       throw new ErrorDeAplicacion(
-        'No se pudo preparar el almacenamiento de fotos',
+        `No se pudo preparar el almacenamiento de fotos (HTTP ${creacion.status}${detalle ? `: ${detalle}` : ''})`,
         502,
         'ALMACENAMIENTO_ERROR',
       );
     }
   } else if (!existente.ok) {
+    const detalle = await detalleDeRespuesta(existente);
     throw new ErrorDeAplicacion(
-      'No se pudo consultar el almacenamiento de fotos',
+      `No se pudo consultar el almacenamiento de fotos (HTTP ${existente.status}${detalle ? `: ${detalle}` : ''})`,
       502,
       'ALMACENAMIENTO_ERROR',
     );
@@ -122,12 +160,40 @@ async function subirASupabase(datos: {
   );
 
   if (!subida.ok) {
+    const detalle = await detalleDeRespuesta(subida);
     throw new ErrorDeAplicacion(
-      'No se pudo subir la foto. Intentalo de nuevo.',
+      `No se pudo subir la foto (HTTP ${subida.status}${detalle ? `: ${detalle}` : ''})`,
       502,
       'ALMACENAMIENTO_ERROR',
     );
   }
 
   return `${datos.base}/storage/v1/object/public/${datos.bucket}/${datos.ruta}`;
+}
+
+async function detalleDeRespuesta(respuesta: Response): Promise<string> {
+  const texto = await respuesta.text();
+  if (!texto) {
+    return '';
+  }
+
+  let mensaje = texto;
+  try {
+    const json = JSON.parse(texto) as { message?: unknown; error?: unknown };
+    const partes = [json.message, json.error].filter(
+      (valor): valor is string => typeof valor === 'string',
+    );
+    if (partes.length > 0) {
+      mensaje = partes.join(' - ');
+    }
+  } catch {
+    // No era JSON: se usa el texto tal cual.
+  }
+
+  return mensaje
+    .replace(/sb_secret_[A-Za-z0-9_-]+/g, 'sb_secret_***')
+    .replace(/eyJ[A-Za-z0-9._-]{20,}/g, '***')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
 }

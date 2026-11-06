@@ -236,6 +236,17 @@ describe('catalogo', () => {
     expect(respuesta.json().error.codigo).toBe('ALMACENAMIENTO_NO_CONFIGURADO');
   });
 
+  it('informa el estado del almacenamiento de fotos', async () => {
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: '/api/v1/uploads/estado',
+      headers: auth(),
+    });
+
+    expect(respuesta.statusCode).toBe(200);
+    expect(respuesta.json().configurado).toBe(false);
+  });
+
   it('un cajero no puede dar de alta productos', async () => {
     const respuesta = await app.inject({
       method: 'POST',
