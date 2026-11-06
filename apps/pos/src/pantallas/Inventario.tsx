@@ -126,6 +126,7 @@ interface BorradorProducto {
   codigos: string;
   stockInicial: string;
   sucursalId: string;
+  imagenUrl: string;
 }
 
 function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
@@ -142,6 +143,7 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
     // Viene elegida la sucursal que se esta viendo arriba: se puede cambiar o dejar
     // el stock inicial en cero para no surtir nada todavia.
     sucursalId,
+    imagenUrl: '',
   };
 }
 
@@ -166,6 +168,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   // Que fila tiene abierto el menu de tres puntos (solo se abre uno a la vez).
   const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -228,6 +231,23 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     window.setTimeout(() => setOk(null), 4500);
   }
 
+  async function subirImagen(archivo: File): Promise<void> {
+    if (!producto) {
+      return;
+    }
+
+    setSubiendoImagen(true);
+    setError(null);
+    try {
+      const { url } = await api.subirImagenProducto(archivo);
+      setProducto((actual) => (actual ? { ...actual, imagenUrl: url } : actual));
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setSubiendoImagen(false);
+    }
+  }
+
   async function guardarProducto(): Promise<void> {
     if (!producto) {
       return;
@@ -251,6 +271,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       .split(',')
       .map((codigo) => codigo.trim())
       .filter(Boolean);
+    const imagenUrl = producto.imagenUrl.trim() || null;
 
     try {
       if (producto.id) {
@@ -261,6 +282,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           precioCosto: aCentavos(producto.precioCosto),
           precioVenta: aCentavos(producto.precioVenta),
           stockMinimo: Number(producto.stockMinimo) || 0,
+          imagenUrl,
         });
 
         for (const codigo of codigos) {
@@ -280,6 +302,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           codigosBarras: codigos,
           stockInicial: inicial,
           ...(inicial > 0 ? { sucursalId: producto.sucursalId } : {}),
+          imagenUrl,
         });
 
         await recargar();
@@ -792,6 +815,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                               codigos: '',
                               stockInicial: '0',
                               sucursalId,
+                              imagenUrl: fila.imagenUrl ?? '',
                             });
                           }}
                         >
@@ -969,6 +993,60 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           onCerrar={() => setProducto(null)}
         >
           <div className="formulario">
+            <div className="campo-ancho campo-ancho--ancho producto-foto">
+              <span>Foto del producto</span>
+              <div className="producto-foto__cuerpo">
+                <div className="producto-foto__vista">
+                  {producto.imagenUrl ? (
+                    <img src={producto.imagenUrl} alt="Foto del producto" />
+                  ) : (
+                    <span className="producto-foto__vacio">Sin foto</span>
+                  )}
+                </div>
+
+                <div className="producto-foto__controles">
+                  <label className="boton producto-foto__boton">
+                    {subiendoImagen ? 'Subiendo…' : 'Subir foto'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={subiendoImagen || guardando}
+                      onChange={(evento) => {
+                        const archivo = evento.target.files?.[0];
+                        if (archivo) {
+                          void subirImagen(archivo);
+                        }
+                        evento.target.value = '';
+                      }}
+                    />
+                  </label>
+
+                  <input
+                    className="entrada"
+                    placeholder="… o pega un enlace https://"
+                    value={producto.imagenUrl}
+                    onChange={(evento) =>
+                      setProducto({ ...producto, imagenUrl: evento.target.value })
+                    }
+                  />
+
+                  {producto.imagenUrl ? (
+                    <button
+                      type="button"
+                      className="boton boton--fantasma"
+                      onClick={() => setProducto({ ...producto, imagenUrl: '' })}
+                    >
+                      Quitar foto
+                    </button>
+                  ) : null}
+
+                  <p className="panel__nota">
+                    JPG, PNG o WebP hasta 4 MB. Tambien puedes pegar una URL externa.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <label className="campo-ancho">
               <span>SKU</span>
               <input
@@ -1077,6 +1155,12 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               </label>
             ) : null}
           </div>
+
+          {error ? (
+            <p className="aviso" role="alert">
+              {error}
+            </p>
+          ) : null}
 
           <div className="modal__acciones">
             <button type="button" className="boton" onClick={() => setProducto(null)}>

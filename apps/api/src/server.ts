@@ -1,4 +1,5 @@
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import Fastify, { type FastifyError } from 'fastify';
 import { ZodError } from 'zod';
 import { pluginAuth } from './auth/plugin.js';
@@ -14,6 +15,7 @@ import { rutasUsuarios } from './modules/usuarios/rutas.js';
 import { rutasCaja } from './modules/caja/rutas.js';
 import { rutasSucursales } from './modules/sucursales/rutas.js';
 import { rutasSync } from './modules/sync/rutas.js';
+import { rutasSubidas } from './modules/uploads/rutas.js';
 import { rutasSalud } from './routes/health.js';
 import './tipos.js';
 
@@ -97,6 +99,9 @@ export async function construirServidor() {
       ? config.CORS_ORIGIN.split(',').map((origen) => origen.trim())
       : true,
   });
+  await app.register(multipart, {
+    limits: { fileSize: 4 * 1024 * 1024, files: 1 },
+  });
   await app.register(pluginBaseDeDatos);
   await app.register(pluginAuth);
   await app.register(rutasSalud, { prefix: '/api/v1' });
@@ -109,6 +114,7 @@ export async function construirServidor() {
   await app.register(rutasCaja, { prefix: '/api/v1' });
   await app.register(rutasSync, { prefix: '/api/v1' });
   await app.register(rutasReportes, { prefix: '/api/v1' });
+  await app.register(rutasSubidas, { prefix: '/api/v1' });
 
   return app;
 }

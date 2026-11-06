@@ -132,6 +132,14 @@ export function Buscador({
               title={agotado ? 'Sin existencias en esta sucursal' : 'Agregar al ticket'}
             >
               <span className="producto__sku">{producto.sku}</span>
+              {producto.imagenUrl ? (
+                <img
+                  className="producto__foto"
+                  src={producto.imagenUrl}
+                  alt=""
+                  loading="lazy"
+                />
+              ) : null}
               <p className="producto__nombre">{producto.nombre}</p>
               <span className="producto__pie">
                 <span className="producto__precio">{dinero(producto.precioVenta)}</span>

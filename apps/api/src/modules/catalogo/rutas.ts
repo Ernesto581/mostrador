@@ -36,6 +36,8 @@ const esquemaCrearProducto = z.object({
   /** Si se indica, se registra una entrada de inventario inicial. */
   stockInicial: z.number().int().min(0).default(0),
   sucursalId: z.string().min(1).optional(),
+  /** Foto publica: la sube el API a Supabase Storage o se pega una URL externa. */
+  imagenUrl: z.string().trim().url('La foto debe ser una direccion valida').max(500).nullable().optional(),
 });
 
 const esquemaEditarProducto = esquemaCrearProducto.partial().omit({ codigosBarras: true, stockInicial: true });
@@ -81,6 +83,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
         id: products.id,
         sku: products.sku,
         nombre: products.name,
+        imagenUrl: products.imageUrl,
         precioCosto: products.costPrice,
         costoPromedio: products.averageCost,
         precioVenta: products.salePrice,
@@ -109,6 +112,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
         id: fila.id,
         sku: fila.sku,
         nombre: fila.nombre,
+        imagenUrl: fila.imagenUrl,
         precioVenta: fila.precioVenta,
         tasaImpuesto: fila.tasaImpuesto,
         stockMinimo: fila.stockMinimo,
@@ -138,6 +142,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
         id: products.id,
         sku: products.sku,
         nombre: products.name,
+        imagenUrl: products.imageUrl,
         precioVenta: products.salePrice,
         costoPromedio: products.averageCost,
         tasaImpuesto: products.taxRate,
@@ -169,6 +174,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
         id: fila.id,
         sku: fila.sku,
         nombre: fila.nombre,
+        imagenUrl: fila.imagenUrl,
         precioVenta: fila.precioVenta,
         tasaImpuesto: fila.tasaImpuesto,
         esServicio: fila.esServicio,
@@ -208,6 +214,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
         salePrice: datos.precioVenta,
         taxRate: datos.tasaImpuesto ?? empresa?.tasaPorDefecto ?? 0,
         minStock: datos.stockMinimo,
+        imageUrl: datos.imagenUrl ?? null,
       });
 
       if (datos.codigosBarras.length > 0) {
@@ -278,6 +285,7 @@ export async function rutasCatalogo(app: FastifyInstance) {
         ...(datos.precioVenta !== undefined ? { salePrice: datos.precioVenta } : {}),
         ...(datos.tasaImpuesto !== undefined ? { taxRate: datos.tasaImpuesto } : {}),
         ...(datos.stockMinimo !== undefined ? { minStock: datos.stockMinimo } : {}),
+        ...(datos.imagenUrl !== undefined ? { imageUrl: datos.imagenUrl } : {}),
         updatedAt: new Date(),
         revision: sql`${products.revision} + 1`,
       })

@@ -598,6 +598,14 @@ button {
   color: var(--texto-tenue);
 }
 
+.producto__foto {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radio-chico);
+  background: var(--tinta-media);
+}
+
 .producto__pie {
   margin-top: auto;
   display: flex;
@@ -3125,4 +3133,57 @@ button {
   .tabla {
     font-size: 9pt;
   }
+}
+
+/* Foto del producto en el alta y la edicion. */
+.producto-foto__cuerpo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-top: 0.45rem;
+}
+
+.producto-foto__vista {
+  width: 9rem;
+  height: 9rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed var(--tinta-borde);
+  border-radius: var(--radio-chico);
+  background: var(--tinta-media);
+  flex: 0 0 auto;
+}
+
+.producto-foto__vista img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.producto-foto__vacio {
+  color: var(--texto-tenue);
+  font-size: 0.8rem;
+}
+
+.producto-foto__controles {
+  flex: 1 1 15rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.producto-foto__boton {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+
+.producto-foto__boton input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }

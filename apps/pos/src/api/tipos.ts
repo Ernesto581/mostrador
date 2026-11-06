@@ -55,6 +55,7 @@ export interface Producto {
   id: string;
   sku: string;
   nombre: string;
+  imagenUrl: string | null;
   precioCosto: number;
   costoPromedio: number;
   precioVenta: number;

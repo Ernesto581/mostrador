@@ -162,6 +162,80 @@ describe('catalogo', () => {
     expect(respuesta.json().error.codigo).toBe('DUPLICADO');
   });
 
+  it('guarda, devuelve y quita la foto del producto', async () => {
+    const creado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: auth(),
+      payload: {
+        sku: 'FOTO-001',
+        nombre: 'Producto con foto',
+        imagenUrl: 'https://images.example.com/producto.jpg',
+      },
+    });
+
+    expect(creado.statusCode).toBe(201);
+    const id = creado.json().producto.id as string;
+
+    const listado = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products?buscar=FOTO-001',
+      headers: auth(),
+    });
+    expect(listado.json().productos[0].imagenUrl).toBe(
+      'https://images.example.com/producto.jpg',
+    );
+
+    const quitada = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/products/${id}`,
+      headers: auth(),
+      payload: { imagenUrl: null },
+    });
+    expect(quitada.statusCode).toBe(200);
+
+    const despues = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products?buscar=FOTO-001',
+      headers: auth(),
+    });
+    expect(despues.json().productos[0].imagenUrl).toBeNull();
+  });
+
+  it('rechaza una foto que no es una direccion valida', async () => {
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: auth(),
+      payload: { sku: 'FOTO-002', nombre: 'Foto invalida', imagenUrl: 'no-es-una-url' },
+    });
+
+    expect(respuesta.statusCode).toBe(422);
+    expect(respuesta.json().error.codigo).toBe('DATOS_INVALIDOS');
+  });
+
+  it('solo el catalogo puede subir fotos', async () => {
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/uploads/producto',
+      headers: authCajero(),
+    });
+
+    expect(respuesta.statusCode).toBe(403);
+    expect(respuesta.json().error.codigo).toBe('SIN_PERMISO');
+  });
+
+  it('avisa cuando el almacenamiento de fotos no esta configurado', async () => {
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/uploads/producto',
+      headers: auth(),
+    });
+
+    expect(respuesta.statusCode).toBe(503);
+    expect(respuesta.json().error.codigo).toBe('ALMACENAMIENTO_NO_CONFIGURADO');
+  });
+
   it('un cajero no puede dar de alta productos', async () => {
     const respuesta = await app.inject({
       method: 'POST',

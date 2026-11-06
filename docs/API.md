@@ -90,6 +90,11 @@ POST /api/v1/products
 precio de venta, impuesto y stock de su sucursal: si pierde el telefono no se lleva los
 costos ni el margen del negocio.
 
+**Sobre las fotos:** `POST /api/v1/uploads/producto` recibe `multipart/form-data` con el
+campo `archivo` (JPG, PNG o WebP, hasta 4 MB), lo sube a Supabase Storage y devuelve
+`{ "url": "https://..." }`. Requiere `catalog.manage`. Tambien se puede guardar una URL
+externa directamente en `imagenUrl` al crear o editar el producto.
+
 ### Inventario
 
 | Metodo | Ruta | Permiso | Que hace |

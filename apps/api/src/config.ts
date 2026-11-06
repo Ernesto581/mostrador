@@ -32,6 +32,10 @@ const EsquemaConfig = z.object({
     .transform((valor) => valor.trim().toLowerCase() === 'true'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres').optional(),
   JWT_EXPIRA: z.string().min(1).default('12h'),
+  /** Supabase Storage para las fotos de productos. Solo se usa en el servidor. */
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SUPABASE_BUCKET: z.string().min(1).default('productos'),
 });
 
 export interface Config {
@@ -45,6 +49,9 @@ export interface Config {
   MIGRAR_AL_ARRANCAR: boolean;
   JWT_SECRET: string;
   JWT_EXPIRA: string;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_BUCKET: string;
 }
 
 const SECRETO_SOLO_DESARROLLO = 'secreto-solo-para-desarrollo-no-usar-en-produccion';
@@ -77,5 +84,10 @@ export function cargarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ...(datos.DATABASE_URL !== undefined ? { DATABASE_URL: datos.DATABASE_URL } : {}),
     ...(datos.PGLITE_DIR !== undefined ? { PGLITE_DIR: datos.PGLITE_DIR } : {}),
     ...(datos.CORS_ORIGIN !== undefined ? { CORS_ORIGIN: datos.CORS_ORIGIN } : {}),
+    ...(datos.SUPABASE_URL !== undefined ? { SUPABASE_URL: datos.SUPABASE_URL } : {}),
+    ...(datos.SUPABASE_SERVICE_ROLE_KEY !== undefined
+      ? { SUPABASE_SERVICE_ROLE_KEY: datos.SUPABASE_SERVICE_ROLE_KEY }
+      : {}),
+    SUPABASE_BUCKET: datos.SUPABASE_BUCKET,
   };
 }

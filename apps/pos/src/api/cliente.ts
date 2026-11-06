@@ -118,6 +118,61 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
   return datos as T;
 }
 
+async function pedirFormulario<T>(ruta: string, archivo: File): Promise<T> {
+  const formulario = new FormData();
+  formulario.append('archivo', archivo);
+
+  const cabeceras: Record<string, string> = {};
+  const token = leerToken();
+  if (token) {
+    cabeceras.authorization = `Bearer ${token}`;
+  }
+
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`${obtenerServidor()}/api/v1${ruta}`, {
+      method: 'POST',
+      headers: cabeceras,
+      body: formulario,
+    });
+  } catch {
+    throw new ErrorApi(
+      'No hay conexion con el servidor. Revisa la red e intentalo de nuevo.',
+      'SIN_CONEXION',
+      0,
+    );
+  }
+
+  const texto = await respuesta.text();
+  let datos: unknown = null;
+  let esJson = true;
+
+  if (texto) {
+    try {
+      datos = JSON.parse(texto);
+    } catch {
+      esJson = false;
+    }
+  }
+
+  if (!respuesta.ok) {
+    const error = esJson
+      ? (datos as { error?: { codigo?: string; mensaje?: string } } | null)?.error
+      : undefined;
+    throw new ErrorApi(
+      error?.mensaje ?? 'No se pudo subir la imagen',
+      error?.codigo ?? 'ERROR',
+      respuesta.status,
+    );
+  }
+
+  if (!esJson) {
+    throw new ErrorApi('El servidor no devolvio datos validos', 'RESPUESTA_INVALIDA', respuesta.status);
+  }
+
+  return datos as T;
+}
+
 function parametros(valores: Record<string, string | number | boolean | undefined>): string {
   const busqueda = new URLSearchParams();
   for (const [clave, valor] of Object.entries(valores)) {
@@ -203,6 +258,7 @@ export const api = {
     codigosBarras: string[];
     stockInicial: number;
     sucursalId?: string;
+    imagenUrl?: string | null;
   }) => pedir<{ producto: { id: string; sku: string; nombre: string } }>('/products', {
     metodo: 'POST',
     cuerpo,
@@ -217,8 +273,12 @@ export const api = {
       precioCosto?: number;
       precioVenta?: number;
       stockMinimo?: number;
+      imagenUrl?: string | null;
     },
   ) => pedir<{ producto: { id: string } }>(`/products/${id}`, { metodo: 'PATCH', cuerpo }),
+
+  subirImagenProducto: (archivo: File) =>
+    pedirFormulario<{ url: string }>('/uploads/producto', archivo),
 
   agregarCodigo: (id: string, codigo: string) =>
     pedir<{ productoId: string; codigo: string }>(`/products/${id}/barcodes`, {

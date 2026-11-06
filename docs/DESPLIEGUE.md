@@ -103,6 +103,13 @@ git push -u origin main
 | `DATABASE_URL` | La cadena del **Transaction pooler (6543)**, con `?pgbouncer=true` |
 | `JWT_SECRET` | Una cadena larga y secreta (abajo te digo como generarla) |
 | `MIGRAR_AL_ARRANCAR` | `false` |
+| `SUPABASE_URL` | `https://tuproyecto.supabase.co` (para las fotos de productos) |
+| `SUPABASE_SERVICE_ROLE_KEY` | La **service_role** key de Supabase (Project Settings > API). Es secreta |
+| `SUPABASE_BUCKET` | `productos` (opcional; el servidor crea el bucket publico solo) |
+
+> La **service_role** key solo va en las variables del servidor. Nunca la pongas en una
+> variable `VITE_` ni en el navegador. Sin ella, el alta de productos sigue funcionando
+> con una URL de foto externa.
 
 > **NO agregues `NODE_ENV`.** Vercel ya lo pone solo cuando la aplicacion corre, y al
 > ponerlo como variable del proyecto tambien afecta al momento de instalar: `npm` se

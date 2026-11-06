@@ -56,6 +56,24 @@ El punto de venta imprime tickets en impresora termica de tres formas:
 El ancho se elige entre 58 mm y 80 mm. La configuracion es por equipo, no por usuario.
 Los tickets se pueden reimprimir desde **Ventas > Ver > Imprimir ticket**.
 
+### Fotos de productos
+
+En el alta y la edicion del producto hay una foto con vista previa. Se puede subir un
+archivo (JPG, PNG o WebP hasta 4 MB) o pegar una URL externa.
+
+Las subidas van a **Supabase Storage**, el mismo proyecto que ya usa la base de datos:
+no hace falta crear otra cuenta. El servidor crea el bucket publico `productos` la
+primera vez. Solo hay que configurar en el API:
+
+```env
+SUPABASE_URL=https://tuproyecto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+SUPABASE_BUCKET=productos
+```
+
+La `service_role` key es secreta y vive solo en el servidor. Si no se configura, el
+formulario sigue funcionando pegando una URL externa (Cloudinary, imgbb, etc.).
+
 Ver tambien `docs/MODELO-DATOS.md` y `docs/API.md`.
 
 ## Publicar en internet (gratis)
