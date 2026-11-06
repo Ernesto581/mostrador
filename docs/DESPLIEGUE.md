@@ -104,11 +104,12 @@ git push -u origin main
 | `JWT_SECRET` | Una cadena larga y secreta (abajo te digo como generarla) |
 | `MIGRAR_AL_ARRANCAR` | `false` |
 | `SUPABASE_URL` | `https://tuproyecto.supabase.co` (para las fotos de productos) |
-| `SUPABASE_SERVICE_ROLE_KEY` | La **service_role** key de Supabase (Project Settings > API). Es secreta |
+| `SUPABASE_SECRET_KEY` | La **Secret key** de Supabase (`sb_secret_...`, en API Keys). Es secreta |
 | `SUPABASE_BUCKET` | `productos` (opcional; el servidor crea el bucket publico solo) |
 
-> La **service_role** key solo va en las variables del servidor. Nunca la pongas en una
-> variable `VITE_` ni en el navegador. Sin ella, el alta de productos sigue funcionando
+> La **Secret key** solo va en las variables del servidor. Nunca la pongas en una
+> variable `VITE_` ni en el navegador. En proyectos antiguos tambien se acepta
+> `SUPABASE_SERVICE_ROLE_KEY`. Sin ella, el alta de productos sigue funcionando
 > con una URL de foto externa.
 
 > **NO agregues `NODE_ENV`.** Vercel ya lo pone solo cuando la aplicacion corre, y al

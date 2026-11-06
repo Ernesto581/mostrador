@@ -24,10 +24,11 @@ export async function rutasSubidas(app: FastifyInstance) {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
 
-    const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = app.config;
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    const { SUPABASE_URL } = app.config;
+    const clave = app.config.SUPABASE_SECRET_KEY ?? app.config.SUPABASE_SERVICE_ROLE_KEY;
+    if (!SUPABASE_URL || !clave) {
       throw new ErrorDeAplicacion(
-        'El almacenamiento de fotos no esta configurado. Falta SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el servidor.',
+        'El almacenamiento de fotos no esta configurado. Falta SUPABASE_URL y SUPABASE_SECRET_KEY en el servidor.',
         503,
         'ALMACENAMIENTO_NO_CONFIGURADO',
       );
@@ -56,7 +57,7 @@ export async function rutasSubidas(app: FastifyInstance) {
     const ruta = `${sesion.empresaId}/${nuevoId()}.${extension}`;
     const url = await subirASupabase({
       base: SUPABASE_URL.replace(/\/+$/, ''),
-      clave: SUPABASE_SERVICE_ROLE_KEY,
+      clave,
       bucket,
       ruta,
       tipo: archivo.mimetype,

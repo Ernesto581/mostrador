@@ -67,12 +67,13 @@ primera vez. Solo hay que configurar en el API:
 
 ```env
 SUPABASE_URL=https://tuproyecto.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+SUPABASE_SECRET_KEY=sb_secret_...
 SUPABASE_BUCKET=productos
 ```
 
-La `service_role` key es secreta y vive solo en el servidor. Si no se configura, el
-formulario sigue funcionando pegando una URL externa (Cloudinary, imgbb, etc.).
+La `secret key` es secreta y vive solo en el servidor. En proyectos antiguos tambien
+se acepta `SUPABASE_SERVICE_ROLE_KEY`. Si no se configura, el formulario sigue
+funcionando pegando una URL externa (Cloudinary, imgbb, etc.).
 
 Ver tambien `docs/MODELO-DATOS.md` y `docs/API.md`.
 

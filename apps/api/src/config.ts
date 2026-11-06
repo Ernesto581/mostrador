@@ -34,6 +34,9 @@ const EsquemaConfig = z.object({
   JWT_EXPIRA: z.string().min(1).default('12h'),
   /** Supabase Storage para las fotos de productos. Solo se usa en el servidor. */
   SUPABASE_URL: z.string().url().optional(),
+  /** Clave nueva (sb_secret_...). Es la recomendada. */
+  SUPABASE_SECRET_KEY: z.string().min(1).optional(),
+  /** Compatibilidad con la service_role JWT antigua (legacy). */
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   SUPABASE_BUCKET: z.string().min(1).default('productos'),
 });
@@ -50,6 +53,7 @@ export interface Config {
   JWT_SECRET: string;
   JWT_EXPIRA: string;
   SUPABASE_URL?: string;
+  SUPABASE_SECRET_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_BUCKET: string;
 }
@@ -85,6 +89,9 @@ export function cargarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ...(datos.PGLITE_DIR !== undefined ? { PGLITE_DIR: datos.PGLITE_DIR } : {}),
     ...(datos.CORS_ORIGIN !== undefined ? { CORS_ORIGIN: datos.CORS_ORIGIN } : {}),
     ...(datos.SUPABASE_URL !== undefined ? { SUPABASE_URL: datos.SUPABASE_URL } : {}),
+    ...(datos.SUPABASE_SECRET_KEY !== undefined
+      ? { SUPABASE_SECRET_KEY: datos.SUPABASE_SECRET_KEY }
+      : {}),
     ...(datos.SUPABASE_SERVICE_ROLE_KEY !== undefined
       ? { SUPABASE_SERVICE_ROLE_KEY: datos.SUPABASE_SERVICE_ROLE_KEY }
       : {}),
