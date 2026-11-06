@@ -181,6 +181,19 @@ ajena responde `403 SIN_PERMISO`.
 mas de lo vendido (ni contar dos veces una devolucion ya hecha). `reingresar: false`
 sirve para producto dañado, que no vuelve al inventario.
 
+### Reportes
+
+| Metodo | Ruta | Permiso | Que hace |
+|---|---|---|---|
+| `GET` | `/api/v1/reports/resumen` | `report.profit` | Ventas, utilidad bruta, ticket promedio, cobros por forma de pago, mas vendidos y ventas por sucursal/dia |
+
+Parametros: `desde`, `hasta` (obligatorios), `sucursalId` (opcional) y `por`
+(`importe` o `cantidad`, para ordenar los mas vendidos).
+
+La utilidad se calcula con el **costo guardado en cada linea al vender**, no con el
+costo actual del producto. La venta neta excluye impuestos. Cada sesion solo ve sus
+sucursales.
+
 ## Errores
 
 ```json

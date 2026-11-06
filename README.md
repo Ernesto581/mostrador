@@ -44,6 +44,18 @@ En construccion. Fase 0 (diseno) y base del proyecto.
 | `@mostrador/sync` | Pendiente |
 | `apps/web` | Pendiente |
 
+### Impresion de tickets
+
+El punto de venta imprime tickets en impresora termica de tres formas:
+
+- **Navegador:** abre el dialogo del sistema y sirve con cualquier impresora instalada
+  (USB, Bluetooth o red). Es el modo por defecto y no necesita configuracion.
+- **USB directo (ESC/POS):** con Chrome o Edge, desde `Configuracion > Impresora`.
+- **Bluetooth (ESC/POS):** con Chrome o Edge, desde `Configuracion > Impresora`.
+
+El ancho se elige entre 58 mm y 80 mm. La configuracion es por equipo, no por usuario.
+Los tickets se pueden reimprimir desde **Ventas > Ver > Imprimir ticket**.
+
 Ver tambien `docs/MODELO-DATOS.md` y `docs/API.md`.
 
 ## Publicar en internet (gratis)

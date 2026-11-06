@@ -16,6 +16,9 @@ export interface Sucursal {
   codigo: string;
   nombre: string;
   tipo: string;
+  direccion?: string | null;
+  telefono?: string | null;
+  whatsapp?: string | null;
 }
 
 /** Sucursal tal como se administra en el panel (con direccion y estado). */
@@ -277,6 +280,43 @@ export interface DetalleVenta {
   };
   lineas: LineaDeVenta[];
   pagos: PagoDeVenta[];
+}
+
+export interface ReporteResumen {
+  rango: { desde: string; hasta: string };
+  moneda: string;
+  resumen: {
+    tickets: number;
+    articulos: number;
+    ventaBruta: number;
+    ventaNeta: number;
+    impuestos: number;
+    descuentos: number;
+    cambio: number;
+    costo: number;
+    utilidad: number;
+    margen: number;
+    ticketPromedio: number;
+  };
+  pagos: { metodo: string; monto: number; porcentaje: number }[];
+  porSucursal: {
+    sucursalId: string;
+    codigo: string;
+    nombre: string;
+    tickets: number;
+    ventaBruta: number;
+    ventaNeta: number;
+  }[];
+  masVendidos: {
+    productoId: string;
+    nombre: string;
+    sku: string;
+    cantidad: number;
+    venta: number;
+    costo: number;
+    utilidad: number;
+  }[];
+  porDia: { dia: string; tickets: number; ventaBruta: number }[];
 }
 
 export interface UsuarioDelPanel {

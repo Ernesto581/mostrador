@@ -8,6 +8,7 @@ import { pluginBaseDeDatos } from './db/plugin.js';
 import { ErrorDeAplicacion, ErrorDeValidacion, codigoDePostgres } from './errors.js';
 import { rutasCatalogo } from './modules/catalogo/rutas.js';
 import { rutasInventario } from './modules/inventario/rutas.js';
+import { rutasReportes } from './modules/reportes/rutas.js';
 import { rutasVentas } from './modules/ventas/rutas.js';
 import { rutasUsuarios } from './modules/usuarios/rutas.js';
 import { rutasCaja } from './modules/caja/rutas.js';
@@ -107,6 +108,7 @@ export async function construirServidor() {
   await app.register(rutasSucursales, { prefix: '/api/v1' });
   await app.register(rutasCaja, { prefix: '/api/v1' });
   await app.register(rutasSync, { prefix: '/api/v1' });
+  await app.register(rutasReportes, { prefix: '/api/v1' });
 
   return app;
 }

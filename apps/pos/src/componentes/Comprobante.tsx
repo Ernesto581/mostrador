@@ -1,10 +1,12 @@
-import type { VentaRespuesta } from '../api/tipos';
+import { useState } from 'react';
+import type { Sesion, VentaRespuesta } from '../api/tipos';
+import { datosTicketDesdeVenta, imprimirTicket } from '../servicios/impresion';
 import { fechaLarga, dinero } from '../util/dinero';
 
 interface Props {
   venta: VentaRespuesta;
-  sucursal: string;
-  vendedor: string;
+  sesion: Sesion;
+  sucursalId: string;
   /** true cuando la venta se guardo en el telefono y aun no se sube. */
   pendiente?: boolean;
   onNuevaVenta: () => void;
@@ -16,8 +18,31 @@ const ETIQUETAS = {
   transferencia: 'Transferencia',
 } as const;
 
-export function Comprobante({ venta, sucursal, vendedor, pendiente, onNuevaVenta }: Props) {
+export function Comprobante({
+  venta,
+  sesion,
+  sucursalId,
+  pendiente,
+  onNuevaVenta,
+}: Props) {
+  const [imprimiendo, setImprimiendo] = useState(false);
+  const [errorImpresion, setErrorImpresion] = useState<string | null>(null);
   const cambio = venta.cambio;
+  const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
+
+  async function imprimir(): Promise<void> {
+    setImprimiendo(true);
+    setErrorImpresion(null);
+    try {
+      await imprimirTicket(datosTicketDesdeVenta(venta, sesion, sucursalId));
+    } catch (fallo) {
+      setErrorImpresion(
+        fallo instanceof Error ? fallo.message : 'No se pudo imprimir el ticket',
+      );
+    } finally {
+      setImprimiendo(false);
+    }
+  }
 
   return (
     <div className="velo" role="dialog" aria-modal="true" aria-label="Comprobante de venta">
@@ -32,7 +57,9 @@ export function Comprobante({ venta, sucursal, vendedor, pendiente, onNuevaVenta
               <p className="ticket__meta">
                 {venta.folio}
                 <br />
-                {sucursal} · {vendedor}
+                {sucursal?.codigo ?? ''}
+                <br />
+                {sucursal?.nombre ?? ''} · {sesion.usuario.nombre}
                 <br />
                 {fechaLarga(venta.vendidoEn)}
               </p>
@@ -103,7 +130,22 @@ export function Comprobante({ venta, sucursal, vendedor, pendiente, onNuevaVenta
               </div>
             ) : null}
 
+            {errorImpresion ? (
+              <div className="advertencias">
+                <strong>No se pudo imprimir</strong>
+                {errorImpresion}
+              </div>
+            ) : null}
+
             <div className="acciones-comprobante">
+              <button
+                type="button"
+                className="boton"
+                onClick={() => void imprimir()}
+                disabled={imprimiendo}
+              >
+                {imprimiendo ? 'Imprimiendo…' : 'Imprimir ticket'}
+              </button>
               <button type="button" className="boton boton--acento" onClick={onNuevaVenta} autoFocus>
                 Nueva venta
               </button>

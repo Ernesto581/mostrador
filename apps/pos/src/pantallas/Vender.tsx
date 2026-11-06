@@ -508,8 +508,8 @@ export function Vender({ sesion, sucursalId }: Props) {
       {venta ? (
         <Comprobante
           venta={venta}
-          sucursal={sucursal?.codigo ?? ''}
-          vendedor={sesion.usuario.nombre}
+          sesion={sesion}
+          sucursalId={sucursalId}
           pendiente={ventaPendiente}
           onNuevaVenta={() => setVenta(null)}
         />

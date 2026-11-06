@@ -7,6 +7,7 @@ import { Caja } from './Caja';
 import { Gastos } from './Gastos';
 import { Informes } from './Informes';
 import { Inventario } from './Inventario';
+import { Impresora } from './Impresora';
 import { Panel } from './Panel';
 import { Sucursales } from './Sucursales';
 import { Usuarios } from './Usuarios';
@@ -25,7 +26,8 @@ type Seccion =
   | 'caja'
   | 'ventas'
   | 'usuarios'
-  | 'sucursales';
+  | 'sucursales'
+  | 'impresora';
 
 interface OpcionMenu {
   id: Seccion;
@@ -74,6 +76,12 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
       ...(permisos.has('branches.manage')
         ? [{ id: 'sucursales' as const, etiqueta: 'Sucursales', etiquetaCorta: 'Sucursales', grupo: 'configuracion' as const }]
         : []),
+      {
+        id: 'impresora' as const,
+        etiqueta: 'Impresora',
+        etiquetaCorta: 'Impresora',
+        grupo: 'configuracion' as const,
+      },
     ];
   }
 
@@ -129,7 +137,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
           },
         ]
       : []),
-    ...(permisos.has('report.profit') || permisos.has('sale.void')
+    ...(permisos.has('report.profit')
       ? [
           {
             id: 'informes' as const,
@@ -153,6 +161,13 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
           },
         ]
       : []),
+    {
+      id: 'impresora' as const,
+      etiqueta: 'Impresora',
+      etiquetaCorta: 'Impresora',
+      descripcion: 'Tickets por USB, Bluetooth o desde el navegador.',
+      grupo: 'configuracion' as const,
+    },
   ];
 }
 
@@ -226,6 +241,13 @@ function IconoSeccion({ seccion }: { seccion: Seccion }) {
       <>
         <path d="M3 10h18v10H3zM2 10l2-6h16l2 6M8 20v-6h5v6" />
         <path d="M7 8h.01M12 8h.01M17 8h.01" />
+      </>
+    ),
+    impresora: (
+      <>
+        <path d="M6 9V3h12v6" />
+        <rect x="3" y="9" width="18" height="7" rx="1.5" />
+        <path d="M6 13h.01M18 13h.01M7 16v5h10v-5" />
       </>
     ),
   };
@@ -582,6 +604,7 @@ export function Marco({ sesion, onSalir }: Props) {
       {seccion?.id === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'usuarios' ? <Usuarios /> : null}
       {seccion?.id === 'sucursales' ? <Sucursales /> : null}
+      {seccion?.id === 'impresora' ? <Impresora /> : null}
     </div>
   );
 }

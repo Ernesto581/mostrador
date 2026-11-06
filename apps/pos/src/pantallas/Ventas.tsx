@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api/cliente';
 import type { DetalleVenta, MetodoPago, Sesion, VentaResumen } from '../api/tipos';
+import { imprimirTicket, type DatosTicket } from '../servicios/impresion';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
 import { dinero, hora } from '../util/dinero';
 
@@ -30,6 +31,7 @@ export function Ventas({ sesion, sucursalId }: Props) {
   const [cantidades, setCantidades] = useState<Record<string, string>>({});
   const [reembolso, setReembolso] = useState<MetodoPago>('efectivo');
   const [procesando, setProcesando] = useState(false);
+  const [imprimiendo, setImprimiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -127,6 +129,52 @@ export function Ventas({ sesion, sucursalId }: Props) {
       setError(mensajeDe(fallo));
     } finally {
       setProcesando(false);
+    }
+  }
+
+  async function reimprimir(): Promise<void> {
+    if (!detalle) {
+      return;
+    }
+
+    const sucursal = sesion.sucursales.find(
+      (opcion) => opcion.id === detalle.venta.branchId,
+    );
+    const datos: DatosTicket = {
+      empresa: sesion.empresa.nombre,
+      sucursal: sucursal?.nombre ?? detalle.venta.branchId,
+      direccion: sucursal?.direccion ?? null,
+      telefono: sucursal?.telefono ?? null,
+      moneda: sesion.empresa.moneda,
+      folio: detalle.venta.folio,
+      fecha: detalle.venta.soldAt,
+      vendedor: null,
+      lineas: detalle.lineas.map((linea) => ({
+        nombre: linea.name,
+        cantidad: linea.quantity,
+        precioUnitario: linea.unitPrice,
+        descuento: linea.discountAmount,
+        total: linea.total,
+      })),
+      subtotal: detalle.venta.subtotal,
+      descuentoTotal: detalle.venta.discountTotal,
+      impuestos: detalle.venta.taxTotal,
+      total: detalle.venta.total,
+      pagado: detalle.venta.paidTotal,
+      cambio: detalle.venta.changeGiven,
+      pagos: detalle.pagos.map((pago) => ({ metodo: pago.method, monto: pago.amount })),
+    };
+
+    setImprimiendo(true);
+    setError(null);
+    try {
+      await imprimirTicket(datos);
+      setOk('Ticket enviado a la impresora.');
+      window.setTimeout(() => setOk(null), 4000);
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setImprimiendo(false);
     }
   }
 
@@ -322,6 +370,17 @@ export function Ventas({ sesion, sucursalId }: Props) {
           ) : null}
 
           <div className="modal__acciones">
+            {detalle ? (
+              <button
+                type="button"
+                className="boton"
+                onClick={() => void reimprimir()}
+                disabled={imprimiendo}
+              >
+                {imprimiendo ? 'Imprimiendo…' : 'Imprimir ticket'}
+              </button>
+            ) : null}
+
             <button type="button" className="boton" onClick={() => setAbierta(null)}>
               Cerrar
             </button>

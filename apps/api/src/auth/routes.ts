@@ -108,6 +108,9 @@ export async function rutasAuth(app: FastifyInstance) {
         codigo: branches.code,
         nombre: branches.name,
         tipo: branches.type,
+        direccion: branches.address,
+        telefono: branches.phone,
+        whatsapp: branches.whatsapp,
       })
       .from(userBranchAccess)
       .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))

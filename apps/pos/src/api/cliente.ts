@@ -8,6 +8,7 @@
   MetodoPago,
   Movimiento,
   Producto,
+  ReporteResumen,
   ResumenTurno,
   Rol,
   Sesion,
@@ -293,6 +294,13 @@ export const api = {
     pedir<{ ventas: VentaResumen[] }>(`/sales${parametros(filtros)}`),
 
   venta: (id: string) => pedir<DetalleVenta>(`/sales/${id}`),
+
+  reporteResumen: (filtros: {
+    desde: string;
+    hasta: string;
+    sucursalId?: string;
+    por?: 'importe' | 'cantidad';
+  }) => pedir<ReporteResumen>(`/reports/resumen${parametros(filtros)}`),
 
   cancelarVenta: (id: string, motivo: string) =>
     pedir<{ venta: { id: string; folio: string; estado: string } }>(`/sales/${id}/void`, {

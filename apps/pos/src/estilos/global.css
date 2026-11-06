@@ -3070,3 +3070,59 @@ button {
 }
 
 @media (min-width: 768px) { .barra { display: none; } }
+
+/* Reportes: dos columnas cuando hay espacio. */
+.rejilla-dos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0.8rem;
+}
+
+.solo-impresion {
+  display: none;
+}
+
+/* Impresion de reportes: solo el contenido, sin menu ni botones. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .barra-lateral,
+  .barra,
+  .menu-lateral,
+  .telon,
+  .boton-menu,
+  .no-imprimir,
+  .pestanas {
+    display: none !important;
+  }
+
+  .panel {
+    border: 0;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .solo-impresion {
+    display: block;
+    margin-bottom: 0.8rem;
+  }
+
+  .tarjeta {
+    border: 1px solid #999;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .tabla {
+    font-size: 9pt;
+  }
+}
