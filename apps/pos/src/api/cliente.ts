@@ -280,6 +280,11 @@ export const api = {
   subirImagenProducto: (archivo: File) =>
     pedirFormulario<{ url: string }>('/uploads/producto', archivo),
 
+  borrarProducto: (id: string) =>
+    pedir<{ producto: { id: string; borrado: boolean } }>(`/products/${id}`, {
+      metodo: 'DELETE',
+    }),
+
   agregarCodigo: (id: string, codigo: string) =>
     pedir<{ productoId: string; codigo: string }>(`/products/${id}/barcodes`, {
       metodo: 'POST',

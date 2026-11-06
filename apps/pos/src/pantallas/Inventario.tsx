@@ -205,9 +205,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [rechazo, setRechazo] = useState<FormularioRechazo | null>(null);
   const [verTransferencias, setVerTransferencias] = useState(false);
   const enTransferencias = vista === 'transferencias' || (vista === undefined && verTransferencias);
+  const enProductos = vista === 'productos';
   const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
-  const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
+  const [porBorrar, setPorBorrar] = useState<FilaVista | null>(null);
   // Que fila tiene abierto el menu de tres puntos (solo se abre uno a la vez).
   const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -236,7 +237,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     [kardex],
   );
 
-  const { datos: datosCategorias, recargar: recargarCategorias } = useCarga(
+  const { datos: datosCategorias } = useCarga(
     () => api.categorias(),
     [],
   );
@@ -356,6 +357,26 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             : 'Producto creado. Todavia sin existencia: registra una entrada cuando llegue.',
         );
       }
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function borrarProducto(): Promise<void> {
+    if (!porBorrar) {
+      return;
+    }
+
+    setGuardando(true);
+    setError(null);
+    try {
+      await api.borrarProducto(porBorrar.productoId);
+      setPorBorrar(null);
+      await recargar();
+      setOk(`Producto ${porBorrar.sku} retirado del catalogo.`);
+      window.setTimeout(() => setOk(null), 4000);
     } catch (fallo) {
       setError(mensajeDe(fallo));
     } finally {
@@ -538,19 +559,18 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             {vista === 'productos' ? 'Productos' : vista === 'transferencias' ? 'Transferencias' : 'Inventario'}
           </h1>
           <p className="panel__nota">
-            {vista === 'productos'
-              ? 'CatÃ¡logo, cÃ³digos de barras, costos, precios y categorÃ­as.'
+            {enProductos
+              ? 'Catalogo de productos: foto, codigos de barras, costos, precios y stock.'
               : vista === 'transferencias'
                 ? 'Traslados de productos entre tiendas y almacenes.'
                 : vista === 'existencias'
                   ? 'Existencias por ubicación, entradas, salidas, mermas y stock mínimo.'
                   : null}
-            {vista === 'transferencias' ? null : (
-              <>
-                {vista ? ' ' : null}
-                {datos?.conAlerta ?? 0} productos por debajo del minimo
-              </>
-            )}
+            {enTransferencias
+              ? null
+              : enProductos
+                ? ` ${datos?.filas.length ?? 0} productos en el catalogo.`
+                : ` ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
           </p>
         </div>
 
@@ -583,7 +603,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           </div>
           )}
 
-          {vista === 'transferencias' ? null : (
+          {enTransferencias || enProductos ? null : (
           <label className="opcion-casilla inventario__filtro-minimo">
             <input
               type="checkbox"
@@ -593,19 +613,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             Solo bajo el minimo
           </label>
           )}
-
-          {puedeCatalogo && vista !== 'transferencias' ? (
-            <button
-              type="button"
-              className="boton inventario__categorias"
-              onClick={() => {
-                setError(null);
-                setCategoriasAbiertas(true);
-              }}
-            >
-              Categorias
-            </button>
-          ) : null}
 
           {puedeCatalogo && vista !== 'transferencias' ? (
             <button
@@ -626,10 +633,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       <div className="barra-filtros inventario__busqueda">
         <input
           className="entrada buscador"
-          placeholder="Buscar existencias..."
+          placeholder={enProductos ? 'Buscar productos...' : 'Buscar existencias...'}
           value={buscar}
           onChange={(evento) => setBuscar(evento.target.value)}
-          aria-label="Buscar existencias"
+          aria-label={enProductos ? 'Buscar productos' : 'Buscar existencias'}
         />
       </div>
       )}
@@ -867,17 +874,30 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         </button>
                       ) : null}
 
-                      {/* En escritorio el kardex va a la vista; en telefono tambien,
-                          porque es la consulta mas comun. En tablet se guarda en el menu. */}
-                      <button
-                        type="button"
-                        className="boton accion-kardex"
-                        onClick={() => setKardex(fila)}
-                      >
-                        Kardex
-                      </button>
+                      {enProductos ? (
+                        <button
+                          type="button"
+                          className="boton"
+                          onClick={() => {
+                            setError(null);
+                            setPorBorrar(fila);
+                          }}
+                        >
+                          Borrar
+                        </button>
+                      ) : null}
 
-                      {puedeMover ? (
+                      {!enProductos ? (
+                        <button
+                          type="button"
+                          className="boton accion-kardex"
+                          onClick={() => setKardex(fila)}
+                        >
+                          Kardex
+                        </button>
+                      ) : null}
+
+                      {puedeMover && !enProductos ? (
                         <button
                           type="button"
                           className="boton accion-movimiento"
@@ -897,7 +917,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         </button>
                       ) : null}
 
-                      {puedeTransferir ? (
+                      {puedeTransferir && !enProductos ? (
                         <button
                           type="button"
                           className="boton accion-transferir"
@@ -917,6 +937,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       ) : null}
 
                       {/* Donde no caben todos los botones, aqui siguen estando. */}
+                      {!enProductos ? (
                       <MenuAcciones
                         abierto={menuAbiertoId === fila.productoId}
                         onAbrir={() => setMenuAbiertoId(fila.productoId)}
@@ -933,7 +954,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         >
                           Kardex
                         </button>
-                        {puedeMover ? (
+                        {puedeMover && !enProductos ? (
                           <button
                             type="button"
                             role="menuitem"
@@ -954,7 +975,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                             Movimiento
                           </button>
                         ) : null}
-                        {puedeTransferir ? (
+                        {puedeTransferir && !enProductos ? (
                           <button
                             type="button"
                             role="menuitem"
@@ -975,6 +996,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                           </button>
                         ) : null}
                       </MenuAcciones>
+                      ) : null}
                       </div>
                     </td>
                   </tr>
@@ -1222,16 +1244,30 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </Modal>
       ) : null}
 
-      {/* ---------- Categorias ---------- */}
-      {categoriasAbiertas ? (
-        <Categorias
-          categorias={categorias}
-          onCerrar={() => setCategoriasAbiertas(false)}
-          onCambio={async () => {
-            await recargarCategorias();
-            await recargar();
-          }}
-        />
+      {porBorrar ? (
+        <Modal
+          titulo={`Borrar ${porBorrar.sku}`}
+          nota="El producto dejara de aparecer en el catalogo y en el mostrador."
+          onCerrar={() => setPorBorrar(null)}
+        >
+          <p className="panel__nota">
+            Se conservan las ventas, los movimientos y el kardex anteriores. Esta accion no
+            borra la historia, solo retira el producto del catalogo.
+          </p>
+          <div className="modal__acciones">
+            <button type="button" className="boton" onClick={() => setPorBorrar(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void borrarProducto()}
+              disabled={guardando}
+            >
+              {guardando ? 'Borrando…' : 'Borrar producto'}
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {/* ---------- Movimiento de existencias ---------- */}
@@ -1537,157 +1573,3 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     </div>
   );
 }
-
-/* ---------- Categorias ---------- */
-
-interface PropsCategorias {
-  categorias: Categoria[];
-  onCerrar: () => void;
-  onCambio: () => Promise<void>;
-}
-
-/**
- * Categorias: agregar, renombrar y borrar.
- *
- * Borrar no siempre se puede: si hay productos usando la categoria, el servidor lo
- * impide y aqui se muestra el motivo. Es mejor eso que dejar productos sin clasificar
- * sin que nadie se entere.
- */
-function Categorias({ categorias, onCerrar, onCambio }: PropsCategorias) {
-  const [nueva, setNueva] = useState('');
-  const [editando, setEditando] = useState<{ id: string; nombre: string } | null>(null);
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-
-  async function ejecutar(accion: () => Promise<unknown>, mensaje: string): Promise<void> {
-    setGuardando(true);
-    setError(null);
-
-    try {
-      await accion();
-      await onCambio();
-      setOk(mensaje);
-      window.setTimeout(() => setOk(null), 3500);
-    } catch (fallo) {
-      setError(mensajeDe(fallo));
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  return (
-    <Modal
-      titulo="Categorias"
-      nota="Sirven para agrupar los productos. Cada producto puede tener una."
-      onCerrar={onCerrar}
-    >
-      <div className="barra-filtros" style={{ marginBottom: '0.8rem' }}>
-        <input
-          className="entrada"
-          style={{ maxWidth: '16rem' }}
-          placeholder="Nombre de la nueva categoria"
-          value={nueva}
-          onChange={(evento) => setNueva(evento.target.value)}
-        />
-        <button
-          type="button"
-          className="boton boton--acento"
-          disabled={guardando || nueva.trim().length === 0}
-          onClick={() =>
-            void ejecutar(async () => {
-              await api.crearCategoria(nueva.trim());
-              setNueva('');
-            }, 'Categoria agregada.')
-          }
-        >
-          Agregar
-        </button>
-      </div>
-
-      <Aviso error={error} ok={ok} />
-
-      {categorias.length === 0 ? (
-        <p className="vacio">Todavia no hay categorias.</p>
-      ) : (
-        <div className="tabla-envoltura">
-          <table className="tabla">
-            <thead>
-              <tr>
-                <th>Categoria</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {categorias.map((categoria) => (
-                <tr key={categoria.id}>
-                  <td>
-                    {editando?.id === categoria.id ? (
-                      <input
-                        className="entrada"
-                        value={editando.nombre}
-                        onChange={(evento) =>
-                          setEditando({ id: categoria.id, nombre: evento.target.value })
-                        }
-                      />
-                    ) : (
-                      categoria.nombre
-                    )}
-                  </td>
-                  <td>
-                    <div className="acciones-fila">
-                      {editando?.id === categoria.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className="boton boton--acento"
-                            disabled={guardando}
-                            onClick={() =>
-                              void ejecutar(async () => {
-                                await api.editarCategoria(categoria.id, editando.nombre.trim());
-                                setEditando(null);
-                              }, 'Categoria renombrada.')
-                            }
-                          >
-                            Guardar
-                          </button>
-                          <button type="button" className="boton" onClick={() => setEditando(null)}>
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="boton"
-                            onClick={() => setEditando({ id: categoria.id, nombre: categoria.nombre })}
-                          >
-                            Renombrar
-                          </button>
-                          <button
-                            type="button"
-                            className="boton"
-                            disabled={guardando}
-                            onClick={() =>
-                              void ejecutar(
-                                () => api.borrarCategoria(categoria.id),
-                                'Categoria borrada.',
-                              )
-                            }
-                          >
-                            Borrar
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Modal>
-  );
-}
-

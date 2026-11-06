@@ -4,6 +4,7 @@ import { AvisoActualizacion } from '../componentes/AvisoActualizacion';
 import { IndicadorConexion } from '../componentes/IndicadorConexion';
 import { buscarActualizacion, versionActual, type VersionNueva } from '../servicios/actualizacion';
 import { Caja } from './Caja';
+import { Categorias } from './Categorias';
 import { Gastos } from './Gastos';
 import { Informes } from './Informes';
 import { Inventario } from './Inventario';
@@ -27,7 +28,8 @@ type Seccion =
   | 'ventas'
   | 'usuarios'
   | 'sucursales'
-  | 'impresora';
+  | 'impresora'
+  | 'categorias';
 
 interface OpcionMenu {
   id: Seccion;
@@ -64,6 +66,22 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
       ...(permisos.has('cash.close')
         ? [{ id: 'caja' as const, etiqueta: 'Caja', etiquetaCorta: 'Caja', grupo: 'mostrador' as const }]
         : []),
+      ...(permisos.has('catalog.manage')
+        ? [
+            {
+              id: 'productos' as const,
+              etiqueta: 'Productos',
+              etiquetaCorta: 'Productos',
+              grupo: 'mostrador' as const,
+            },
+            {
+              id: 'categorias' as const,
+              etiqueta: 'Categorias',
+              etiquetaCorta: 'Categorias',
+              grupo: 'mostrador' as const,
+            },
+          ]
+        : []),
       ...(permisos.has('inventory.adjust') || permisos.has('catalog.manage')
         ? [{ id: 'inventario' as const, etiqueta: 'Inventario', etiquetaCorta: 'Inventario', grupo: 'mostrador' as const }]
         : []),
@@ -93,6 +111,24 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
       descripcion: 'Resumen de ventas, ingresos, gastos, utilidad y alertas de inventario.',
       grupo: 'principal',
     },
+    ...(permisos.has('catalog.manage')
+      ? [
+          {
+            id: 'productos' as const,
+            etiqueta: 'Productos',
+            etiquetaCorta: 'Productos',
+            descripcion: 'Catalogo: foto, codigos de barras, costo, precio y stock minimo.',
+            grupo: 'principal' as const,
+          },
+          {
+            id: 'categorias' as const,
+            etiqueta: 'Categorias',
+            etiquetaCorta: 'Categorias',
+            descripcion: 'Agrupa los productos del catalogo.',
+            grupo: 'principal' as const,
+          },
+        ]
+      : []),
     ...(permisos.has('inventory.adjust')
       ? [
           {
@@ -248,6 +284,12 @@ function IconoSeccion({ seccion }: { seccion: Seccion }) {
         <path d="M6 9V3h12v6" />
         <rect x="3" y="9" width="18" height="7" rx="1.5" />
         <path d="M6 13h.01M18 13h.01M7 16v5h10v-5" />
+      </>
+    ),
+    categorias: (
+      <>
+        <path d="M3 12V4h8l10 10-8 8L3 12Z" />
+        <path d="M7 8h.01" />
       </>
     ),
   };
@@ -589,6 +631,10 @@ export function Marco({ sesion, onSalir }: Props) {
       {seccion?.id === 'cajas' ? (
         <Caja sesion={sesion} sucursalId={sucursalId} titulo="Cajas y turnos" />
       ) : null}
+      {seccion?.id === 'productos' ? (
+        <Inventario sesion={sesion} sucursalId={sucursalId} vista="productos" />
+      ) : null}
+      {seccion?.id === 'categorias' ? <Categorias /> : null}
       {seccion?.id === 'inventario' ? (
         <Inventario
           sesion={sesion}
