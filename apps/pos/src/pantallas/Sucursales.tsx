@@ -31,7 +31,6 @@ interface Borrador {
   whatsapp: string;
   lat: string;
   lng: string;
-  ventaDesdeAlmacen: boolean;
   horarios: Record<string, HorarioDia>;
 }
 
@@ -56,7 +55,6 @@ const BORRADOR_VACIO: Borrador = {
   whatsapp: '',
   lat: '',
   lng: '',
-  ventaDesdeAlmacen: false,
   horarios: { ...HORARIOS_VACIOS },
 };
 
@@ -106,7 +104,6 @@ export function Sucursales() {
           tipo: borrador.tipo,
           ...(borrador.direccion.trim() ? { direccion: borrador.direccion.trim() } : {}),
           ...(borrador.telefono.trim() ? { telefono: borrador.telefono.trim() } : {}),
-          ventaDesdeAlmacen: borrador.tipo === 'tienda' && borrador.ventaDesdeAlmacen,
           descripcion: borrador.descripcion.trim(),
           tipoNegocio: borrador.tipoNegocio,
           ...(borrador.fotoUrl.trim() ? { fotoUrl: borrador.fotoUrl.trim() } : {}),
@@ -248,7 +245,6 @@ export function Sucursales() {
                             whatsapp: sucursal.whatsapp ?? '',
                             lat: sucursal.lat != null ? String(sucursal.lat) : '',
                             lng: sucursal.lng != null ? String(sucursal.lng) : '',
-                            ventaDesdeAlmacen: sucursal.ventaDesdeAlmacen,
                             horarios: sucursal.horarios ?? { ...HORARIOS_VACIOS },
                           });
                         }}
@@ -423,21 +419,6 @@ export function Sucursales() {
                 />
               </div>
             </label>
-
-
-
-            {borrador.id && borrador.tipo === 'tienda' ? (
-              <label className="opcion-casilla campo-ancho">
-                <input
-                  type="checkbox"
-                  checked={borrador.ventaDesdeAlmacen}
-                  onChange={(evento) =>
-                    setBorrador({ ...borrador, ventaDesdeAlmacen: evento.target.checked })
-                  }
-                />
-                <span>Vender tambien del almacen si el piso de venta no alcanza</span>
-              </label>
-            ) : null}
           </div>
 
           <div className="campo-ancho campo-ancho--ancho" style={{ marginTop: "1rem" }}>

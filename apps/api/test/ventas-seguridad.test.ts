@@ -1,5 +1,4 @@
 import { schema } from '@mostrador/db-cloud';
-import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hashearSecreto } from '../src/auth/password.js';
@@ -81,13 +80,6 @@ beforeAll(async () => {
   tokenVendedorAmplio = await iniciarSesion('vendedor_amplio');
   tokenSupervisor = await iniciarSesion('supervisor_centro');
   tokenSinDescuento = await iniciarSesion('vendedor_sin_descuento');
-
-  // La sucursal secundaria solo tiene almacen: se permite vender desde ahi
-  // para poder probar el acceso a sus ventas.
-  await app.db
-    .update(schema.branches)
-    .set({ ventaDesdeAlmacen: true })
-    .where(eq(schema.branches.id, semilla.sucursalSecundariaId));
 
   // El catalogo de ejemplo solo trae stock en la sucursal principal: se manda
   // mercancia a la bodega para poder vender alli.

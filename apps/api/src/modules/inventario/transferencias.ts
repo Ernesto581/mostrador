@@ -5,15 +5,20 @@ import { and, asc, count, desc, eq, gte, inArray, isNull, lt, or, sql } from 'dr
 import type { BaseDatos } from '../../db/tipos.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
-import { aplicarMovimiento, productoExiste } from './servicio.js';
+import {
+  aplicarMovimiento,
+  existenciasDeProductos,
+  productoExiste,
+  ubicacionPrincipalDeSucursal,
+} from './servicio.js';
 
 /**
- * Transferencias entre ubicaciones (piso de venta, almacen de un local u otro local).
+ * Transferencias entre sucursales.
  *
- * Dentro del mismo local la mercancia se mueve en un solo paso. Entre locales pasa por
- * borrador, transito y recepcion: mientras esta en transito no figura como disponible
- * ni en el origen ni en el destino. Las cantidades recibidas pueden ser menores; la
- * diferencia queda marcada como incidencia en la transferencia.
+ * La mercancia pasa por borrador, transito y recepcion: mientras esta en transito
+ * no figura como disponible ni en el origen ni en el destino. Las cantidades
+ * recibidas pueden ser menores; la diferencia queda marcada como incidencia.
+ * Aunque el esquema guarde ubicaciones, la operacion se maneja por sucursal.
  */
 
 export interface UbicacionVista {
@@ -88,25 +93,76 @@ export async function listarUbicaciones(
     .orderBy(asc(schema.branches.code), asc(schema.warehouses.kind));
 }
 
-async function existenciasEnUbicacion(
-  base: BaseDatos,
-  ubicacionId: string,
-  productoIds: readonly string[],
-): Promise<Map<string, number>> {
-  const filas = await base
+interface DatosSalidaSucursal {
+  empresaId: string;
+  usuarioId: string;
+  transferencia: { id: string; folio: string; motivo: string | null };
+  sucursalId: string;
+  productoId: string;
+  cantidad: number;
+  ahora: Date;
+}
+
+/**
+ * Saca mercancia de una sucursal completa: primero del piso de venta y despues
+ * del almacen. La transferencia se maneja por sucursal, no por ubicacion.
+ */
+async function descontarDeSucursal(tx: BaseDatos, datos: DatosSalidaSucursal): Promise<void> {
+  const producto = await productoExiste(tx, datos.empresaId, datos.productoId);
+  if (!producto) {
+    throw new ErrorNoEncontrado(`El producto ${datos.productoId} no existe`);
+  }
+
+  const saldos = await tx
     .select({
-      productoId: schema.stockBalances.productId,
+      almacenId: schema.stockBalances.warehouseId,
       cantidad: schema.stockBalances.quantity,
     })
     .from(schema.stockBalances)
+    .innerJoin(schema.warehouses, eq(schema.warehouses.id, schema.stockBalances.warehouseId))
     .where(
       and(
-        eq(schema.stockBalances.warehouseId, ubicacionId),
-        inArray(schema.stockBalances.productId, [...productoIds]),
+        eq(schema.stockBalances.branchId, datos.sucursalId),
+        eq(schema.stockBalances.productId, datos.productoId),
+        eq(schema.warehouses.active, true),
+        isNull(schema.warehouses.deletedAt),
+        sql`${schema.stockBalances.quantity} > 0`,
       ),
-    );
+    )
+    .orderBy(sql`case when ${schema.warehouses.kind} = 'piso_venta' then 0 else 1 end`);
 
-  return new Map(filas.map((fila) => [fila.productoId, Number(fila.cantidad)]));
+  const disponible = saldos.reduce((total, saldo) => total + Number(saldo.cantidad), 0);
+  if (disponible < datos.cantidad) {
+    throw new ErrorDeAplicacion(
+      `No hay existencia suficiente en el origen. ${producto.nombre}: hay ${disponible} y se piden ${datos.cantidad}`,
+      409,
+      'SIN_EXISTENCIA',
+    );
+  }
+
+  let restante = datos.cantidad;
+  for (const saldo of saldos) {
+    if (restante === 0) {
+      break;
+    }
+    const cantidad = Math.min(restante, Number(saldo.cantidad));
+    await aplicarMovimiento(tx, {
+      empresaId: datos.empresaId,
+      sucursalId: datos.sucursalId,
+      almacenId: saldo.almacenId,
+      productoId: datos.productoId,
+      tipo: 'transferencia_salida',
+      cantidad,
+      costoUnitario: centavos(producto.costoPromedio),
+      motivo: datos.transferencia.motivo ?? undefined,
+      usuarioId: datos.usuarioId,
+      documentoTipo: 'transferencia',
+      documentoId: datos.transferencia.id,
+      documentoFolio: datos.transferencia.folio,
+      ocurridoEn: datos.ahora,
+    });
+    restante -= cantidad;
+  }
 }
 
 async function ensamblar(
@@ -342,10 +398,10 @@ export interface EntradaTransferencia {
 }
 
 /**
- * Crea una transferencia.
+ * Crea una transferencia entre sucursales.
  *
- * Dentro del mismo local queda recibida de inmediato. Entre locales queda en borrador:
- * no sale mercancia hasta que se despacha.
+ * Queda en borrador: no sale mercancia hasta que se despacha. La validacion de
+ * existencia se hace contra el total de la sucursal de origen.
  */
 export async function crearTransferencia(
   db: Db,
@@ -367,8 +423,13 @@ export async function crearTransferencia(
         'SUCURSAL_INACTIVA',
       );
     }
-
-    const mismoLocal = origen.sucursalId === destino.sucursalId;
+    if (origen.sucursalId === destino.sucursalId) {
+      throw new ErrorDeAplicacion(
+        'Elige dos sucursales distintas para transferir',
+        422,
+        'MISMA_SUCURSAL',
+      );
+    }
 
     const pedido = new Map<string, { cantidad: number; nombre: string }>();
     for (const linea of entrada.lineas) {
@@ -383,11 +444,13 @@ export async function crearTransferencia(
       });
     }
 
-    // Aviso temprano: si el origen no tiene, no se crea. El despacho vuelve a validarlo.
-    const existencias = await existenciasEnUbicacion(tx, origen.id, [...pedido.keys()]);
+    // Aviso temprano: si la sucursal de origen no tiene, no se crea. El despacho
+    // vuelve a validarlo contra el stock real.
+    const existencias = await existenciasDeProductos(tx, origen.sucursalId, [...pedido.keys()]);
     const faltantes: string[] = [];
     for (const [productoId, { cantidad, nombre }] of pedido) {
-      const disponible = existencias.get(productoId) ?? 0;
+      const existencia = existencias.get(productoId) ?? { piso: 0, almacen: 0 };
+      const disponible = existencia.piso + existencia.almacen;
       if (disponible < cantidad) {
         faltantes.push(`${nombre}: hay ${disponible} y se piden ${cantidad}`);
       }
@@ -417,19 +480,11 @@ export async function crearTransferencia(
       toWarehouseId: destino.id,
       fromBranchId: origen.sucursalId,
       toBranchId: destino.sucursalId,
-      status: mismoLocal ? 'recibida' : 'borrador',
+      status: 'borrador',
       reason: entrada.motivo ?? null,
       createdByUserId: entrada.usuarioId,
       createdAt: ahora,
       updatedAt: ahora,
-      ...(mismoLocal
-        ? {
-            dispatchedByUserId: entrada.usuarioId,
-            dispatchedAt: ahora,
-            receivedByUserId: entrada.usuarioId,
-            receivedAt: ahora,
-          }
-        : {}),
     });
 
     await tx.insert(schema.transferLines).values(
@@ -438,43 +493,15 @@ export async function crearTransferencia(
         transferId: id,
         productId: linea.productoId,
         quantitySent: linea.cantidad,
-        quantityReceived: mismoLocal ? linea.cantidad : null,
+        quantityReceived: null,
       })),
     );
-
-    if (mismoLocal) {
-      const transferencia = { id, folio, motivo: entrada.motivo ?? null };
-      for (const linea of entrada.lineas) {
-        await moverMercancia(tx, {
-          empresaId: entrada.empresaId,
-          usuarioId: entrada.usuarioId,
-          transferencia,
-          sucursalId: origen.sucursalId,
-          ubicacionId: origen.id,
-          productoId: linea.productoId,
-          tipo: 'transferencia_salida',
-          cantidad: linea.cantidad,
-          ahora,
-        });
-        await moverMercancia(tx, {
-          empresaId: entrada.empresaId,
-          usuarioId: entrada.usuarioId,
-          transferencia,
-          sucursalId: destino.sucursalId,
-          ubicacionId: destino.id,
-          productoId: linea.productoId,
-          tipo: 'transferencia_entrada',
-          cantidad: linea.cantidad,
-          ahora,
-        });
-      }
-    }
 
     return cargar(tx, entrada.empresaId, id);
   });
 }
 
-/** Sale la mercancia del origen. Solo para transferencias entre locales. */
+/** Sale la mercancia de la sucursal de origen. */
 export async function despacharTransferencia(
   db: Db,
   datos: { empresaId: string; transferenciaId: string; usuarioId: string },
@@ -487,14 +514,12 @@ export async function despacharTransferencia(
     const transferencia = { id: vista.id, folio: vista.folio, motivo: vista.motivo };
 
     for (const linea of vista.lineas) {
-      await moverMercancia(tx, {
+      await descontarDeSucursal(tx, {
         empresaId: datos.empresaId,
         usuarioId: datos.usuarioId,
         transferencia,
         sucursalId: vista.origen.sucursalId,
-        ubicacionId: vista.origen.id,
         productoId: linea.productoId,
-        tipo: 'transferencia_salida',
         cantidad: linea.enviada,
         ahora,
       });
@@ -567,7 +592,7 @@ export async function recibirTransferencia(
           usuarioId: datos.usuarioId,
           transferencia,
           sucursalId: vista.destino.sucursalId,
-          ubicacionId: vista.destino.id,
+          ubicacionId: await ubicacionPrincipalDeSucursal(tx, vista.destino.sucursalId),
           productoId: linea.productoId,
           tipo: 'transferencia_entrada',
           cantidad: recibida,
@@ -615,7 +640,7 @@ export async function rechazarTransferencia(
         usuarioId: datos.usuarioId,
         transferencia,
         sucursalId: vista.origen.sucursalId,
-        ubicacionId: vista.origen.id,
+        ubicacionId: await ubicacionPrincipalDeSucursal(tx, vista.origen.sucursalId),
         productoId: linea.productoId,
         tipo: 'transferencia_entrada',
         cantidad: linea.enviada,

@@ -440,7 +440,6 @@ export const api = {
       direccion?: string;
       telefono?: string;
       activa?: boolean;
-      ventaDesdeAlmacen?: boolean;
       descripcion?: string;
       tipoNegocio?: string;
       fotoUrl?: string;

@@ -1,5 +1,4 @@
 import { schema } from '@mostrador/db-cloud';
-import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hashearSecreto } from '../src/auth/password.js';
@@ -38,11 +37,6 @@ beforeAll(async () => {
   await vender(tokenCajero, semilla.sucursalId, producto('BEB-003').id, 1, 2500, 'tarjeta');
 
   // Una venta en la otra sucursal para comprobar el alcance.
-  await app.db
-    .update(schema.branches)
-    .set({ ventaDesdeAlmacen: true })
-    .where(eq(schema.branches.id, semilla.sucursalSecundariaId));
-
   const entrada = await app.inject({
     method: 'POST',
     url: '/api/v1/inventory/movements',

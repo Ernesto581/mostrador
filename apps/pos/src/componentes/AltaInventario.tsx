@@ -172,7 +172,7 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
                   >
                     <span className="alta-inventario__resultado-nombre">{producto.nombre}</span>
                     <span className="panel__nota">
-                      {producto.sku} · piso {producto.stock ?? 0}
+                      {producto.sku} · stock {producto.stock ?? 0}
                     </span>
                   </button>
                 ))}

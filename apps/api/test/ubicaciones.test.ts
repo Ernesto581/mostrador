@@ -6,12 +6,11 @@ import { sembrarDatosIniciales, type ResultadoSemilla } from '../src/db/seed.js'
 import { construirServidor } from '../src/server.js';
 
 /**
- * Ubicaciones: piso de venta, almacen y transferencias entre ellas.
+ * Inventario por sucursal.
  *
- * Las reglas de la especificacion: se vende solo del piso (salvo que el local lo
- * permita), el almacen no cuenta como disponible para vender, una transferencia
- * dentro del mismo local se confirma en un paso y una entre locales pasa por
- * despacho y recepcion.
+ * Internamente cada sucursal conserva piso de venta y almacen, pero la operacion
+ * es a nivel de sucursal: el stock se suma, la venta toma primero del piso y
+ * despues del almacen, y las transferencias son entre sucursales distintas.
  */
 
 let app: FastifyInstance;
@@ -62,7 +61,7 @@ function producto(sku: string): { id: string; precioVenta: number } {
   return encontrado;
 }
 
-/** Existencias de un producto en una sucursal, separadas en piso y almacen. */
+/** Existencias de un producto en una sucursal, con el total de la sucursal. */
 async function existencias(sku: string, sucursalId = semilla.sucursalId) {
   const respuesta = await app.inject({
     method: 'GET',
@@ -91,6 +90,21 @@ async function entrarAlAlmacen(sku: string, cantidad: number): Promise<void> {
   });
 }
 
+async function entrarSinUbicacion(sku: string, cantidad: number) {
+  return app.inject({
+    method: 'POST',
+    url: '/api/v1/inventory/movements',
+    headers: auth(),
+    payload: {
+      sucursalId: semilla.sucursalId,
+      productoId: producto(sku).id,
+      tipo: 'entrada_compra',
+      cantidad,
+      motivo: 'Compra de prueba',
+    },
+  });
+}
+
 async function vender(sku: string, cantidad: number) {
   return app.inject({
     method: 'POST',
@@ -104,17 +118,8 @@ async function vender(sku: string, cantidad: number) {
   });
 }
 
-async function fijarVentaDesdeAlmacen(activa: boolean): Promise<void> {
-  await app.inject({
-    method: 'PATCH',
-    url: `/api/v1/branches/${semilla.sucursalId}`,
-    headers: auth(),
-    payload: { ventaDesdeAlmacen: activa },
-  });
-}
-
-describe('piso de venta y almacen', () => {
-  it('la sucursal de ejemplo tiene piso de venta y almacen separados', async () => {
+describe('stock por sucursal', () => {
+  it('la sucursal de ejemplo conserva piso de venta y almacen internos', async () => {
     const [piso] = await app.db
       .select({ tipo: schema.warehouses.kind })
       .from(schema.warehouses)
@@ -128,62 +133,92 @@ describe('piso de venta y almacen', () => {
     expect(almacen?.tipo).toBe('almacen');
   });
 
-  it('una entrada de compra llega al almacen, no al piso de venta', async () => {
+  it('una entrada de compra suma al stock y entra al piso', async () => {
     const antes = await existencias('BEB-003');
-    await entrarAlAlmacen('BEB-003', 6);
-    const despues = await existencias('BEB-003');
-
-    expect(despues.almacen).toBe(antes.almacen + 6);
-    expect(despues.piso).toBe(antes.piso);
-  });
-
-  it('una venta descuenta solo del piso de venta', async () => {
-    await entrarAlAlmacen('BEB-001', 10);
-    const antes = await existencias('BEB-001');
-
-    const respuesta = await vender('BEB-001', 2);
+    const respuesta = await entrarSinUbicacion('BEB-003', 6);
     expect(respuesta.statusCode).toBe(201);
 
-    const despues = await existencias('BEB-001');
-    expect(despues.piso).toBe(antes.piso - 2);
+    const despues = await existencias('BEB-003');
+    expect(despues.total).toBe(antes.total + 6);
+    expect(despues.piso).toBe(antes.piso + 6);
     expect(despues.almacen).toBe(antes.almacen);
   });
 
-  it('no vende mas de lo que hay en el piso si el local no vende desde el almacen', async () => {
-    await fijarVentaDesdeAlmacen(false);
-    const piso = await existencias('BEB-001');
-
-    const respuesta = await vender('BEB-001', piso.piso + 1);
-    expect(respuesta.statusCode).toBe(409);
-    expect(respuesta.json().error.codigo).toBe('SIN_EXISTENCIA');
-  });
-
-  it('el catalogo del mostrador muestra solo lo que hay en el piso', async () => {
+  it('una merma sin ubicacion descuenta del stock de la sucursal', async () => {
+    const antes = await existencias('ABA-001');
     const respuesta = await app.inject({
-      method: 'GET',
-      url: `/api/v1/products/barcode/7501001100011?sucursalId=${semilla.sucursalId}`,
+      method: 'POST',
+      url: '/api/v1/inventory/movements',
       headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        productoId: producto('ABA-001').id,
+        tipo: 'merma',
+        cantidad: antes.total,
+        motivo: 'Conteo fisico',
+      },
     });
-    const piso = await existencias('BEB-001');
 
-    expect(respuesta.json().producto.stock).toBe(piso.piso);
+    expect(respuesta.statusCode).toBe(201);
+    expect((await existencias('ABA-001')).total).toBe(0);
   });
 
-  it('con venta desde almacen activa, la venta toma primero el piso y luego el almacen', async () => {
-    await fijarVentaDesdeAlmacen(true);
+  it('una salida manual toma del piso y despues del almacen', async () => {
+    await entrarAlAlmacen('DUL-003', 5);
+    const antes = await existencias('DUL-003');
+    const cantidad = antes.piso + 3;
+
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/movements',
+      headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        productoId: producto('DUL-003').id,
+        tipo: 'merma',
+        cantidad,
+        motivo: 'Conteo fisico',
+      },
+    });
+
+    expect(respuesta.statusCode).toBe(201);
+    const despues = await existencias('DUL-003');
+    expect(despues.piso).toBe(0);
+    expect(despues.almacen).toBe(antes.almacen - 3);
+    expect(despues.total).toBe(antes.total - cantidad);
+  });
+
+  it('una venta descuenta primero del piso y luego del almacen', async () => {
+    await entrarAlAlmacen('BEB-004', 5);
     const antes = await existencias('BEB-004');
     const cantidad = antes.piso + 2;
-    await entrarAlAlmacen('BEB-004', 5);
-    const conAlmacen = await existencias('BEB-004');
 
     const respuesta = await vender('BEB-004', cantidad);
     expect(respuesta.statusCode).toBe(201);
 
     const despues = await existencias('BEB-004');
     expect(despues.piso).toBe(0);
-    expect(despues.almacen).toBe(conAlmacen.almacen - 2);
+    expect(despues.almacen).toBe(antes.almacen - 2);
+    expect(despues.total).toBe(antes.total - cantidad);
+  });
 
-    await fijarVentaDesdeAlmacen(false);
+  it('no vende mas que el stock total de la sucursal', async () => {
+    const antes = await existencias('BEB-001');
+    const respuesta = await vender('BEB-001', antes.total + 1);
+    expect(respuesta.statusCode).toBe(409);
+    expect(respuesta.json().error.codigo).toBe('SIN_EXISTENCIA');
+  });
+
+  it('el catalogo del mostrador muestra el stock total de la sucursal', async () => {
+    await entrarAlAlmacen('BEB-001', 10);
+    const total = await existencias('BEB-001');
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: `/api/v1/products/barcode/7501001100011?sucursalId=${semilla.sucursalId}`,
+      headers: auth(),
+    });
+
+    expect(respuesta.json().producto.stock).toBe(total.total);
   });
 
   it('anular una venta devuelve la mercancia al piso de venta', async () => {
@@ -200,14 +235,12 @@ describe('piso de venta y almacen', () => {
     });
     expect(anulada.statusCode).toBe(200);
     expect((await existencias('BOT-002')).piso).toBe(antes.piso);
+    expect((await existencias('BOT-002')).total).toBe(antes.total);
   });
 });
 
-describe('transferencias dentro del mismo local', () => {
-  it('pasar del almacen al piso se confirma en un solo paso', async () => {
-    await entrarAlAlmacen('BOT-001', 4);
-    const antes = await existencias('BOT-001');
-
+describe('transferencias entre sucursales', () => {
+  it('rechaza mover mercancia dentro de la misma sucursal', async () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/inventory/transfers',
@@ -215,37 +248,14 @@ describe('transferencias dentro del mismo local', () => {
       payload: {
         origenUbicacionId: semilla.almacenId,
         destinoUbicacionId: semilla.pisoId,
-        motivo: 'Surtir el piso',
-        lineas: [{ productoId: producto('BOT-001').id, cantidad: 4 }],
+        lineas: [{ productoId: producto('BOT-001').id, cantidad: 1 }],
       },
     });
 
-    expect(respuesta.statusCode).toBe(201);
-    expect(respuesta.json().transferencia.estado).toBe('recibida');
-
-    const despues = await existencias('BOT-001');
-    expect(despues.almacen).toBe(antes.almacen - 4);
-    expect(despues.piso).toBe(antes.piso + 4);
+    expect(respuesta.statusCode).toBe(422);
+    expect(respuesta.json().error.codigo).toBe('MISMA_SUCURSAL');
   });
 
-  it('no permite pedir mas de lo que hay en el almacen', async () => {
-    const respuesta = await app.inject({
-      method: 'POST',
-      url: '/api/v1/inventory/transfers',
-      headers: auth(),
-      payload: {
-        origenUbicacionId: semilla.almacenId,
-        destinoUbicacionId: semilla.pisoId,
-        lineas: [{ productoId: producto('BOT-001').id, cantidad: 9999 }],
-      },
-    });
-
-    expect(respuesta.statusCode).toBe(409);
-    expect(respuesta.json().error.codigo).toBe('SIN_EXISTENCIA');
-  });
-});
-
-describe('transferencias entre locales', () => {
   it('el origen baja al despachar y el destino sube al recibir, con incidencia si llega menos', async () => {
     const origenAntes = await existencias('ABA-002');
     const destinoAntes = await existencias('ABA-002', semilla.sucursalSecundariaId);
@@ -263,7 +273,7 @@ describe('transferencias entre locales', () => {
     });
     const transferencia = creada.json().transferencia;
     expect(transferencia.estado).toBe('borrador');
-    expect((await existencias('ABA-002')).piso).toBe(origenAntes.piso);
+    expect((await existencias('ABA-002')).total).toBe(origenAntes.total);
 
     const despachada = await app.inject({
       method: 'POST',
@@ -271,9 +281,9 @@ describe('transferencias entre locales', () => {
       headers: auth(),
     });
     expect(despachada.json().transferencia.estado).toBe('en_transito');
-    expect((await existencias('ABA-002')).piso).toBe(origenAntes.piso - 5);
-    expect((await existencias('ABA-002', semilla.sucursalSecundariaId)).almacen).toBe(
-      destinoAntes.almacen,
+    expect((await existencias('ABA-002')).total).toBe(origenAntes.total - 5);
+    expect((await existencias('ABA-002', semilla.sucursalSecundariaId)).total).toBe(
+      destinoAntes.total,
     );
 
     const lineaId = despachada.json().transferencia.lineas[0].id;
@@ -287,9 +297,37 @@ describe('transferencias entre locales', () => {
     expect(recibida.json().transferencia.estado).toBe('recibida');
     expect(recibida.json().transferencia.hayIncidencia).toBe(true);
     expect(recibida.json().transferencia.lineas[0].recibida).toBe(4);
-    expect((await existencias('ABA-002', semilla.sucursalSecundariaId)).almacen).toBe(
-      destinoAntes.almacen + 4,
+    expect((await existencias('ABA-002', semilla.sucursalSecundariaId)).total).toBe(
+      destinoAntes.total + 4,
     );
+  });
+
+  it('el despacho toma tambien del almacen si el piso no alcanza', async () => {
+    await entrarAlAlmacen('BEB-002', 10);
+    const conAlmacen = await existencias('BEB-002');
+
+    const creada = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/transfers',
+      headers: auth(),
+      payload: {
+        origenUbicacionId: semilla.pisoId,
+        destinoUbicacionId: semilla.almacenSecundariaId,
+        lineas: [{ productoId: producto('BEB-002').id, cantidad: conAlmacen.piso + 2 }],
+      },
+    });
+    expect(creada.statusCode).toBe(201);
+
+    const despachada = await app.inject({
+      method: 'POST',
+      url: `/api/v1/inventory/transfers/${creada.json().transferencia.id}/dispatch`,
+      headers: auth(),
+    });
+    expect(despachada.statusCode).toBe(200);
+
+    const despues = await existencias('BEB-002');
+    expect(despues.piso).toBe(0);
+    expect(despues.total).toBe(conAlmacen.total - (conAlmacen.piso + 2));
   });
 
   it('rechazar devuelve la mercancia completa al origen', async () => {
@@ -315,8 +353,8 @@ describe('transferencias entre locales', () => {
     });
 
     expect(rechazada.json().transferencia.estado).toBe('rechazada');
-    expect((await existencias('ABA-003')).piso).toBe(origenAntes.piso);
-    expect((await existencias('ABA-003', semilla.sucursalSecundariaId)).almacen).toBe(0);
+    expect((await existencias('ABA-003')).total).toBe(origenAntes.total);
+    expect((await existencias('ABA-003', semilla.sucursalSecundariaId)).total).toBe(0);
   });
 
   it('solo se puede cancelar antes de despachar', async () => {
@@ -339,7 +377,7 @@ describe('transferencias entre locales', () => {
       headers: auth(),
     });
     expect(cancelada.json().transferencia.estado).toBe('cancelada');
-    expect((await existencias('ABA-004')).piso).toBe(origenAntes.piso);
+    expect((await existencias('ABA-004')).total).toBe(origenAntes.total);
 
     const despues = await app.inject({
       method: 'POST',

@@ -85,6 +85,37 @@ export async function ubicacionDeSucursal(
   return ubicacion.id;
 }
 
+/**
+ * Ubicacion principal de una sucursal: su piso de venta si lo tiene y, si no,
+ * la primera ubicacion activa. El inventario se maneja por sucursal, asi que
+ * las entradas siempre tienen un destino valido.
+ */
+export async function ubicacionPrincipalDeSucursal(
+  base: BaseDatos,
+  sucursalId: string,
+): Promise<string> {
+  const [ubicacion] = await base
+    .select({ id: schema.warehouses.id })
+    .from(schema.warehouses)
+    .where(
+      and(
+        eq(schema.warehouses.branchId, sucursalId),
+        isNull(schema.warehouses.deletedAt),
+        eq(schema.warehouses.active, true),
+      ),
+    )
+    .orderBy(
+      sql`case when ${schema.warehouses.kind} = 'piso_venta' then 0 else 1 end`,
+      asc(schema.warehouses.createdAt),
+    )
+    .limit(1);
+
+  if (!ubicacion) {
+    throw new ErrorNoEncontrado('La sucursal no tiene una ubicacion configurada');
+  }
+  return ubicacion.id;
+}
+
 /** Evita escribir en una ubicacion que pertenece a otra sucursal. */
 async function asegurarUbicacionDeSucursal(
   base: BaseDatos,
@@ -138,7 +169,7 @@ export async function aplicarMovimiento(
   entrada: EntradaMovimiento,
 ): Promise<MovimientoAplicado> {
   const almacenId =
-    entrada.almacenId ?? (await ubicacionDeSucursal(base, entrada.sucursalId, 'almacen'));
+    entrada.almacenId ?? (await ubicacionPrincipalDeSucursal(base, entrada.sucursalId));
   if (entrada.almacenId) {
     await asegurarUbicacionDeSucursal(base, entrada.almacenId, entrada.sucursalId);
   }
@@ -222,12 +253,74 @@ export async function aplicarMovimiento(
   };
 }
 
-/** Registra un movimiento suelto (compra, ajuste, merma, inventario inicial). */
+/**
+ * Registra un movimiento suelto (compra, ajuste, merma, inventario inicial).
+ *
+ * Si no se indica una ubicacion, el movimiento se resuelve por sucursal: las
+ * entradas van al piso de venta y las salidas toman primero del piso y despues
+ * del almacen. Asi el inventario se maneja por sucursal y no por ubicacion.
+ */
 export async function registrarMovimiento(
   db: Db,
   entrada: EntradaMovimiento,
 ): Promise<MovimientoAplicado> {
-  return db.transaction(async (tx) => aplicarMovimiento(tx, entrada));
+  return db.transaction(async (tx) => {
+    if (entrada.almacenId) {
+      return aplicarMovimiento(tx, entrada);
+    }
+
+    const signo = signoMovimiento(entrada.tipo as TipoMovimiento);
+    if (signo >= 0) {
+      return aplicarMovimiento(tx, {
+        ...entrada,
+        almacenId: await ubicacionPrincipalDeSucursal(tx, entrada.sucursalId),
+      });
+    }
+
+    const saldos = await tx
+      .select({
+        almacenId: schema.stockBalances.warehouseId,
+        cantidad: schema.stockBalances.quantity,
+      })
+      .from(schema.stockBalances)
+      .innerJoin(schema.warehouses, eq(schema.warehouses.id, schema.stockBalances.warehouseId))
+      .where(
+        and(
+          eq(schema.stockBalances.branchId, entrada.sucursalId),
+          eq(schema.stockBalances.productId, entrada.productoId),
+          eq(schema.warehouses.active, true),
+          isNull(schema.warehouses.deletedAt),
+          sql`${schema.stockBalances.quantity} > 0`,
+        ),
+      )
+      .orderBy(sql`case when ${schema.warehouses.kind} = 'piso_venta' then 0 else 1 end`);
+
+    const disponible = saldos.reduce((total, saldo) => total + Number(saldo.cantidad), 0);
+    if (disponible < entrada.cantidad) {
+      throw new ErrorDeAplicacion(
+        `No hay suficiente existencia: hay ${disponible} y se intentan mover ${entrada.cantidad}`,
+        409,
+        'SIN_EXISTENCIA',
+      );
+    }
+
+    let restante = entrada.cantidad;
+    let aplicado: MovimientoAplicado | undefined;
+    for (const saldo of saldos) {
+      if (restante === 0) {
+        break;
+      }
+      const cantidad = Math.min(restante, Number(saldo.cantidad));
+      aplicado = await aplicarMovimiento(tx, {
+        ...entrada,
+        almacenId: saldo.almacenId,
+        cantidad,
+      });
+      restante -= cantidad;
+    }
+
+    return aplicado!;
+  });
 }
 
 export interface FiltroStock {
@@ -304,14 +397,16 @@ export async function existenciasDeProductos(
   return existencias;
 }
 
-/** Disponible para vender en el piso de venta de la sucursal. */
+/** Disponible para vender: todo el stock de la sucursal, sin separar ubicaciones. */
 export async function stockDeProductos(
   base: BaseDatos,
   sucursalId: string,
   productoIds: readonly string[],
 ): Promise<Map<string, number>> {
   const existencias = await existenciasDeProductos(base, sucursalId, productoIds);
-  return new Map([...existencias].map(([id, existencia]) => [id, existencia.piso]));
+  return new Map(
+    [...existencias].map(([id, existencia]) => [id, existencia.piso + existencia.almacen]),
+  );
 }
 
 /** Productos activos de la empresa, con el filtro de busqueda aplicado. */

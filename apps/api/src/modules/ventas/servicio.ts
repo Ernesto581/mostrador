@@ -18,6 +18,7 @@ import {
   aplicarMovimiento,
   existenciasDeProductos,
   ubicacionDeSucursal,
+  ubicacionPrincipalDeSucursal,
 } from '../inventario/servicio.js';
 
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'transferencia';
@@ -180,12 +181,7 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
     );
 
     // No se vende mas de lo que hay: el inventario nunca queda en negativo.
-    // Por defecto solo cuenta el piso de venta; el almacen se usa si el local lo permite.
-    const [sucursalVenta] = await tx
-      .select({ ventaDesdeAlmacen: schema.branches.ventaDesdeAlmacen })
-      .from(schema.branches)
-      .where(eq(schema.branches.id, entrada.sucursalId))
-      .limit(1);
+    // El stock es de la sucursal completa, sin separar piso de venta y almacen.
     const existencias = await existenciasDeProductos(tx, entrada.sucursalId, idsProductos);
     const faltantes: string[] = [];
     for (const linea of totales.lineas) {
@@ -194,9 +190,7 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
         continue;
       }
       const existencia = existencias.get(linea.productoId) ?? { piso: 0, almacen: 0 };
-      const disponible = sucursalVenta?.ventaDesdeAlmacen
-        ? existencia.piso + existencia.almacen
-        : existencia.piso;
+      const disponible = existencia.piso + existencia.almacen;
       if (disponible < linea.cantidad) {
         faltantes.push(
           `${producto.nombre}: hay ${disponible} y se intentan vender ${linea.cantidad}`,
@@ -287,7 +281,8 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
       })),
     );
 
-    // Primero sale del piso de venta; el resto (solo si el local vende desde almacen) del almacen.
+    // La salida toma primero del piso de venta y el resto del almacen, pero el
+    // inventario se descuenta a nivel de sucursal.
     const restantePiso = new Map([...existencias].map(([id, existencia]) => [id, existencia.piso]));
     for (const linea of totales.lineas) {
       const producto = porId.get(linea.productoId)!;
@@ -394,8 +389,8 @@ export async function cancelarVenta(
     }
 
     const ahora = new Date();
-    // La mercancia cancelada regresa al piso de venta.
-    const pisoId = await ubicacionDeSucursal(tx, encontrada.venta.branchId, 'piso_venta');
+    // La mercancia cancelada regresa a la ubicacion principal de la sucursal.
+    const pisoId = await ubicacionPrincipalDeSucursal(tx, encontrada.venta.branchId);
 
     for (const linea of encontrada.lineas) {
       if (!linea.productId) {
@@ -550,8 +545,8 @@ export async function registrarDevolucion(
       })),
     );
 
-    // La mercancia devuelta regresa al piso de venta.
-    const pisoId = await ubicacionDeSucursal(tx, encontrada.venta.branchId, 'piso_venta');
+    // La mercancia devuelta regresa a la ubicacion principal de la sucursal.
+    const pisoId = await ubicacionPrincipalDeSucursal(tx, encontrada.venta.branchId);
 
     for (const item of aInsertar) {
       if (!item.reingresar || !item.linea.productId) {

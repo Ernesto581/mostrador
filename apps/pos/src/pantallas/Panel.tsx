@@ -5,7 +5,7 @@ import { dinero } from '../util/dinero';
 
 interface Props {
   sesion: Sesion;
-  onIr?: (seccion: 'inventario' | 'informes' | 'movimientos' | 'gastos') => void;
+  onIr?: (seccion: 'inventario' | 'informes' | 'movimientos') => void;
 }
 
 function rangoDeHoy(): { desde: string; hasta: string } {
@@ -18,8 +18,8 @@ function rangoDeHoy(): { desde: string; hasta: string } {
 /**
  * Resumen del día para quien administra.
  *
- * Ventas y alertas salen del servidor. Gastos y utilidad no se inventan:
- * todavía no hay un módulo que los calcule.
+ * Ventas y alertas salen del servidor. La utilidad todavía no se calcula:
+ * falta el costo de lo vendido en el listado de ventas.
  */
 export function Panel({ sesion, onIr }: Props) {
   const { desde, hasta } = rangoDeHoy();
@@ -39,7 +39,7 @@ export function Panel({ sesion, onIr }: Props) {
         <div>
           <h1 className="panel__titulo">Panel</h1>
           <p className="panel__nota">
-            Resumen de ventas, ingresos, gastos, utilidad y alertas de inventario.
+            Resumen de ventas, ingresos, utilidad y alertas de inventario.
             {' '}
             {sesion.empresa.nombre || 'El negocio'} · hoy
           </p>
@@ -60,19 +60,6 @@ export function Panel({ sesion, onIr }: Props) {
               ? ventas.error
               : `${completadas.length} ventas completadas · ticket medio ${dinero(ticketMedio)}`}
           </p>
-        </div>
-
-        <div className="tarjeta">
-          <p className="tarjeta__titulo">Gastos</p>
-          <p className="cifra-grande">—</p>
-          <p className="panel__nota">
-            El registro de gastos y compras todavía no guarda movimientos.
-          </p>
-          {onIr ? (
-            <button type="button" className="boton boton--fantasma" onClick={() => onIr('gastos')}>
-              Abrir gastos y compras
-            </button>
-          ) : null}
         </div>
 
         <div className="tarjeta">

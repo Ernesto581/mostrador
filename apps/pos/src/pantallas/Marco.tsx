@@ -5,7 +5,6 @@ import { IndicadorConexion } from '../componentes/IndicadorConexion';
 import { buscarActualizacion, versionActual, type VersionNueva } from '../servicios/actualizacion';
 import { Caja } from './Caja';
 import { Categorias } from './Categorias';
-import { Gastos } from './Gastos';
 import { Informes } from './Informes';
 import { Inventario } from './Inventario';
 import { Impresora } from './Impresora';
@@ -21,7 +20,6 @@ type Seccion =
   | 'inventario'
   | 'movimientos'
   | 'cajas'
-  | 'gastos'
   | 'informes'
   | 'mostrador'
   | 'caja'
@@ -108,7 +106,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
       id: 'panel',
       etiqueta: 'Panel',
       etiquetaCorta: 'Panel',
-      descripcion: 'Resumen de ventas, ingresos, gastos, utilidad y alertas de inventario.',
+      descripcion: 'Resumen de ventas, ingresos y alertas de inventario.',
       grupo: 'principal',
     },
     ...(permisos.has('catalog.manage')
@@ -135,7 +133,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             id: 'inventario' as const,
             etiqueta: 'Inventario',
             etiquetaCorta: 'Inventario',
-            descripcion: 'Existencias por ubicación, entradas, salidas, mermas y stock mínimo.',
+            descripcion: 'Existencias por sucursal, entradas, salidas, mermas y stock mínimo.',
             grupo: 'principal' as const,
           },
         ]
@@ -146,7 +144,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             id: 'movimientos' as const,
             etiqueta: 'Movimientos',
             etiquetaCorta: 'Movimientos',
-            descripcion: 'Entradas de mercancia y traslados entre tiendas y almacenes.',
+            descripcion: 'Entradas de mercancia y traslados entre sucursales.',
             grupo: 'principal' as const,
           },
         ]
@@ -158,17 +156,6 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             etiqueta: 'Cajas y turnos',
             etiquetaCorta: 'Cajas',
             descripcion: 'Aperturas, cierres, efectivo esperado, diferencias y pagos.',
-            grupo: 'principal' as const,
-          },
-        ]
-      : []),
-    ...(permisos.has('suppliers.manage') || permisos.has('accounting.close_period')
-      ? [
-          {
-            id: 'gastos' as const,
-            etiqueta: 'Gastos y compras',
-            etiquetaCorta: 'Gastos',
-            descripcion: 'Registro de gastos, compras a proveedores y cuentas asociadas.',
             grupo: 'principal' as const,
           },
         ]
@@ -240,12 +227,6 @@ function IconoSeccion({ seccion }: { seccion: Seccion }) {
       <>
         <path d="M3 9h18v11H3zM7 9V5h10v4" />
         <path d="M8 13h8" />
-      </>
-    ),
-    gastos: (
-      <>
-        <path d="M6 3h9l3 3v15H6z" />
-        <path d="M15 3v3h3M9 11h6M9 15h6M9 19h3" />
       </>
     ),
     informes: (
@@ -645,7 +626,6 @@ export function Marco({ sesion, onSalir }: Props) {
       {seccion?.id === 'movimientos' ? (
         <Inventario sesion={sesion} sucursalId={sucursalId} vista="movimientos" />
       ) : null}
-      {seccion?.id === 'gastos' ? <Gastos /> : null}
       {seccion?.id === 'informes' ? <Informes sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'usuarios' ? <Usuarios /> : null}

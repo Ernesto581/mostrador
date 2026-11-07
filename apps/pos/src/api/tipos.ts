@@ -30,8 +30,6 @@ export interface SucursalDelPanel {
   direccion: string | null;
   telefono: string | null;
   activa: boolean;
-  /** true: si el piso de venta no alcanza, el mostrador toma del almacen. */
-  ventaDesdeAlmacen: boolean;
   descripcion?: string | null;
   tipoNegocio?: string | null;
   fotoUrl?: string | null;

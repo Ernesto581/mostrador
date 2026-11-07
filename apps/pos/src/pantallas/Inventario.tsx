@@ -21,9 +21,9 @@ import {
 /**
  * Inventario general.
  *
- * En Productos se da de alta el catalogo (foto, codigos, costos y precios). En
- * Inventario se ven las existencias y el kardex. En Movimientos se agrega mercancia
- * a cada sucursal y se manejan los traslados entre tiendas y almacenes.
+ * En Productos se da de alta el catalogo (foto, codigos, costos y precios) y se
+ * consultan los movimientos de cada producto. En Inventario se ven las existencias.
+ * En Movimientos se agrega mercancia a cada sucursal y se manejan los traslados.
  */
 
 export type VistaMercancia = 'productos' | 'existencias' | 'movimientos';
@@ -46,8 +46,6 @@ interface FilaVista {
   precioCosto: number;
   precioVenta: number;
   stock: number;
-  piso?: number;
-  almacen?: number;
   stockMinimo: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
@@ -73,8 +71,8 @@ interface FormularioMovimiento {
 
 interface FormularioTransferencia {
   fila: FilaVista;
-  origenUbicacionId: string;
-  destinoUbicacionId: string;
+  origenSucursalId: string;
+  destinoSucursalId: string;
   cantidad: string;
   motivo: string;
 }
@@ -248,7 +246,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   );
 
   const puedeTransferir =
-    sesion.permisos.includes('inventory.transfer') && (datosUbicaciones?.ubicaciones.length ?? 0) > 1;
+    sesion.permisos.includes('inventory.transfer') && sesion.sucursales.length > 1;
 
   const filas = datos?.filas ?? [];
   const paginas = Math.max(1, Math.ceil(filas.length / porPagina));
@@ -425,7 +423,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     }
   }
 
-  /** Piso de venta de la sucursal (o su primera ubicacion): punto de partida de un traslado. */
+  /** Ubicacion interna que representa a la sucursal en una transferencia. */
   function ubicacionInicialDe(sucursal: string): string {
     const ubicaciones = datosUbicaciones?.ubicaciones ?? [];
     const ubicacion =
@@ -444,8 +442,19 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       setError('La cantidad debe ser un numero entero mayor a cero');
       return;
     }
-    if (!transferencia.destinoUbicacionId) {
-      setError('Elige la ubicacion de destino');
+    if (!transferencia.destinoSucursalId) {
+      setError('Elige la sucursal de destino');
+      return;
+    }
+    if (transferencia.destinoSucursalId === transferencia.origenSucursalId) {
+      setError('Elige dos sucursales distintas');
+      return;
+    }
+
+    const origenUbicacionId = ubicacionInicialDe(transferencia.origenSucursalId);
+    const destinoUbicacionId = ubicacionInicialDe(transferencia.destinoSucursalId);
+    if (!origenUbicacionId || !destinoUbicacionId) {
+      setError('Las sucursales todavia no tienen una ubicacion configurada');
       return;
     }
 
@@ -454,17 +463,15 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
 
     try {
       const { transferencia: creada } = await api.crearTransferencia({
-        origenUbicacionId: transferencia.origenUbicacionId,
-        destinoUbicacionId: transferencia.destinoUbicacionId,
+        origenUbicacionId,
+        destinoUbicacionId,
         ...(transferencia.motivo.trim() ? { motivo: transferencia.motivo.trim() } : {}),
         lineas: [{ productoId: transferencia.fila.productoId, cantidad }],
       });
 
       await Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
       cerrarConMensaje(
-        creada.estado === 'recibida'
-          ? `Movido dentro del local: ${cantidad} piezas (${creada.folio}).`
-          : `Transferencia ${creada.folio} creada. Despachala desde Movimientos cuando salga la mercancia.`,
+        `Transferencia ${creada.folio} creada. Despachala desde Movimientos cuando salga la mercancia.`,
       );
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -526,7 +533,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     );
   }
 
-  /** Se guardo una entrada desde Movimientos: refresca stock y kardex. */
+  /** Se guardo una entrada desde Movimientos: refresca stock y movimientos. */
   function alGuardarMovimiento(texto: string): void {
     setAltaAbierta(false);
     setOk(texto);
@@ -570,10 +577,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           </h1>
           <p className="panel__nota">
             {enProductos
-              ? `Catalogo de productos: foto, codigos de barras, costos, precios y stock. ${datos?.filas.length ?? 0} productos en el catalogo.`
+              ? `Catalogo de productos: foto, codigos de barras, costos, precios y stock. ${datos?.filas.length ?? 0} productos en el catalogo. Usa Movimientos en un producto para ver su historial.`
               : enMovimientos
-                ? 'Agrega mercancia a cada sucursal y controla los traslados entre tiendas y almacenes.'
-                : `Existencias por ubicación, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
+                ? 'Agrega mercancia a cada sucursal y controla los traslados entre sucursales.'
+                : `Existencias por sucursal, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
           </p>
         </div>
 
@@ -693,7 +700,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {enMovimientos ? (
         <section className="inventario__seccion">
           <div className="inventario__seccion-cabecera">
-            <h2 className="inventario__seccion-titulo">Traslados entre tiendas y almacenes</h2>
+            <h2 className="inventario__seccion-titulo">Traslados entre sucursales</h2>
             <p className="panel__nota">
               Se despachan desde el origen y se reciben en el destino.
             </p>
@@ -732,10 +739,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       ) : null}
                     </td>
                     <td>
-                      {fila.origen.sucursalCodigo} · {fila.origen.nombre}
+                      {fila.origen.sucursalCodigo} · {fila.origen.sucursalNombre}
                     </td>
                     <td>
-                      {fila.destino.sucursalCodigo} · {fila.destino.nombre}
+                      {fila.destino.sucursalCodigo} · {fila.destino.sucursalNombre}
                     </td>
                     <td>
                       {fila.lineas
@@ -934,12 +941,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       <span className={claseStock(fila)} title={estadoStock(fila)}>
                         {fila.stock}
                       </span>
-                      {!general && fila.piso !== undefined ? (
-                        <span className="panel__nota inventario__desglose">
-                          {' '}
-                          piso {fila.piso} · almacen {fila.almacen ?? 0}
-                        </span>
-                      ) : null}
                       <span className="solo-angosto inventario__estado-stock">{estadoStock(fila)}</span>
                     </td>
                     {general ? (
@@ -991,22 +992,22 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         <button
                           type="button"
                           className="boton"
+                          onClick={() => setKardex(fila)}
+                        >
+                          Movimientos
+                        </button>
+                      ) : null}
+
+                      {enProductos ? (
+                        <button
+                          type="button"
+                          className="boton"
                           onClick={() => {
                             setError(null);
                             setPorBorrar(fila);
                           }}
                         >
                           Borrar
-                        </button>
-                      ) : null}
-
-                      {!enProductos ? (
-                        <button
-                          type="button"
-                          className="boton accion-kardex"
-                          onClick={() => setKardex(fila)}
-                        >
-                          Kardex
                         </button>
                       ) : null}
 
@@ -1038,8 +1039,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                             setError(null);
                             setTransferencia({
                               fila,
-                              origenUbicacionId: ubicacionInicialDe(sucursalId),
-                              destinoUbicacionId: '',
+                              origenSucursalId: sucursalId,
+                              destinoSucursalId: '',
                               cantidad: '',
                               motivo: '',
                             });
@@ -1056,17 +1057,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         onAbrir={() => setMenuAbiertoId(fila.productoId)}
                         onCerrar={() => setMenuAbiertoId(null)}
                       >
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="menu-acciones__item menu-acciones__item--kardex"
-                          onClick={() => {
-                            setMenuAbiertoId(null);
-                            setKardex(fila);
-                          }}
-                        >
-                          Kardex
-                        </button>
                         {puedeMover && !enProductos ? (
                           <button
                             type="button"
@@ -1098,8 +1088,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                               setError(null);
                               setTransferencia({
                                 fila,
-                                origenUbicacionId: ubicacionInicialDe(sucursalId),
-                                destinoUbicacionId: '',
+                                origenSucursalId: sucursalId,
+                                destinoSucursalId: '',
                                 cantidad: '',
                                 motivo: '',
                               });
@@ -1167,7 +1157,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           nota={
             producto.id
               ? 'Los codigos y el stock inicial solo se capturan al crear. Para mover existencias usa Movimiento.'
-              : 'Si indicas stock inicial, eliges a que sucursal entra y queda registrado en el kardex.'
+              : 'Si indicas stock inicial, eliges a que sucursal entra y queda registrado en los movimientos.'
           }
           onCerrar={() => setProducto(null)}
         >
@@ -1364,7 +1354,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           onCerrar={() => setPorBorrar(null)}
         >
           <p className="panel__nota">
-            Se conservan las ventas, los movimientos y el kardex anteriores. Esta accion no
+            Se conservan las ventas y los movimientos anteriores. Esta accion no
             borra la historia, solo retira el producto del catalogo.
           </p>
           <div className="modal__acciones">
@@ -1447,7 +1437,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </label>
 
             <label className="campo-ancho campo-ancho--ancho">
-              <span>Motivo (queda en el kardex)</span>
+              <span>Motivo (queda en el historial)</span>
               <input
                 className="entrada"
                 placeholder="Ej. Compra a proveedor, producto vencido, conteo fisico"
@@ -1473,11 +1463,11 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </Modal>
       ) : null}
 
-      {/* ---------- Transferencia entre ubicaciones ---------- */}
+      {/* ---------- Transferencia entre sucursales ---------- */}
       {transferencia ? (
         <Modal
           titulo="Transferir stock"
-          nota={`${transferencia.fila.sku} · ${transferencia.fila.nombre} · hay ${transferencia.fila.stock} en total. Dentro del mismo local pasa al instante; entre locales se despacha y se recibe.`}
+          nota={`${transferencia.fila.sku} · ${transferencia.fila.nombre} · hay ${transferencia.fila.stock} en total. La mercancia sale de una sucursal y se recibe en otra.`}
           onCerrar={() => setTransferencia(null)}
         >
           <div className="formulario">
@@ -1485,18 +1475,20 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               <span>Desde</span>
               <select
                 className="entrada"
-                value={transferencia.origenUbicacionId}
+                value={transferencia.origenSucursalId}
                 onChange={(evento) =>
-                  setTransferencia({ ...transferencia, origenUbicacionId: evento.target.value })
+                  setTransferencia({
+                    ...transferencia,
+                    origenSucursalId: evento.target.value,
+                    destinoSucursalId: '',
+                  })
                 }
               >
-                {(datosUbicaciones?.ubicaciones ?? [])
-                  .filter((opcion) => opcion.sucursalActiva)
-                  .map((opcion) => (
-                    <option key={opcion.id} value={opcion.id}>
-                      {opcion.sucursalCodigo} · {opcion.nombre}
-                    </option>
-                  ))}
+                {sesion.sucursales.map((opcion) => (
+                  <option key={opcion.id} value={opcion.id}>
+                    {opcion.codigo} · {opcion.nombre}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1504,19 +1496,17 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               <span>Hacia</span>
               <select
                 className="entrada"
-                value={transferencia.destinoUbicacionId}
+                value={transferencia.destinoSucursalId}
                 onChange={(evento) =>
-                  setTransferencia({ ...transferencia, destinoUbicacionId: evento.target.value })
+                  setTransferencia({ ...transferencia, destinoSucursalId: evento.target.value })
                 }
               >
                 <option value="">Elige…</option>
-                {(datosUbicaciones?.ubicaciones ?? [])
-                  .filter(
-                    (opcion) => opcion.sucursalActiva && opcion.id !== transferencia.origenUbicacionId,
-                  )
+                {sesion.sucursales
+                  .filter((opcion) => opcion.id !== transferencia.origenSucursalId)
                   .map((opcion) => (
                     <option key={opcion.id} value={opcion.id}>
-                      {opcion.sucursalCodigo} · {opcion.nombre}
+                      {opcion.codigo} · {opcion.nombre}
                     </option>
                   ))}
               </select>
@@ -1640,11 +1630,11 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </Modal>
       ) : null}
 
-      {/* ---------- Kardex ---------- */}
+      {/* ---------- Movimientos del producto (solo desde Productos) ---------- */}
       {kardex ? (
         <Modal
-          titulo="Kardex"
-          nota={`${kardex.sku} · ${kardex.nombre} · la historia no se borra nunca`}
+          titulo="Movimientos del producto"
+          nota={`${kardex.sku} · ${kardex.nombre} · todo lo que entro y salio`}
           onCerrar={() => setKardex(null)}
         >
           {cargandoKardex ? <p className="panel__nota">Cargando…</p> : null}

@@ -1784,8 +1784,7 @@ button {
     overflow: visible;
   }
 
-  /* Las acciones se agrupan: el kardex tambien entra en el menu. */
-  .accion-kardex,
+  /* Las acciones se agrupan en el menu de tres puntos. */
   .accion-movimiento,
   .accion-transferir {
     display: none;
@@ -1945,7 +1944,7 @@ button {
     transform: translateY(1px);
   }
 
-  /* El kardex se queda a la vista: es la consulta mas comun. */
+  /* Editar y Movimientos se quedan a la vista; el resto va al menu. */
   .accion-movimiento,
   .accion-transferir {
     display: none;
@@ -2761,7 +2760,6 @@ button {
     display: none;
   }
 
-  .accion-kardex,
   .accion-movimiento,
   .accion-transferir {
     display: none;
