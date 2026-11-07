@@ -287,7 +287,11 @@ export function Vender({ sesion, sucursalId }: Props) {
       return;
     }
 
-    setProcesando(true);
+    if (!sucursal) {
+      setAviso('No se encontro la sucursal de la sesion. Vuelve a entrar.');
+      return;
+    }
+
     setAviso(null);
 
     const lineas = carrito.map((linea) => ({
@@ -298,10 +302,29 @@ export function Vender({ sesion, sucursalId }: Props) {
         : {}),
     }));
 
+    const vendidoEn = new Date();
+
+    // El folio se genera ANTES de llamar al servidor. Si la respuesta se pierde, la
+    // venta se guarda en la cola con el mismo folio: al reintentarla, el servidor la
+    // reconoce como duplicada y no la cobra ni descuenta el stock dos veces.
+    let folio: string;
+    try {
+      folio = await siguienteFolioLocal(sucursal.codigo, vendidoEn);
+    } catch {
+      setAviso(
+        'No se pudo preparar la venta en el telefono. Revisa el almacenamiento e intentalo de nuevo.',
+      );
+      return;
+    }
+
+    setProcesando(true);
+
     try {
       const { venta: registrada } = await api.registrarVenta({
         sucursalId,
         turnoId: turno.id,
+        folio,
+        vendidoEn: vendidoEn.toISOString(),
         lineas,
         pagos: pagosEnviar,
       });
@@ -315,7 +338,7 @@ export function Vender({ sesion, sucursalId }: Props) {
       // Si se cayo el internet, la venta no se pierde: se guarda en el telefono y se
       // sube sola al recuperar la senal.
       if (fallo instanceof ErrorApi && fallo.codigo === 'SIN_CONEXION') {
-        await guardarVentaSinConexion(lineas, pagosEnviar);
+        await guardarVentaSinConexion(lineas, pagosEnviar, folio, vendidoEn);
         return;
       }
       setAviso(fallo instanceof ErrorApi ? fallo.message : 'No se pudo cerrar la venta');
@@ -324,16 +347,17 @@ export function Vender({ sesion, sucursalId }: Props) {
     }
   }
 
-  /** Guarda la venta en el telefono, con su folio, para subirla despues. */
+  /** Guarda la venta en el telefono, con el folio ya reservado, para subirla despues. */
   async function guardarVentaSinConexion(
     lineas: { productoId: string; cantidad: number; descuentoPorcentaje?: number }[],
     pagosEnviar: { metodo: MetodoPago; monto: number }[],
+    folio: string,
+    vendidoEn: Date,
   ): Promise<void> {
-    if (!totales || !turno || !sucursal) {
+    if (!totales || !turno) {
       return;
     }
 
-    const vendidoEn = new Date();
     const cobro = calcularCobro(
       totales.total,
       pagosEnviar.map((pago) => ({ metodo: pago.metodo, monto: centavos(pago.monto) })),
@@ -341,14 +365,6 @@ export function Vender({ sesion, sucursalId }: Props) {
     // El identificador de la venta no puede repetirse: IndexedDB reemplaza la venta
     // que tenga el mismo id.
     const id = `local-${vendidoEn.getTime()}-${Math.random().toString(36).slice(2, 10)}`;
-
-    let folio: string;
-    try {
-      folio = await siguienteFolioLocal(sucursal.codigo, vendidoEn);
-    } catch {
-      setAviso('No se pudo guardar la venta en el telefono. No la cierres: revisa el almacenamiento.');
-      return;
-    }
 
     const ventaLocal: VentaRespuesta = {
       id,

@@ -542,9 +542,9 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
 
   function repartoDe(fila: FilaVista): string {
     if (!fila.reparto || fila.reparto.length === 0) {
-      return 'â€”';
+      return '—';
     }
-    return fila.reparto.map((parte) => `${parte.codigo} ${parte.cantidad}`).join(' Â· ');
+    return fila.reparto.map((parte) => `${parte.codigo} ${parte.cantidad}`).join(' · ');
   }
 
   return (
@@ -645,7 +645,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
 
       {enTransferencias ? (
         <div className="tabla-envoltura inventario__tabla-envoltura">
-          {cargandoTransferencias ? <p className="panel__nota">Cargandoâ€¦</p> : null}
+          {cargandoTransferencias ? <p className="panel__nota">Cargando…</p> : null}
           <table className="tabla">
             <thead>
               <tr>
@@ -678,16 +678,16 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       ) : null}
                     </td>
                     <td>
-                      {fila.origen.sucursalCodigo} Â· {fila.origen.nombre}
+                      {fila.origen.sucursalCodigo} · {fila.origen.nombre}
                     </td>
                     <td>
-                      {fila.destino.sucursalCodigo} Â· {fila.destino.nombre}
+                      {fila.destino.sucursalCodigo} · {fila.destino.nombre}
                     </td>
                     <td>
                       {fila.lineas
-                        .map((linea) => `${linea.nombre} Ã— ${linea.enviada}`)
+                        .map((linea) => `${linea.nombre} × ${linea.enviada}`)
                         .join(', ')}
-                      {fila.motivo ? <span className="panel__nota"> Â· {fila.motivo}</span> : null}
+                      {fila.motivo ? <span className="panel__nota"> · {fila.motivo}</span> : null}
                     </td>
                     <td>{ETIQUETA_ESTADO[fila.estado] ?? fila.estado}</td>
                     <td className="col-acciones">
@@ -764,7 +764,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </div>
       ) : null}
 
-      {!enTransferencias && cargando ? <p className="panel__nota">Cargandoâ€¦</p> : null}
+      {!enTransferencias && cargando ? <p className="panel__nota">Cargando…</p> : null}
 
       {!enTransferencias && !cargando && filas.length === 0 ? (
         <div className="tarjeta">
@@ -824,7 +824,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       {!general && fila.piso !== undefined ? (
                         <span className="panel__nota inventario__desglose">
                           {' '}
-                          piso {fila.piso} Â· almacen {fila.almacen ?? 0}
+                          piso {fila.piso} · almacen {fila.almacen ?? 0}
                         </span>
                       ) : null}
                       <span className="solo-angosto inventario__estado-stock">{estadoStock(fila)}</span>
@@ -845,7 +845,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                     </td>
                     <td className="numero col-venta">{dinero(fila.precioVenta)}</td>
                     <td className="col-categoria">
-                      {fila.categoriaId ? nombrePorCategoria.get(fila.categoriaId) ?? 'â€”' : 'â€”'}
+                      {fila.categoriaId ? nombrePorCategoria.get(fila.categoriaId) ?? '—' : '—'}
                     </td>
                     <td className="col-acciones">
                       <div className="acciones-fila">
@@ -1007,7 +1007,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
 
           <div className="inventario__paginacion">
             <span className="inventario__conteo">
-              Mostrando {indicePrimero}â€“{indiceUltimo} de {filas.length} productos
+              Mostrando {indicePrimero}–{indiceUltimo} de {filas.length} productos
             </span>
             <div className="inventario__pagina-controles">
               <button
@@ -1017,7 +1017,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                 disabled={paginaActual <= 1}
                 aria-label="Pagina anterior"
               >
-                â€¹
+                ‹
               </button>
               <span className="inventario__pagina-actual">{paginaActual}</span>
               <button
@@ -1027,7 +1027,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                 disabled={paginaActual >= paginas}
                 aria-label="Pagina siguiente"
               >
-                â€º
+                ›
               </button>
               <label className="inventario__por-pagina">
                 <span>Por pagina</span>
@@ -1211,7 +1211,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                     setProducto({ ...producto, sucursalId: evento.target.value })
                   }
                 >
-                  <option value="">Elegir sucursalâ€¦</option>
+                  <option value="">Elegir sucursal…</option>
                   {sesion.sucursales.map((opcion) => (
                     <option key={opcion.id} value={opcion.id}>
                   {opcion.nombre}
@@ -1238,7 +1238,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               onClick={() => void guardarProducto()}
               disabled={guardando}
             >
-              {guardando ? 'Guardandoâ€¦' : 'Guardar'}
+              {guardando ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
         </Modal>
@@ -1274,7 +1274,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {formulario ? (
         <Modal
           titulo="Registrar movimiento"
-          nota={`${formulario.fila.sku} Â· ${formulario.fila.nombre} Â· hay ${formulario.fila.stock} en total`}
+          nota={`${formulario.fila.sku} · ${formulario.fila.nombre} · hay ${formulario.fila.stock} en total`}
           onCerrar={() => setFormulario(null)}
         >
           <div className="formulario">
@@ -1354,7 +1354,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               onClick={() => void registrarMovimiento()}
               disabled={guardando}
             >
-              {guardando ? 'Guardandoâ€¦' : 'Registrar'}
+              {guardando ? 'Guardando…' : 'Registrar'}
             </button>
           </div>
         </Modal>
@@ -1364,7 +1364,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {transferencia ? (
         <Modal
           titulo="Transferir stock"
-          nota={`${transferencia.fila.sku} Â· ${transferencia.fila.nombre} Â· hay ${transferencia.fila.stock} en total. Dentro del mismo local pasa al instante; entre locales se despacha y se recibe.`}
+          nota={`${transferencia.fila.sku} · ${transferencia.fila.nombre} · hay ${transferencia.fila.stock} en total. Dentro del mismo local pasa al instante; entre locales se despacha y se recibe.`}
           onCerrar={() => setTransferencia(null)}
         >
           <div className="formulario">
@@ -1381,7 +1381,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   .filter((opcion) => opcion.sucursalActiva)
                   .map((opcion) => (
                     <option key={opcion.id} value={opcion.id}>
-                      {opcion.sucursalCodigo} Â· {opcion.nombre}
+                      {opcion.sucursalCodigo} · {opcion.nombre}
                     </option>
                   ))}
               </select>
@@ -1396,14 +1396,14 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   setTransferencia({ ...transferencia, destinoUbicacionId: evento.target.value })
                 }
               >
-                <option value="">Eligeâ€¦</option>
+                <option value="">Elige…</option>
                 {(datosUbicaciones?.ubicaciones ?? [])
                   .filter(
                     (opcion) => opcion.sucursalActiva && opcion.id !== transferencia.origenUbicacionId,
                   )
                   .map((opcion) => (
                     <option key={opcion.id} value={opcion.id}>
-                      {opcion.sucursalCodigo} Â· {opcion.nombre}
+                      {opcion.sucursalCodigo} · {opcion.nombre}
                     </option>
                   ))}
               </select>
@@ -1443,7 +1443,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               onClick={() => void transferir()}
               disabled={guardando}
             >
-              {guardando ? 'Transfiriendoâ€¦' : 'Transferir'}
+              {guardando ? 'Transfiriendo…' : 'Transferir'}
             </button>
           </div>
         </Modal>
@@ -1453,14 +1453,14 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {recepcion ? (
         <Modal
           titulo="Recibir transferencia"
-          nota={`${recepcion.transferencia.folio} Â· escribe lo que realmente llego. Si llega menos, queda marcada como incidencia.`}
+          nota={`${recepcion.transferencia.folio} · escribe lo que realmente llego. Si llega menos, queda marcada como incidencia.`}
           onCerrar={() => setRecepcion(null)}
         >
           <div className="formulario">
             {recepcion.transferencia.lineas.map((linea) => (
               <label className="campo-ancho" key={linea.id}>
                 <span>
-                  {linea.sku} Â· {linea.nombre} (enviadas {linea.enviada})
+                  {linea.sku} · {linea.nombre} (enviadas {linea.enviada})
                 </span>
                 <input
                   className="entrada entrada--numero"
@@ -1487,7 +1487,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               onClick={() => void confirmarRecepcion()}
               disabled={guardando}
             >
-              {guardando ? 'Guardandoâ€¦' : 'Confirmar recepcion'}
+              {guardando ? 'Guardando…' : 'Confirmar recepcion'}
             </button>
           </div>
         </Modal>
@@ -1497,7 +1497,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {rechazo ? (
         <Modal
           titulo="Rechazar transferencia"
-          nota={`${rechazo.transferencia.folio} Â· la mercancia regresa completa a ${rechazo.transferencia.origen.sucursalCodigo} Â· ${rechazo.transferencia.origen.nombre}`}
+          nota={`${rechazo.transferencia.folio} · la mercancia regresa completa a ${rechazo.transferencia.origen.sucursalCodigo} · ${rechazo.transferencia.origen.nombre}`}
           onCerrar={() => setRechazo(null)}
         >
           <div className="formulario">
@@ -1521,7 +1521,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               onClick={() => void confirmarRechazo()}
               disabled={guardando}
             >
-              {guardando ? 'Guardandoâ€¦' : 'Rechazar'}
+              {guardando ? 'Guardando…' : 'Rechazar'}
             </button>
           </div>
         </Modal>
@@ -1531,10 +1531,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {kardex ? (
         <Modal
           titulo="Kardex"
-          nota={`${kardex.sku} Â· ${kardex.nombre} Â· la historia no se borra nunca`}
+          nota={`${kardex.sku} · ${kardex.nombre} · la historia no se borra nunca`}
           onCerrar={() => setKardex(null)}
         >
-          {cargandoKardex ? <p className="panel__nota">Cargandoâ€¦</p> : null}
+          {cargandoKardex ? <p className="panel__nota">Cargando…</p> : null}
 
           {(datosKardex?.movimientos ?? []).length === 0 && !cargandoKardex ? (
             <p className="vacio">Este producto todavia no tiene movimientos.</p>
@@ -1561,7 +1561,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                           ? `âˆ’${movimiento.cantidad}`
                           : `+${movimiento.cantidad}`}
                       </td>
-                      <td>{movimiento.motivo ?? 'â€”'}</td>
+                      <td>{movimiento.motivo ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

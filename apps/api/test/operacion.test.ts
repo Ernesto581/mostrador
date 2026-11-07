@@ -258,6 +258,114 @@ describe('catalogo', () => {
     expect(respuesta.statusCode).toBe(403);
     expect(respuesta.json().error.codigo).toBe('SIN_PERMISO');
   });
+
+  it('retira un producto del catalogo y libera su codigo de barras', async () => {
+    const creado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: auth(),
+      payload: {
+        sku: 'BOR-001',
+        nombre: 'Producto para borrar',
+        precioCosto: 1000,
+        precioVenta: 1500,
+        stockMinimo: 0,
+        codigosBarras: ['8888888888888'],
+        stockInicial: 3,
+        sucursalId: semilla.sucursalId,
+      },
+    });
+    expect(creado.statusCode).toBe(201);
+    const id = creado.json().producto.id as string;
+
+    const borrado = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/products/${id}`,
+      headers: auth(),
+    });
+    expect(borrado.statusCode).toBe(200);
+    expect(borrado.json().producto.borrado).toBe(true);
+
+    // Ya no aparece en el catalogo ni al escanear su codigo.
+    const listado = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products?buscar=BOR-001',
+      headers: auth(),
+    });
+    expect(listado.json().productos).toHaveLength(0);
+
+    const escaneo = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products/barcode/8888888888888',
+      headers: auth(),
+    });
+    expect(escaneo.statusCode).toBe(404);
+
+    // El codigo quedo libre para asignarlo a otro producto.
+    const nuevo = await app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: auth(),
+      payload: {
+        sku: 'BOR-002',
+        nombre: 'Producto con el codigo reutilizado',
+        codigosBarras: ['8888888888888'],
+      },
+    });
+    expect(nuevo.statusCode).toBe(201);
+  });
+});
+
+describe('categorias', () => {
+  it('renombrar conserva el padre y permite quitarlo de forma explicita', async () => {
+    const padre = await app.inject({
+      method: 'POST',
+      url: '/api/v1/categories',
+      headers: auth(),
+      payload: { nombre: 'Padre de prueba' },
+    });
+    expect(padre.statusCode).toBe(201);
+    const padreId = padre.json().categoria.id as string;
+
+    const hija = await app.inject({
+      method: 'POST',
+      url: '/api/v1/categories',
+      headers: auth(),
+      payload: { nombre: 'Hija de prueba', categoriaPadreId: padreId },
+    });
+    expect(hija.statusCode).toBe(201);
+    const hijaId = hija.json().categoria.id as string;
+
+    // Renombrar sin mandar el padre no debe borrar la jerarquia.
+    const renombrada = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/categories/${hijaId}`,
+      headers: auth(),
+      payload: { nombre: 'Hija renombrada' },
+    });
+    expect(renombrada.statusCode).toBe(200);
+
+    const lista = await app.inject({ method: 'GET', url: '/api/v1/categories', headers: auth() });
+    const fila = (lista.json().categorias as { id: string; padreId: string | null }[]).find(
+      (categoria) => categoria.id === hijaId,
+    );
+    expect(fila?.padreId).toBe(padreId);
+
+    // Mandar null de forma explicita si quita el padre.
+    const sinPadre = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/categories/${hijaId}`,
+      headers: auth(),
+      payload: { categoriaPadreId: null },
+    });
+    expect(sinPadre.statusCode).toBe(200);
+
+    const despues = await app.inject({ method: 'GET', url: '/api/v1/categories', headers: auth() });
+    const limpia = (despues.json().categorias as { id: string; padreId: string | null }[]).find(
+      (categoria) => categoria.id === hijaId,
+    );
+    expect(limpia?.padreId).toBeNull();
+  });
 });
 
 describe('inventario', () => {
@@ -706,5 +814,39 @@ describe('ventas', () => {
 
     expect(respuesta.statusCode).toBe(409);
     expect(respuesta.json().error.codigo).toBe('CANTIDAD_EXCEDIDA');
+  });
+
+  it('no duplica la venta cuando el telefono reintenta el mismo folio', async () => {
+    const folio = 'CENTRO-20261107-9001-ABCD';
+    const antes = await stockDe('ABA-001');
+
+    const payload = {
+      sucursalId: semilla.sucursalId,
+      folio,
+      lineas: [{ productoId: producto('ABA-001').id, cantidad: 1 }],
+      pagos: [{ metodo: 'efectivo', monto: 100000 }],
+    };
+
+    const primera = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sales',
+      headers: authCajero(),
+      payload,
+    });
+    expect(primera.statusCode).toBe(201);
+    expect(primera.json().venta.folio).toBe(folio);
+    expect(await stockDe('ABA-001')).toBe(antes - 1);
+
+    // El telefono perdio la respuesta y reintenta con el mismo folio: el servidor
+    // reconoce que ya existe y no vuelve a cobrar ni a descontar stock.
+    const reintento = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sales',
+      headers: authCajero(),
+      payload,
+    });
+    expect(reintento.statusCode).toBe(409);
+    expect(reintento.json().error.codigo).toBe('DUPLICADO');
+    expect(await stockDe('ABA-001')).toBe(antes - 1);
   });
 });

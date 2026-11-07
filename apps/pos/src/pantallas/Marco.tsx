@@ -427,7 +427,7 @@ export function Marco({ sesion, onSalir }: Props) {
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
   // Si la seccion guardada no existe para esta cuenta, se muestra la primera.
   const seccion = opciones.find((opcion) => opcion.id === pestana) ?? opciones[0];
-  const lema = admin ? 'administraciÃ³n' : 'punto de venta';
+  const lema = admin ? 'administración' : 'punto de venta';
 
   // El menu solo tiene sentido en el telefono: si la ventana se agranda (o el
   // telefono se acuesta y ya cabe la barra completa) se cierra solo.
@@ -558,7 +558,7 @@ export function Marco({ sesion, onSalir }: Props) {
             aria-label="Cerrar el menu"
             onClick={() => setMenuAbierto(false)}
           >
-            Ã—
+            ×
           </button>
         </div>
 
@@ -577,14 +577,14 @@ export function Marco({ sesion, onSalir }: Props) {
               >
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} Â· {opcion.nombre}
+                    {opcion.codigo} · {opcion.nombre}
                   </option>
                 ))}
               </select>
             </label>
           ) : (
             <span className="vendedor">
-              {sucursal?.codigo} Â· {sucursal?.nombre}
+              {sucursal?.codigo} · {sucursal?.nombre}
             </span>
           )}
 
@@ -604,7 +604,7 @@ export function Marco({ sesion, onSalir }: Props) {
               onClick={() => void revisar()}
               disabled={revision === 'revisando'}
             >
-              {revision === 'revisando' ? 'Revisandoâ€¦' : 'Buscar actualizacion'}
+              {revision === 'revisando' ? 'Revisando…' : 'Buscar actualizacion'}
             </button>
             {revision === 'aldia' ? (
               <span className="menu-lateral__nota">Esta es la ultima version</span>

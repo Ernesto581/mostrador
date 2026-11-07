@@ -51,6 +51,18 @@ const esquemaCrearCategoria = z.object({
   categoriaPadreId: z.string().min(1).optional(),
 });
 
+/**
+ * Edicion de una categoria.
+ *
+ * Los campos son opcionales a proposito: si el cliente solo manda el nombre (como
+ * hace la pantalla de categorias), el padre se queda como estaba. Para quitar el
+ * padre hay que mandar `categoriaPadreId: null` de forma explicita.
+ */
+const esquemaEditarCategoria = z.object({
+  nombre: z.string().trim().min(1).max(120).optional(),
+  categoriaPadreId: z.string().min(1).nullable().optional(),
+});
+
 export async function rutasCatalogo(app: FastifyInstance) {
   const preHandler = exigirSesion(app);
   const { products, productBarcodes, categories } = schema;
@@ -294,6 +306,54 @@ export async function rutasCatalogo(app: FastifyInstance) {
     return { producto: { id, actualizado: true } };
   });
 
+  app.delete('/products/:id', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
+    const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
+
+    const [existente] = await app.db
+      .select({ id: products.id })
+      .from(products)
+      .where(
+        and(
+          eq(products.id, id),
+          eq(products.companyId, sesion.empresaId),
+          isNull(products.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!existente) {
+      throw new ErrorNoEncontrado('El producto no existe');
+    }
+
+    // Se retira del catalogo sin perder la historia: las ventas, los movimientos y
+    // el kardex siguen apuntando al producto. Los codigos de barras si se borran
+    // para que otro producto pueda reutilizarlos; la venta guarda su propia copia.
+    await app.db.transaction(async (tx) => {
+      await tx
+        .update(products)
+        .set({
+          deletedAt: new Date(),
+          active: false,
+          updatedAt: new Date(),
+          revision: sql`${products.revision} + 1`,
+        })
+        .where(eq(products.id, id));
+
+      await tx
+        .delete(productBarcodes)
+        .where(
+          and(
+            eq(productBarcodes.productId, id),
+            eq(productBarcodes.companyId, sesion.empresaId),
+          ),
+        );
+    });
+
+    return { producto: { id, borrado: true } };
+  });
+
   app.post('/products/:id/barcodes', { preHandler: [preHandler] }, async (request, reply) => {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
@@ -353,10 +413,10 @@ export async function rutasCatalogo(app: FastifyInstance) {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
     const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
-    const datos = validar(esquemaCrearCategoria, request.body);
+    const datos = validar(esquemaEditarCategoria, request.body);
 
     const [existente] = await app.db
-      .select({ id: categories.id })
+      .select({ id: categories.id, nombre: categories.name })
       .from(categories)
       .where(
         and(
@@ -374,14 +434,20 @@ export async function rutasCatalogo(app: FastifyInstance) {
     await app.db
       .update(categories)
       .set({
-        name: datos.nombre,
-        parentId: datos.categoriaPadreId ?? null,
+        ...(datos.nombre !== undefined ? { name: datos.nombre } : {}),
+        ...(datos.categoriaPadreId !== undefined ? { parentId: datos.categoriaPadreId } : {}),
         updatedAt: new Date(),
         revision: sql`${categories.revision} + 1`,
       })
       .where(eq(categories.id, id));
 
-    return { categoria: { id, nombre: datos.nombre, actualizada: true } };
+    return {
+      categoria: {
+        id,
+        nombre: datos.nombre ?? existente.nombre,
+        actualizada: true,
+      },
+    };
   });
 
   app.delete('/categories/:id', { preHandler: [preHandler] }, async (request) => {

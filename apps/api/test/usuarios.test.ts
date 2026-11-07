@@ -182,6 +182,75 @@ describe('usuarios', () => {
     expect(sesion.statusCode).toBe(401);
   });
 
+  it('no deja a la empresa sin una cuenta administradora', async () => {
+    const lista = await app.inject({ method: 'GET', url: '/api/v1/users', headers: auth() });
+    const admin = (lista.json().usuarios as { id: string; username: string }[]).find(
+      (usuario) => usuario.username === 'ernesto',
+    );
+    expect(admin).toBeDefined();
+
+    const degradar = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/users/${admin!.id}`,
+      headers: auth(),
+      payload: { rol: 'cajero' },
+    });
+    expect(degradar.statusCode).toBe(409);
+    expect(degradar.json().error.codigo).toBe('ULTIMO_ADMINISTRADOR');
+
+    const desactivar = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/users/${admin!.id}`,
+      headers: auth(),
+      payload: { activo: false },
+    });
+    expect(desactivar.statusCode).toBe(409);
+    expect(desactivar.json().error.codigo).toBe('ULTIMO_ADMINISTRADOR');
+  });
+
+  it('permite cambiar a un administrador cuando queda otro activo', async () => {
+    const creado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/users',
+      headers: auth(),
+      payload: {
+        username: 'admin2',
+        nombre: 'Administrador Dos',
+        password: 'admin12345',
+        rol: 'administrador',
+        sucursalIds: [semilla.sucursalId],
+      },
+    });
+    expect(creado.statusCode).toBe(201);
+    const admin2 = creado.json().usuario.id as string;
+
+    // Desactivarlo esta permitido porque "ernesto" sigue administrando.
+    const desactivar = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/users/${admin2}`,
+      headers: auth(),
+      payload: { activo: false },
+    });
+    expect(desactivar.statusCode).toBe(200);
+
+    // Se reactiva y se degrada: tambien esta permitido.
+    const reactivar = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/users/${admin2}`,
+      headers: auth(),
+      payload: { activo: true },
+    });
+    expect(reactivar.statusCode).toBe(200);
+
+    const degradar = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/users/${admin2}`,
+      headers: auth(),
+      payload: { rol: 'cajero' },
+    });
+    expect(degradar.statusCode).toBe(200);
+  });
+
   it('entrega roles y sucursales para el formulario', async () => {
     const listaRoles = await app.inject({ method: 'GET', url: '/api/v1/roles', headers: auth() });
     const listaSucursales = await app.inject({ method: 'GET', url: '/api/v1/branches', headers: auth() });

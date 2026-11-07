@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   Categoria,
   CierreCaja,
   DetalleVenta,
@@ -99,7 +99,7 @@ async function pedir<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<
       : undefined;
 
     const mensaje = error
-      ? [error.mensaje, error.detalle].filter(Boolean).join(' â€” ')
+      ? [error.mensaje, error.detalle].filter(Boolean).join(' — ')
       : esJson
         ? 'No se pudo completar la operacion'
         : `El servidor respondio una pagina en vez de datos (HTTP ${respuesta.status}). El API no esta publicado en esta direccion.`;

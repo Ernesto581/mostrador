@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../api/cliente';
 import type { SucursalDelPanel } from '../api/tipos';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
@@ -193,7 +193,7 @@ export function Sucursales() {
 
       <Aviso error={error ?? errorLista} ok={ok} />
 
-      {cargando ? <p className="panel__nota">Cargandoâ€¦</p> : null}
+      {cargando ? <p className="panel__nota">Cargando…</p> : null}
 
       {!cargando && sucursales.length === 0 ? (
         <div className="tarjeta">
@@ -220,7 +220,7 @@ export function Sucursales() {
                   <td className="codigo" data-label="Codigo">{sucursal.codigo}</td>
                   <td data-label="Nombre">{sucursal.nombre}</td>
                   <td data-label="Tipo">{sucursal.tipo === 'almacen' ? 'Bodega' : 'Tienda'}</td>
-                  <td data-label="Direccion">{sucursal.direccion ?? 'â€”'}</td>
+                  <td data-label="Direccion">{sucursal.direccion ?? '—'}</td>
                   <td data-label="Estado">
                     <span className={sucursal.activa ? 'insignia insignia--ok' : 'insignia insignia--agotado'}>
                       {sucursal.activa ? 'Activa' : 'Inactiva'}
@@ -466,7 +466,7 @@ export function Sucursales() {
               onClick={() => void guardar()}
               disabled={guardando}
             >
-              {guardando ? 'Guardandoâ€¦' : 'Guardar'}
+              {guardando ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
         </Modal>
@@ -479,7 +479,7 @@ export function Sucursales() {
           onCerrar={() => setPorQuitar(null)}
         >
           <p className="panel__nota">
-            Â¿Seguro que quieres quitar <strong>{porQuitar.nombre}</strong>?
+            ¿Seguro que quieres quitar <strong>{porQuitar.nombre}</strong>?
           </p>
           <p className="panel__nota">
             Si todavia tiene mercancia en existencia, el sistema no la dejara quitar: primero mueve
@@ -496,7 +496,7 @@ export function Sucursales() {
               onClick={() => void quitar()}
               disabled={guardando}
             >
-              {guardando ? 'Quitandoâ€¦' : 'Si, quitarla'}
+              {guardando ? 'Quitando…' : 'Si, quitarla'}
             </button>
           </div>
         </Modal>

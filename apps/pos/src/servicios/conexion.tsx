@@ -43,6 +43,32 @@ const Contexto = createContext<EstadoConexion | null>(null);
 const ESPERA_EN_LINEA = 30_000;
 const ESPERA_SIN_LINEA = 8_000;
 
+export type DecisionDeFallo = 'ya-existe' | 'rechazada' | 'reintentar';
+
+/**
+ * Que hacer con una venta de la cola segun la respuesta del servidor.
+ *
+ * - `ya-existe`: el servidor ya la tenia (mismo folio), asi que no se sube dos veces.
+ * - `rechazada`: el servidor la rechazo por un motivo definitivo (4xx). Se marca para
+ *   que el dueno la revise, pero NO frena a las ventas que vienen detras.
+ * - `reintentar`: no hubo respuesta o el servidor fallo (red, 5xx). Se intenta luego.
+ */
+export function decidirAnteFallo(fallo: unknown): DecisionDeFallo {
+  if (!(fallo instanceof ErrorApi)) {
+    return 'reintentar';
+  }
+
+  if (fallo.codigo === 'DUPLICADO') {
+    return 'ya-existe';
+  }
+
+  if (fallo.status >= 400 && fallo.status < 500) {
+    return 'rechazada';
+  }
+
+  return 'reintentar';
+}
+
 export function ProveedorConexion({ children }: { children: ReactNode }) {
   const [enLinea, setEnLinea] = useState(true);
   const [revisando, setRevisando] = useState(true);
@@ -68,6 +94,11 @@ export function ProveedorConexion({ children }: { children: ReactNode }) {
 
     try {
       for (const venta of cola) {
+        // Las rechazadas esperan a que el dueno las revise y pulse "Reintentar".
+        if (venta.error) {
+          continue;
+        }
+
         try {
           await api.registrarVenta({
             sucursalId: venta.sucursalId,
@@ -79,22 +110,26 @@ export function ProveedorConexion({ children }: { children: ReactNode }) {
           });
           quitarDeLaCola(venta.id);
         } catch (fallo) {
-          const codigo = fallo instanceof ErrorApi ? fallo.codigo : 'ERROR';
+          const decision = decidirAnteFallo(fallo);
 
-          if (codigo === 'DUPLICADO') {
-            // Ya estaba en el servidor: no se sube dos veces.
+          if (decision === 'ya-existe') {
+            // El servidor ya tenia esta venta: no se sube dos veces.
             quitarDeLaCola(venta.id);
             continue;
           }
 
-          if (fallo instanceof ErrorApi && fallo.status === 409) {
-            // El servidor la rechaza por un motivo de negocio (por ejemplo, ya no hay
-            // existencia). No se pierde: queda marcada para que el dueno la resuelva.
-            marcarErrorEnCola(venta.id, fallo.message);
+          if (decision === 'rechazada') {
+            // Rechazo definitivo (datos invalidos, sin existencia, sin acceso...). No
+            // se pierde: queda marcada para que el dueno la resuelva. Se sigue con la
+            // siguiente para que una venta mala no bloquee toda la cola.
+            marcarErrorEnCola(
+              venta.id,
+              fallo instanceof Error ? fallo.message : 'El servidor rechazo la venta',
+            );
             continue;
           }
 
-          // Se cayo la conexion otra vez: se intenta despues.
+          // Sin conexion o error del servidor: se intenta despues.
           break;
         }
       }

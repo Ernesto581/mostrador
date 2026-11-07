@@ -194,11 +194,35 @@ export async function rutasUsuarios(app: FastifyInstance) {
 
     const usuario = await buscarUsuario(app, sesion.empresaId, id);
 
+    // Antes de tocar nada: si esta cuenta administra y el cambio le quita esa
+    // capacidad (o la desactiva), tiene que quedar otra cuenta activa que administre.
+    // Si no, nadie podria volver a crear usuarios ni corregir nada.
+    const permisosActuales = await permisosDeUsuario(app, usuario.id);
+    const administraActualmente = permisosActuales.includes(PERMISOS.GESTIONAR_USUARIOS);
+
+    let rolNuevo: Awaited<ReturnType<typeof buscarRol>> | null = null;
     if (datos.rol) {
-      const rol = await buscarRol(app, sesion.empresaId, datos.rol);
+      rolNuevo = await buscarRol(app, sesion.empresaId, datos.rol);
+    }
+
+    const dejaDeAdministrar =
+      rolNuevo !== null && !rolNuevo.permisos.includes(PERMISOS.GESTIONAR_USUARIOS);
+
+    if (administraActualmente && (dejaDeAdministrar || datos.activo === false)) {
+      const otros = await contarOtrosAdministradores(app, sesion.empresaId, usuario.id);
+      if (otros === 0) {
+        throw new ErrorDeAplicacion(
+          'Es la unica cuenta que puede administrar usuarios. Crea o activa otra antes de cambiarla.',
+          409,
+          'ULTIMO_ADMINISTRADOR',
+        );
+      }
+    }
+
+    if (rolNuevo) {
       await app.db.transaction(async (tx) => {
         await tx.delete(userRoles).where(eq(userRoles.userId, usuario.id));
-        await tx.insert(userRoles).values({ userId: usuario.id, roleId: rol.id });
+        await tx.insert(userRoles).values({ userId: usuario.id, roleId: rolNuevo.id });
       });
     }
 
@@ -248,33 +272,13 @@ export async function rutasUsuarios(app: FastifyInstance) {
 
     // Si esta cuenta administra, tiene que quedar al menos otra: si no, nadie podria
     // volver a crear cuentas ni corregir nada.
-    const permisosDelUsuario = await app.db
-      .select({ permisos: roles.permissions })
-      .from(userRoles)
-      .innerJoin(roles, eq(roles.id, userRoles.roleId))
-      .where(eq(userRoles.userId, usuario.id));
-
-    const administra = permisosDelUsuario.some((fila) =>
-      fila.permisos.includes(PERMISOS.GESTIONAR_USUARIOS),
+    const administra = (await permisosDeUsuario(app, usuario.id)).includes(
+      PERMISOS.GESTIONAR_USUARIOS,
     );
 
     if (administra) {
-      const [otras] = await app.db
-        .select({ total: sql<number>`count(distinct ${users.id})` })
-        .from(users)
-        .innerJoin(userRoles, eq(userRoles.userId, users.id))
-        .innerJoin(roles, eq(roles.id, userRoles.roleId))
-        .where(
-          and(
-            eq(users.companyId, sesion.empresaId),
-            ne(users.id, usuario.id),
-            eq(users.active, true),
-            isNull(users.deletedAt),
-            sql`${PERMISOS.GESTIONAR_USUARIOS} = any(${roles.permissions})`,
-          ),
-        );
-
-      if (Number(otras?.total ?? 0) === 0) {
+      const otras = await contarOtrosAdministradores(app, sesion.empresaId, usuario.id);
+      if (otras === 0) {
         throw new ErrorDeAplicacion(
           'Es la unica cuenta que puede administrar usuarios. Crea otra antes de borrarla.',
           409,
@@ -308,6 +312,42 @@ export async function rutasUsuarios(app: FastifyInstance) {
   });
 }
 
+async function permisosDeUsuario(app: FastifyInstance, usuarioId: string): Promise<string[]> {
+  const { userRoles, roles } = schema;
+  const filas = await app.db
+    .select({ permisos: roles.permissions })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(eq(userRoles.userId, usuarioId));
+
+  return filas.flatMap((fila) => fila.permisos);
+}
+
+/** Cuenta las cuentas activas que pueden administrar usuarios, sin contar una dada. */
+async function contarOtrosAdministradores(
+  app: FastifyInstance,
+  empresaId: string,
+  excluirUsuarioId: string,
+): Promise<number> {
+  const { users, userRoles, roles } = schema;
+  const [fila] = await app.db
+    .select({ total: sql<number>`count(distinct ${users.id})` })
+    .from(users)
+    .innerJoin(userRoles, eq(userRoles.userId, users.id))
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(
+      and(
+        eq(users.companyId, empresaId),
+        ne(users.id, excluirUsuarioId),
+        eq(users.active, true),
+        isNull(users.deletedAt),
+        sql`${PERMISOS.GESTIONAR_USUARIOS} = any(${roles.permissions})`,
+      ),
+    );
+
+  return Number(fila?.total ?? 0);
+}
+
 async function buscarUsuario(app: FastifyInstance, empresaId: string, usuarioId: string) {
   const { users } = schema;
   const [usuario] = await app.db
@@ -325,7 +365,7 @@ async function buscarUsuario(app: FastifyInstance, empresaId: string, usuarioId:
 async function buscarRol(app: FastifyInstance, empresaId: string, codigo: string) {
   const { roles } = schema;
   const [rol] = await app.db
-    .select({ id: roles.id, nombre: roles.name })
+    .select({ id: roles.id, nombre: roles.name, permisos: roles.permissions })
     .from(roles)
     .where(and(eq(roles.companyId, empresaId), eq(roles.code, codigo), isNull(roles.deletedAt)))
     .limit(1);
