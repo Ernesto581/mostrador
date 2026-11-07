@@ -19,7 +19,7 @@ type Seccion =
   | 'panel'
   | 'productos'
   | 'inventario'
-  | 'transferencias'
+  | 'movimientos'
   | 'cajas'
   | 'gastos'
   | 'informes'
@@ -143,10 +143,10 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
     ...(permisos.has('inventory.transfer')
       ? [
           {
-            id: 'transferencias' as const,
-            etiqueta: 'Transferencias',
-            etiquetaCorta: 'Transferencias',
-            descripcion: 'Traslados de productos entre tiendas y almacenes.',
+            id: 'movimientos' as const,
+            etiqueta: 'Movimientos',
+            etiquetaCorta: 'Movimientos',
+            descripcion: 'Entradas de mercancia y traslados entre tiendas y almacenes.',
             grupo: 'principal' as const,
           },
         ]
@@ -230,7 +230,7 @@ function IconoSeccion({ seccion }: { seccion: Seccion }) {
         <path d="M3 8v9l9 5 9-5V8M12 13v9" />
       </>
     ),
-    transferencias: (
+    movimientos: (
       <>
         <path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" />
         <path d="M17 4.5V9M7 15v4.5" />
@@ -642,8 +642,8 @@ export function Marco({ sesion, onSalir }: Props) {
           {...(admin ? { vista: 'existencias' as const } : {})}
         />
       ) : null}
-      {seccion?.id === 'transferencias' ? (
-        <Inventario sesion={sesion} sucursalId={sucursalId} vista="transferencias" />
+      {seccion?.id === 'movimientos' ? (
+        <Inventario sesion={sesion} sucursalId={sucursalId} vista="movimientos" />
       ) : null}
       {seccion?.id === 'gastos' ? <Gastos /> : null}
       {seccion?.id === 'informes' ? <Informes sesion={sesion} sucursalId={sucursalId} /> : null}

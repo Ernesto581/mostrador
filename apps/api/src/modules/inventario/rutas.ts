@@ -48,13 +48,17 @@ const booleanoDeConsulta = z.preprocess(
 const esquemaConsultaStock = z.object({
   sucursalId: z.string().min(1),
   buscar: z.string().trim().max(120).optional(),
+  categoriaId: z.string().min(1).optional(),
   soloBajoMinimo: booleanoDeConsulta.optional(),
+  soloAgotados: booleanoDeConsulta.optional(),
   limite: z.coerce.number().int().min(1).max(500).optional(),
 });
 
 const esquemaConsultaStockGeneral = z.object({
   buscar: z.string().trim().max(120).optional(),
+  categoriaId: z.string().min(1).optional(),
   soloBajoMinimo: booleanoDeConsulta.optional(),
+  soloAgotados: booleanoDeConsulta.optional(),
   limite: z.coerce.number().int().min(1).max(500).optional(),
 });
 
@@ -145,7 +149,9 @@ export async function rutasInventario(app: FastifyInstance) {
       empresaId: sesion.empresaId,
       sucursalId: consulta.sucursalId,
       buscar: consulta.buscar,
+      categoriaId: consulta.categoriaId,
       soloBajoMinimo: consulta.soloBajoMinimo,
+      soloAgotados: consulta.soloAgotados,
       limite: consulta.limite,
     });
 
@@ -185,7 +191,9 @@ export async function rutasInventario(app: FastifyInstance) {
       empresaId: sesion.empresaId,
       sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id),
       buscar: consulta.buscar,
+      categoriaId: consulta.categoriaId,
       soloBajoMinimo: consulta.soloBajoMinimo,
+      soloAgotados: consulta.soloAgotados,
       limite: consulta.limite,
     });
 

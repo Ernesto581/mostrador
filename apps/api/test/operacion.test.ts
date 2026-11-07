@@ -382,6 +382,59 @@ describe('inventario', () => {
     expect(skus).not.toContain('ABA-001');
   });
 
+  it('filtra las existencias por categoria', async () => {
+    const categorias = await app.inject({
+      method: 'GET',
+      url: '/api/v1/categories',
+      headers: auth(),
+    });
+    const botanas = (categorias.json().categorias as { id: string; nombre: string }[]).find(
+      (categoria) => categoria.nombre === 'Botanas',
+    );
+    expect(botanas).toBeDefined();
+
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: `/api/v1/inventory/stock?sucursalId=${semilla.sucursalId}&categoriaId=${botanas!.id}`,
+      headers: auth(),
+    });
+
+    const filas = respuesta.json().stock as { sku: string; categoriaId: string }[];
+    expect(filas.length).toBeGreaterThan(0);
+    expect(filas.every((fila) => fila.categoriaId === botanas!.id)).toBe(true);
+    expect(filas.map((fila) => fila.sku)).toContain('BOT-003');
+    expect(filas.map((fila) => fila.sku)).not.toContain('ABA-001');
+  });
+
+  it('filtra solo los productos agotados', async () => {
+    const antes = await stockDe('ABA-006');
+    const vaciado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/movements',
+      headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        almacenId: semilla.pisoId,
+        productoId: producto('ABA-006').id,
+        tipo: 'ajuste_negativo',
+        cantidad: antes,
+        motivo: 'Conteo fisico: sin existencia',
+      },
+    });
+    expect(vaciado.statusCode).toBe(201);
+    expect(await stockDe('ABA-006')).toBe(0);
+
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: '/api/v1/inventory/stock-general?soloAgotados=true',
+      headers: auth(),
+    });
+
+    const skus = (respuesta.json().stock as { sku: string }[]).map((fila) => fila.sku);
+    expect(skus).toContain('ABA-006');
+    expect(skus).not.toContain('ABA-001');
+  });
+
   it('registra una entrada de compra y sube el stock', async () => {
     const antes = await stockDe('ABA-005');
     const respuesta = await app.inject({

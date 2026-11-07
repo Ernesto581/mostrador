@@ -5,7 +5,7 @@ import { dinero } from '../util/dinero';
 
 interface Props {
   sesion: Sesion;
-  onIr?: (seccion: 'inventario' | 'informes' | 'transferencias' | 'gastos') => void;
+  onIr?: (seccion: 'inventario' | 'informes' | 'movimientos' | 'gastos') => void;
 }
 
 function rangoDeHoy(): { desde: string; hasta: string } {
@@ -24,7 +24,7 @@ function rangoDeHoy(): { desde: string; hasta: string } {
 export function Panel({ sesion, onIr }: Props) {
   const { desde, hasta } = rangoDeHoy();
   const ventas = useCarga(() => api.ventas({ desde, hasta, limite: 200 }), []);
-  const alertas = useCarga(() => api.stockGeneral(undefined, true, 8), []);
+  const alertas = useCarga(() => api.stockGeneral({ soloBajoMinimo: true, limite: 8 }), []);
   const traslados = useCarga(() => api.transferencias({ estado: 'en_transito', limite: 20 }), []);
 
   const completadas = (ventas.datos?.ventas ?? []).filter((venta) => venta.estado === 'completada');
@@ -119,7 +119,7 @@ export function Panel({ sesion, onIr }: Props) {
         </div>
 
         <div className="tarjeta">
-          <p className="tarjeta__titulo">Transferencias en tránsito</p>
+          <p className="tarjeta__titulo">Traslados en tránsito</p>
           {traslados.cargando ? <p className="panel__nota">Cargando…</p> : null}
           {traslados.error ? <p className="panel__nota">{traslados.error}</p> : null}
           {!traslados.cargando && !traslados.error && enTransito.length === 0 ? (
@@ -132,8 +132,8 @@ export function Panel({ sesion, onIr }: Props) {
             </div>
           ))}
           {onIr && enTransito.length > 0 ? (
-            <button type="button" className="boton boton--fantasma" onClick={() => onIr('transferencias')}>
-              Ver transferencias
+            <button type="button" className="boton boton--fantasma" onClick={() => onIr('movimientos')}>
+              Ver movimientos
             </button>
           ) : null}
         </div>

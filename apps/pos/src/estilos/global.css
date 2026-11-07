@@ -2261,6 +2261,97 @@ button {
   stroke-linejoin: round;
 }
 
+/* Filtros del inventario: buscador, categoria y casillas en la misma fila. */
+.inventario__filtros {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.inventario__filtros .buscador {
+  flex: 1 1 14rem;
+}
+
+.inventario__filtros .selector {
+  max-width: 15rem;
+}
+
+/* Secciones de Movimientos: entradas recientes y traslados. */
+.inventario__seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.inventario__seccion-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+
+.inventario__seccion-titulo {
+  margin: 0;
+  font-family: var(--fuente-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--texto-tenue);
+}
+
+/* Agregar producto al inventario desde el catalogo. */
+.alta-inventario__elegido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--tinta-borde);
+  border-radius: var(--radio-chico);
+  background: var(--tinta-media);
+}
+
+.alta-inventario__nombre {
+  margin: 0;
+  font-weight: 600;
+}
+
+.alta-inventario__resultados {
+  display: flex;
+  flex-direction: column;
+  max-height: 15rem;
+  overflow-y: auto;
+  border: 1px solid var(--tinta-borde);
+  border-radius: var(--radio-chico);
+  background: var(--tinta-alta);
+}
+
+.alta-inventario__resultado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--tinta-borde);
+  background: transparent;
+  color: var(--texto);
+  text-align: left;
+}
+
+.alta-inventario__resultado:last-child {
+  border-bottom: 0;
+}
+
+.alta-inventario__resultado:hover {
+  background: var(--tinta-media);
+}
+
+.alta-inventario__resultado-nombre {
+  font-size: 0.9rem;
+}
+
 @media (min-width: 1024px) {
   .app {
     min-height: 100vh;
@@ -2534,7 +2625,7 @@ button {
   }
 
   .inventario__busqueda {
-    display: block;
+    display: flex;
   }
 
   .inventario__titulo-principal {
@@ -2786,11 +2877,35 @@ button {
   }
 
   .inventario__filtro-minimo {
-    grid-column: 1 / -1;
     display: flex;
     align-items: center;
     min-height: 42px;
     padding-inline: 0.15rem;
+  }
+
+  .inventario__filtros {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .inventario__filtros .buscador {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+
+  .inventario__filtros .selector {
+    width: 100%;
+    max-width: none;
+  }
+
+  .inventario__filtros .opcion-casilla {
+    min-height: 42px;
+    padding-inline: 0.15rem;
+  }
+
+  .inventario__seccion-cabecera {
+    flex-direction: column;
   }
 
   .inventario__categorias,

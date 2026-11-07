@@ -234,7 +234,9 @@ export interface FiltroStock {
   empresaId: string;
   sucursalId: string;
   buscar?: string | undefined;
+  categoriaId?: string | undefined;
   soloBajoMinimo?: boolean | undefined;
+  soloAgotados?: boolean | undefined;
   limite?: number | undefined;
 }
 
@@ -315,7 +317,12 @@ export async function stockDeProductos(
 /** Productos activos de la empresa, con el filtro de busqueda aplicado. */
 async function listarProductos(
   base: BaseDatos,
-  filtro: { empresaId: string; buscar?: string | undefined; limite?: number | undefined },
+  filtro: {
+    empresaId: string;
+    buscar?: string | undefined;
+    categoriaId?: string | undefined;
+    limite?: number | undefined;
+  },
 ) {
   const condiciones = [
     eq(schema.products.companyId, filtro.empresaId),
@@ -331,6 +338,9 @@ async function listarProductos(
         sql`${schema.products.sku} ilike ${comoTexto}`,
       )!,
     );
+  }
+  if (filtro.categoriaId) {
+    condiciones.push(eq(schema.products.categoryId, filtro.categoriaId));
   }
 
   return base
@@ -356,6 +366,7 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
   const productos = await listarProductos(base, {
     empresaId: filtro.empresaId,
     buscar: filtro.buscar,
+    categoriaId: filtro.categoriaId,
     limite: filtro.limite,
   });
 
@@ -389,7 +400,10 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
     };
   });
 
-  return filtro.soloBajoMinimo ? resultado.filter((fila) => fila.bajoMinimo) : resultado;
+  return resultado.filter(
+    (fila) =>
+      (!filtro.soloBajoMinimo || fila.bajoMinimo) && (!filtro.soloAgotados || fila.stock <= 0),
+  );
 }
 
 export interface FiltroStockGeneral {
@@ -397,7 +411,9 @@ export interface FiltroStockGeneral {
   /** Sucursales a las que la sesion tiene acceso. Vacio = ninguna. */
   sucursalIds?: string[] | undefined;
   buscar?: string | undefined;
+  categoriaId?: string | undefined;
   soloBajoMinimo?: boolean | undefined;
+  soloAgotados?: boolean | undefined;
   limite?: number | undefined;
 }
 
@@ -437,6 +453,7 @@ export async function stockGeneral(
   const productos = await listarProductos(base, {
     empresaId: filtro.empresaId,
     buscar: filtro.buscar,
+    categoriaId: filtro.categoriaId,
     limite: filtro.limite,
   });
 
@@ -509,7 +526,10 @@ export async function stockGeneral(
     };
   });
 
-  return filtro.soloBajoMinimo ? resultado.filter((fila) => fila.bajoMinimo) : resultado;
+  return resultado.filter(
+    (fila) =>
+      (!filtro.soloBajoMinimo || fila.bajoMinimo) && (!filtro.soloAgotados || fila.stock <= 0),
+  );
 }
 
 export interface FiltroMovimientos {

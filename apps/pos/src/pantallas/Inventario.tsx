@@ -8,19 +8,25 @@ import type {
   TipoMovimiento,
   Transferencia,
 } from '../api/tipos';
+import { AltaInventario } from '../componentes/AltaInventario';
 import { MenuAcciones } from '../componentes/MenuAcciones';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
 import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
+import {
+  ETIQUETA_MOVIMIENTO,
+  MOVIMIENTOS_QUE_RESTAN,
+  TIPOS_MANUALES,
+} from '../util/movimientos';
 
 /**
  * Inventario general.
  *
- * Es la unica pantalla de mercancia: aqui se dan de alta los productos (con sus
- * categorias y codigos de barras) y aqui se ven las existencias, se registran entradas,
- * mermas y ajustes, se transfiere entre sucursales y se consulta el kardex.
+ * En Productos se da de alta el catalogo (foto, codigos, costos y precios). En
+ * Inventario se ven las existencias y el kardex. En Movimientos se agrega mercancia
+ * a cada sucursal y se manejan los traslados entre tiendas y almacenes.
  */
 
-export type VistaMercancia = 'productos' | 'existencias' | 'transferencias';
+export type VistaMercancia = 'productos' | 'existencias' | 'movimientos';
 
 interface Props {
   sesion: Sesion;
@@ -55,36 +61,6 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   rechazada: 'Rechazada',
   cancelada: 'Cancelada',
 };
-
-const TIPOS: { valor: TipoMovimiento; etiqueta: string }[] = [
-  { valor: 'entrada_compra', etiqueta: 'Entrada por compra' },
-  { valor: 'merma', etiqueta: 'Merma (se perdio o se rompio)' },
-  { valor: 'ajuste_positivo', etiqueta: 'Ajuste que suma' },
-  { valor: 'ajuste_negativo', etiqueta: 'Ajuste que resta' },
-  { valor: 'devolucion_proveedor', etiqueta: 'Devolucion a proveedor' },
-  { valor: 'inventario_inicial', etiqueta: 'Inventario inicial' },
-];
-
-const ETIQUETA_TIPO: Record<string, string> = {
-  inventario_inicial: 'Inventario inicial',
-  entrada_compra: 'Entrada por compra',
-  salida_venta: 'Venta',
-  devolucion_cliente: 'Devolucion de cliente',
-  devolucion_proveedor: 'Devolucion a proveedor',
-  ajuste_positivo: 'Ajuste que suma',
-  ajuste_negativo: 'Ajuste que resta',
-  merma: 'Merma',
-  transferencia_entrada: 'Entrada por transferencia',
-  transferencia_salida: 'Salida por transferencia',
-};
-
-const RESTAN = new Set([
-  'salida_venta',
-  'devolucion_proveedor',
-  'ajuste_negativo',
-  'merma',
-  'transferencia_salida',
-]);
 
 interface FormularioMovimiento {
   fila: FilaVista;
@@ -199,13 +175,17 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(25);
   const [soloBajoMinimo, setSoloBajoMinimo] = useState(false);
+  const [soloAgotados, setSoloAgotados] = useState(false);
+  const [categoriaId, setCategoriaId] = useState('');
   const [formulario, setFormulario] = useState<FormularioMovimiento | null>(null);
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
   const [recepcion, setRecepcion] = useState<FormularioRecepcion | null>(null);
   const [rechazo, setRechazo] = useState<FormularioRechazo | null>(null);
-  const [verTransferencias, setVerTransferencias] = useState(false);
-  const enTransferencias = vista === 'transferencias' || (vista === undefined && verTransferencias);
+  const [verMovimientos, setVerMovimientos] = useState(false);
+  const [altaAbierta, setAltaAbierta] = useState(false);
+  const enMovimientos = vista === 'movimientos' || (vista === undefined && verMovimientos);
   const enProductos = vista === 'productos';
+  const enExistencias = !enProductos && !enMovimientos;
   const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
   const [porBorrar, setPorBorrar] = useState<FilaVista | null>(null);
@@ -221,13 +201,21 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const puedeCatalogo = sesion.permisos.includes('catalog.manage');
 
   const { datos, cargando, error: errorLista, recargar } = useCarga(async () => {
+    const filtros = {
+      buscar,
+      ...(categoriaId ? { categoriaId } : {}),
+      soloBajoMinimo,
+      soloAgotados,
+      limite: 500,
+    };
+
     if (general) {
-      const respuesta = await api.stockGeneral(buscar, soloBajoMinimo, 500);
+      const respuesta = await api.stockGeneral(filtros);
       return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
     }
-    const respuesta = await api.stock(sucursalId, buscar, soloBajoMinimo, 500);
+    const respuesta = await api.stock(sucursalId, filtros);
     return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
-  }, [general, buscar, soloBajoMinimo, sucursalId]);
+  }, [general, buscar, categoriaId, soloBajoMinimo, soloAgotados, sucursalId]);
 
   const { datos: datosKardex, cargando: cargandoKardex } = useCarga(
     () =>
@@ -247,6 +235,18 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const { datos: datosTransferencias, cargando: cargandoTransferencias, recargar: recargarTransferencias } =
     useCarga(() => api.transferencias({ limite: 100 }), []);
 
+  const {
+    datos: datosMovimientos,
+    cargando: cargandoMovimientos,
+    recargar: recargarMovimientos,
+  } = useCarga(
+    () =>
+      enMovimientos
+        ? api.movimientos({ limite: 60 })
+        : Promise.resolve({ movimientos: [] as Movimiento[] }),
+    [enMovimientos],
+  );
+
   const puedeTransferir =
     sesion.permisos.includes('inventory.transfer') && (datosUbicaciones?.ubicaciones.length ?? 0) > 1;
 
@@ -259,11 +259,12 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const indiceUltimo = Math.min(inicio + porPagina, filas.length);
   const categorias: Categoria[] = datosCategorias?.categorias ?? [];
   const nombrePorCategoria = new Map(categorias.map((categoria) => [categoria.id, categoria.nombre]));
-  // const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
+  const movimientos = datosMovimientos?.movimientos ?? [];
+  const nombrePorSucursal = new Map(sesion.sucursales.map((opcion) => [opcion.id, opcion.nombre]));
 
   useEffect(() => {
     setPagina(1);
-  }, [buscar, general, sucursalId, soloBajoMinimo, porPagina]);
+  }, [buscar, general, sucursalId, categoriaId, soloBajoMinimo, soloAgotados, porPagina]);
 
   function cerrarConMensaje(texto: string): void {
     setOk(texto);
@@ -412,10 +413,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         ...(formulario.motivo.trim() ? { motivo: formulario.motivo.trim() } : {}),
       });
 
-      await recargar();
+      await Promise.all([recargar(), recargarMovimientos()]);
       const destino = sesion.sucursales.find((opcion) => opcion.id === formulario.sucursalId);
       cerrarConMensaje(
-        `${ETIQUETA_TIPO[formulario.tipo] ?? formulario.tipo}: ${cantidad} en ${destino?.codigo ?? ''}`,
+        `${ETIQUETA_MOVIMIENTO[formulario.tipo] ?? formulario.tipo}: ${cantidad} en ${destino?.codigo ?? ''}`,
       );
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -459,11 +460,11 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         lineas: [{ productoId: transferencia.fila.productoId, cantidad }],
       });
 
-      await Promise.all([recargar(), recargarTransferencias()]);
+      await Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
       cerrarConMensaje(
         creada.estado === 'recibida'
           ? `Movido dentro del local: ${cantidad} piezas (${creada.folio}).`
-          : `Transferencia ${creada.folio} creada. Despachala desde la pestana Transferencias cuando salga la mercancia.`,
+          : `Transferencia ${creada.folio} creada. Despachala desde Movimientos cuando salga la mercancia.`,
       );
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -479,7 +480,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
 
     try {
       await ejecutar();
-      await Promise.all([recargar(), recargarTransferencias()]);
+      await Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
       cerrarConMensaje(texto);
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -525,6 +526,15 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     );
   }
 
+  /** Se guardo una entrada desde Movimientos: refresca stock y kardex. */
+  function alGuardarMovimiento(texto: string): void {
+    setAltaAbierta(false);
+    setOk(texto);
+    window.setTimeout(() => setOk(null), 4500);
+    void recargar();
+    void recargarMovimientos();
+  }
+
   function claseStock(fila: FilaVista): string {
     if (fila.stock <= 0) {
       return 'insignia insignia--agotado';
@@ -556,21 +566,14 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               <path d="m12 3 9 5-9 5-9-5 9-5Z" />
               <path d="M3 8v9l9 5 9-5V8M12 13v9" />
             </svg>
-            {vista === 'productos' ? 'Productos' : vista === 'transferencias' ? 'Transferencias' : 'Inventario'}
+            {enProductos ? 'Productos' : enMovimientos ? 'Movimientos' : 'Inventario'}
           </h1>
           <p className="panel__nota">
             {enProductos
-              ? 'Catalogo de productos: foto, codigos de barras, costos, precios y stock.'
-              : vista === 'transferencias'
-                ? 'Traslados de productos entre tiendas y almacenes.'
-                : vista === 'existencias'
-                  ? 'Existencias por ubicación, entradas, salidas, mermas y stock mínimo.'
-                  : null}
-            {enTransferencias
-              ? null
-              : enProductos
-                ? ` ${datos?.filas.length ?? 0} productos en el catalogo.`
-                : ` ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
+              ? `Catalogo de productos: foto, codigos de barras, costos, precios y stock. ${datos?.filas.length ?? 0} productos en el catalogo.`
+              : enMovimientos
+                ? 'Agrega mercancia a cada sucursal y controla los traslados entre tiendas y almacenes.'
+                : `Existencias por ubicación, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
           </p>
         </div>
 
@@ -589,32 +592,40 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               ))}
             </select>
           ) : null}
-          {vista === 'transferencias' ? null : (
-          <div className="pestanas inventario__vistas">
-            {vista ? null : (
+
+          {vista === undefined ? (
+            <div className="pestanas inventario__vistas">
+              <button
+                type="button"
+                className={enMovimientos ? 'pestana' : 'pestana pestana--activa'}
+                onClick={() => setVerMovimientos(false)}
+              >
+                Existencias
+              </button>
+              <button
+                type="button"
+                className={enMovimientos ? 'pestana pestana--activa' : 'pestana'}
+                onClick={() => setVerMovimientos(true)}
+              >
+                Movimientos
+              </button>
+            </div>
+          ) : null}
+
+          {enMovimientos && puedeMover ? (
             <button
               type="button"
-              className={enTransferencias ? 'pestana pestana--activa' : 'pestana'}
-              onClick={() => setVerTransferencias(true)}
+              className="boton boton--acento inventario__nuevo"
+              onClick={() => {
+                setError(null);
+                setAltaAbierta(true);
+              }}
             >
-              Transferencias
+              Agregar producto
             </button>
-            )}
-          </div>
-          )}
+          ) : null}
 
-          {enTransferencias || enProductos ? null : (
-          <label className="opcion-casilla inventario__filtro-minimo">
-            <input
-              type="checkbox"
-              checked={soloBajoMinimo}
-              onChange={(evento) => setSoloBajoMinimo(evento.target.checked)}
-            />
-            Solo bajo el minimo
-          </label>
-          )}
-
-          {puedeCatalogo && vista !== 'transferencias' ? (
+          {enProductos && puedeCatalogo ? (
             <button
               type="button"
               className="boton boton--acento inventario__nuevo"
@@ -629,24 +640,67 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </div>
       </div>
 
-      {vista === 'transferencias' ? null : (
-      <div className="barra-filtros inventario__busqueda">
-        <input
-          className="entrada buscador"
-          placeholder={enProductos ? 'Buscar productos...' : 'Buscar existencias...'}
-          value={buscar}
-          onChange={(evento) => setBuscar(evento.target.value)}
-          aria-label={enProductos ? 'Buscar productos' : 'Buscar existencias'}
-        />
-      </div>
+      {enMovimientos ? null : (
+        <div className="barra-filtros inventario__busqueda inventario__filtros">
+          <input
+            className="entrada buscador"
+            placeholder={enProductos ? 'Buscar productos...' : 'Buscar existencias...'}
+            value={buscar}
+            onChange={(evento) => setBuscar(evento.target.value)}
+            aria-label={enProductos ? 'Buscar productos' : 'Buscar existencias'}
+          />
+
+          <select
+            className="selector inventario__categorias"
+            value={categoriaId}
+            onChange={(evento) => setCategoriaId(evento.target.value)}
+            aria-label="Filtrar por categoria"
+          >
+            <option value="">Todas las categorias</option>
+            {categorias.map((categoria) => (
+              <option key={categoria.id} value={categoria.id}>
+                {categoria.nombre}
+              </option>
+            ))}
+          </select>
+
+          {enExistencias ? (
+            <>
+              <label className="opcion-casilla inventario__filtro-minimo">
+                <input
+                  type="checkbox"
+                  checked={soloBajoMinimo}
+                  onChange={(evento) => setSoloBajoMinimo(evento.target.checked)}
+                />
+                Solo bajo el minimo
+              </label>
+
+              <label className="opcion-casilla">
+                <input
+                  type="checkbox"
+                  checked={soloAgotados}
+                  onChange={(evento) => setSoloAgotados(evento.target.checked)}
+                />
+                Solo agotados
+              </label>
+            </>
+          ) : null}
+        </div>
       )}
 
       <Aviso error={error ?? errorLista} ok={ok} />
 
-      {enTransferencias ? (
-        <div className="tabla-envoltura inventario__tabla-envoltura">
-          {cargandoTransferencias ? <p className="panel__nota">Cargando…</p> : null}
-          <table className="tabla">
+      {enMovimientos ? (
+        <section className="inventario__seccion">
+          <div className="inventario__seccion-cabecera">
+            <h2 className="inventario__seccion-titulo">Traslados entre tiendas y almacenes</h2>
+            <p className="panel__nota">
+              Se despachan desde el origen y se reciben en el destino.
+            </p>
+          </div>
+          <div className="tabla-envoltura inventario__tabla-envoltura">
+            {cargandoTransferencias ? <p className="panel__nota">Cargando…</p> : null}
+            <table className="tabla">
             <thead>
               <tr>
                 <th>Folio</th>
@@ -759,26 +813,85 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </tbody>
           </table>
           {!cargandoTransferencias && (datosTransferencias?.transferencias.length ?? 0) === 0 ? (
-            <p className="vacio">Todavia no hay transferencias.</p>
-          ) : null}
-        </div>
+              <p className="vacio">Todavia no hay transferencias.</p>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
-      {!enTransferencias && cargando ? <p className="panel__nota">Cargando…</p> : null}
+      {enMovimientos ? (
+        <section className="inventario__seccion">
+          <div className="inventario__seccion-cabecera">
+            <h2 className="inventario__seccion-titulo">Ultimos movimientos</h2>
+            <p className="panel__nota">
+              Entradas, salidas, mermas y ajustes de todas las sucursales.
+            </p>
+          </div>
 
-      {!enTransferencias && !cargando && filas.length === 0 ? (
+          {cargandoMovimientos ? <p className="panel__nota">Cargando…</p> : null}
+
+          {!cargandoMovimientos && movimientos.length === 0 ? (
+            <div className="tarjeta">
+              <p className="vacio">
+                Todavia no hay movimientos. Usa Agregar producto para dar la primera entrada.
+              </p>
+            </div>
+          ) : null}
+
+          {movimientos.length > 0 ? (
+            <div className="tabla-envoltura inventario__tabla-envoltura">
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Cuando</th>
+                    <th>Producto</th>
+                    <th>Sucursal</th>
+                    <th>Movimiento</th>
+                    <th className="numero">Cantidad</th>
+                    <th>Motivo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movimientos.map((movimiento) => (
+                    <tr key={movimiento.id}>
+                      <td>{fechaLarga(movimiento.ocurridoEn)}</td>
+                      <td>
+                        <span className="codigo">{movimiento.sku}</span> · {movimiento.producto}
+                      </td>
+                      <td>{nombrePorSucursal.get(movimiento.sucursalId) ?? '—'}</td>
+                      <td>{ETIQUETA_MOVIMIENTO[movimiento.tipo] ?? movimiento.tipo}</td>
+                      <td className="numero">
+                        {MOVIMIENTOS_QUE_RESTAN.has(movimiento.tipo)
+                          ? `−${movimiento.cantidad}`
+                          : `+${movimiento.cantidad}`}
+                      </td>
+                      <td>{movimiento.motivo ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {!enMovimientos && cargando ? <p className="panel__nota">Cargando…</p> : null}
+
+      {!enMovimientos && !cargando && filas.length === 0 ? (
         <div className="tarjeta">
           <p className="vacio">
-            {soloBajoMinimo
-              ? 'Ningun producto esta por debajo de su minimo. Todo en orden.'
-              : puedeCatalogo
-                ? 'No hay productos todavia. Usa Nuevo producto para dar de alta el primero.'
-                : 'No hay productos que coincidan.'}
+            {soloAgotados
+              ? 'No hay productos agotados en esta sucursal.'
+              : soloBajoMinimo
+                ? 'Ningun producto esta por debajo de su minimo. Todo en orden.'
+                : puedeCatalogo && enProductos && !buscar && !categoriaId
+                  ? 'No hay productos todavia. Usa Nuevo producto para dar de alta el primero.'
+                  : 'No hay productos que coincidan con la busqueda.'}
           </p>
         </div>
       ) : null}
 
-      {!enTransferencias && filas.length > 0 ? (
+      {!enMovimientos && filas.length > 0 ? (
         <>
           <div className="tabla-envoltura inventario__tabla-envoltura">
             <table className="tabla tabla--inventario">
@@ -1287,7 +1400,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   setFormulario({ ...formulario, tipo: evento.target.value as TipoMovimiento })
                 }
               >
-                {TIPOS.map((tipo) => (
+                {TIPOS_MANUALES.map((tipo) => (
                   <option key={tipo.valor} value={tipo.valor}>
                     {tipo.etiqueta}
                   </option>
@@ -1555,10 +1668,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   {(datosKardex?.movimientos ?? []).map((movimiento) => (
                     <tr key={movimiento.id}>
                       <td>{fechaLarga(movimiento.ocurridoEn)}</td>
-                      <td>{ETIQUETA_TIPO[movimiento.tipo] ?? movimiento.tipo}</td>
+                      <td>{ETIQUETA_MOVIMIENTO[movimiento.tipo] ?? movimiento.tipo}</td>
                       <td className="numero">
-                        {RESTAN.has(movimiento.tipo)
-                          ? `âˆ’${movimiento.cantidad}`
+                        {MOVIMIENTOS_QUE_RESTAN.has(movimiento.tipo)
+                          ? `−${movimiento.cantidad}`
                           : `+${movimiento.cantidad}`}
                       </td>
                       <td>{movimiento.motivo ?? '—'}</td>
@@ -1569,6 +1682,16 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </div>
           ) : null}
         </Modal>
+      ) : null}
+
+      {/* ---------- Agregar producto al inventario desde el catalogo ---------- */}
+      {altaAbierta ? (
+        <AltaInventario
+          sesion={sesion}
+          sucursalId={sucursalId}
+          onCerrar={() => setAltaAbierta(false)}
+          onGuardado={alGuardarMovimiento}
+        />
       ) : null}
     </div>
   );

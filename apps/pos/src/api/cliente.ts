@@ -293,14 +293,31 @@ export const api = {
 
   /* ---------- Inventario ---------- */
 
-  stock: (sucursalId: string, buscar?: string, soloBajoMinimo?: boolean, limite = 200) =>
+  stock: (
+    sucursalId: string,
+    filtros: {
+      buscar?: string;
+      categoriaId?: string;
+      soloBajoMinimo?: boolean;
+      soloAgotados?: boolean;
+      limite?: number;
+    } = {},
+  ) =>
     pedir<{ sucursalId: string; conAlerta: number; stock: FilaStock[] }>(
-      `/inventory/stock${parametros({ sucursalId, buscar, soloBajoMinimo, limite })}`,
+      `/inventory/stock${parametros({ sucursalId, limite: 200, ...filtros })}`,
     ),
 
-  stockGeneral: (buscar?: string, soloBajoMinimo?: boolean, limite = 200) =>
+  stockGeneral: (
+    filtros: {
+      buscar?: string;
+      categoriaId?: string;
+      soloBajoMinimo?: boolean;
+      soloAgotados?: boolean;
+      limite?: number;
+    } = {},
+  ) =>
     pedir<{ conAlerta: number; sucursales: Sucursal[]; stock: FilaStockGeneral[] }>(
-      `/inventory/stock-general${parametros({ buscar, soloBajoMinimo, limite })}`,
+      `/inventory/stock-general${parametros({ limite: 200, ...filtros })}`,
     ),
 
   movimientos: (filtros: { productoId?: string; sucursalId?: string; limite?: number }) =>
