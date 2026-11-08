@@ -9,7 +9,7 @@ import {
   sesionDe,
   type Sesion,
 } from '../../auth/sesion.js';
-import { ErrorNoEncontrado, validar } from '../../errors.js';
+import { ErrorNoEncontrado, ErrorSinPermiso, validar } from '../../errors.js';
 import {
   cancelarVenta,
   listarVentas,
@@ -60,6 +60,68 @@ const esquemaConsultaVentas = z.object({
 const esquemaCancelacion = z.object({
   motivo: z.string().trim().min(3, 'Escribe el motivo de la cancelacion').max(200),
 });
+
+/**
+ * Quien atiende el mostrador solo consulta lo que vendio hoy. Los permisos de
+ * supervision o reportes pueden ver todo el alcance de sus sucursales.
+ */
+function puedeVerTodasLasVentas(sesion: Sesion): boolean {
+  return sesion.permisos.has(PERMISOS.CANCELAR_VENTA) || sesion.permisos.has(PERMISOS.VER_UTILIDAD);
+}
+
+/** Zona horaria del negocio para cortar el dia del cajero. */
+const ZONA_HORARIA = process.env.ZONA_HORARIA ?? 'America/Havana';
+
+function partesEnZona(fecha: Date) {
+  const formato = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_HORARIA,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const valores: Record<string, string> = {};
+  for (const parte of formato.formatToParts(fecha)) {
+    if (parte.type !== 'literal') {
+      valores[parte.type] = parte.value;
+    }
+  }
+  return {
+    year: Number(valores.year),
+    month: Number(valores.month),
+    day: Number(valores.day),
+    hour: Number(valores.hour ?? 0),
+    minute: Number(valores.minute ?? 0),
+    second: Number(valores.second ?? 0),
+  };
+}
+
+/** Diferencia entre la hora de pared de la zona y UTC, en milisegundos. */
+function desfaseZona(fecha: Date): number {
+  const partes = partesEnZona(fecha);
+  const comoUtc = Date.UTC(
+    partes.year,
+    partes.month - 1,
+    partes.day,
+    partes.hour,
+    partes.minute,
+    partes.second,
+  );
+  return comoUtc - fecha.getTime();
+}
+
+/** Rango del dia actual del negocio para el cajero. */
+function rangoDeHoy(): { desde: Date; hasta: Date } {
+  const ahora = new Date();
+  const { year, month, day } = partesEnZona(ahora);
+  const medianocheUtc = Date.UTC(year, month - 1, day);
+  const desde = new Date(medianocheUtc - desfaseZona(new Date(medianocheUtc)));
+  const hasta = new Date(desde.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { desde, hasta };
+}
 
 const esquemaDevolucion = z.object({
   motivo: z.string().trim().min(3, 'Escribe el motivo de la devolucion').max(200),
@@ -139,13 +201,20 @@ export async function rutasVentas(app: FastifyInstance) {
 
     // Sin sucursal explicita se listan solo las sucursales de la sesion.
     // Nunca se devuelven ventas de una sucursal a la que no se tiene acceso.
+    // El cajero, ademas, solo ve las suyas del dia.
+    const supervision = puedeVerTodasLasVentas(sesion);
+    const rango = supervision
+      ? { desde: consulta.desde, hasta: consulta.hasta }
+      : rangoDeHoy();
+
     const ventas = await listarVentas(app.db, {
       empresaId: sesion.empresaId,
       ...(consulta.sucursalId
         ? { sucursalId: consulta.sucursalId }
         : { sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id) }),
-      desde: consulta.desde,
-      hasta: consulta.hasta,
+      ...(supervision ? {} : { usuarioId: sesion.usuarioId }),
+      desde: rango.desde,
+      hasta: rango.hasta,
       limite: consulta.limite,
     });
 
@@ -157,6 +226,17 @@ export async function rutasVentas(app: FastifyInstance) {
     const { id } = validar(z.object({ id: z.string().min(1) }), request.params);
 
     const encontrada = await ventaConAcceso(app, sesion, id);
+
+    if (!puedeVerTodasLasVentas(sesion)) {
+      const { desde, hasta } = rangoDeHoy();
+      if (
+        encontrada.venta.soldByUserId !== sesion.usuarioId ||
+        encontrada.venta.soldAt < desde ||
+        encontrada.venta.soldAt > hasta
+      ) {
+        throw new ErrorSinPermiso('Solo puedes consultar tus ventas de hoy');
+      }
+    }
 
     return {
       venta: encontrada.venta,

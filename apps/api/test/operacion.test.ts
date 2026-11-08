@@ -544,6 +544,25 @@ describe('inventario', () => {
     expect(tipos.every((tipo) => tipo === 'entrada_compra')).toBe(true);
   });
 
+  it('filtra el kardex por fecha', async () => {
+    const futuro = encodeURIComponent(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+    const vacio = await app.inject({
+      method: 'GET',
+      url: `/api/v1/inventory/movements?sucursalId=${semilla.sucursalId}&desde=${futuro}`,
+      headers: auth(),
+    });
+    expect(vacio.statusCode).toBe(200);
+    expect(vacio.json().movimientos).toHaveLength(0);
+
+    const pasadas = await app.inject({
+      method: 'GET',
+      url: `/api/v1/inventory/movements?sucursalId=${semilla.sucursalId}&desde=2020-01-01T00:00:00.000Z`,
+      headers: auth(),
+    });
+    expect(pasadas.statusCode).toBe(200);
+    expect((pasadas.json().movimientos as unknown[]).length).toBeGreaterThan(0);
+  });
+
   it('guarda el kardex con el motivo y el documento', async () => {
     const respuesta = await app.inject({
       method: 'GET',

@@ -2289,6 +2289,18 @@ button {
   max-width: 15rem;
 }
 
+.inventario__fecha-campo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--texto-tenue);
+}
+
+.inventario__fecha {
+  max-width: 9.5rem;
+}
+
 /* Secciones de Movimientos: entradas recientes y traslados. */
 .inventario__seccion {
   display: flex;

@@ -335,6 +335,8 @@ export const api = {
     productoId?: string;
     sucursalId?: string;
     tipo?: string;
+    desde?: string;
+    hasta?: string;
     limite?: number;
   }) => pedir<{ movimientos: Movimiento[] }>(`/inventory/movements${parametros(filtros)}`),
 

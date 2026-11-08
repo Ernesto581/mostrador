@@ -24,6 +24,9 @@ let tokenSinDescuento = '';
 let tokenAdmin = '';
 
 let ventaSecundariaId = '';
+let ventaCentroId = '';
+let ventaCentroAjenaId = '';
+let ventaAyerId = '';
 let turnoSecundariaId = '';
 
 const PASSWORD = 'secreto123';
@@ -123,6 +126,36 @@ beforeAll(async () => {
     },
   });
   expect(ventaCentro.statusCode).toBe(201);
+  ventaCentroId = ventaCentro.json().venta.id as string;
+
+  // Otra venta en el mismo local, hecha por otro usuario (cajero amplio).
+  const ventaCentroAjena = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sales',
+    headers: auth(tokenVendedorAmplio),
+    payload: {
+      sucursalId: semilla.sucursalId,
+      lineas: [{ productoId: producto('BEB-003').id, cantidad: 1 }],
+      pagos: [{ metodo: 'efectivo', monto: 3000 }],
+    },
+  });
+  expect(ventaCentroAjena.statusCode).toBe(201);
+  ventaCentroAjenaId = ventaCentroAjena.json().venta.id as string;
+
+  // Venta vieja del cajero: no debe verla en su listado del dia.
+  const ventaAyer = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sales',
+    headers: auth(tokenVendedor),
+    payload: {
+      sucursalId: semilla.sucursalId,
+      vendidoEn: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      lineas: [{ productoId: producto('BEB-002').id, cantidad: 1 }],
+      pagos: [{ metodo: 'efectivo', monto: 2000 }],
+    },
+  });
+  expect(ventaAyer.statusCode).toBe(201);
+  ventaAyerId = ventaAyer.json().venta.id as string;
 
   // Un turno abierto en la sucursal secundaria para probar el alcance de caja.
   const turno = await app.inject({
@@ -202,7 +235,7 @@ function ventaDePrueba(descuento: Record<string, number>) {
 }
 
 describe('alcance por sucursal', () => {
-  it('al listar sin sucursal explicita solo devuelve las sucursales de la sesion', async () => {
+  it('el cajero solo lista sus ventas del dia', async () => {
     const respuesta = await app.inject({
       method: 'GET',
       url: '/api/v1/sales',
@@ -213,8 +246,61 @@ describe('alcance por sucursal', () => {
     const ventas = respuesta.json().ventas as { id: string; sucursalId: string }[];
     expect(ventas.length).toBeGreaterThan(0);
     expect(ventas.every((venta) => venta.sucursalId === semilla.sucursalId)).toBe(true);
-    expect(ventas.map((venta) => venta.id)).not.toContain(ventaSecundariaId);
+
+    const ids = ventas.map((venta) => venta.id);
+    expect(ids).toContain(ventaCentroId);
+    expect(ids).not.toContain(ventaCentroAjenaId);
+    expect(ids).not.toContain(ventaAyerId);
+    expect(ids).not.toContain(ventaSecundariaId);
   });
+
+  it('el cajero no puede ver el detalle de una venta ajena o vieja', async () => {
+    const ajena = await app.inject({
+      method: 'GET',
+      url: `/api/v1/sales/${ventaCentroAjenaId}`,
+      headers: auth(tokenVendedor),
+    });
+    expect(ajena.statusCode).toBe(403);
+    expect(ajena.json().error.codigo).toBe('SIN_PERMISO');
+
+    const vieja = await app.inject({
+      method: 'GET',
+      url: `/api/v1/sales/${ventaAyerId}`,
+      headers: auth(tokenVendedor),
+    });
+    expect(vieja.statusCode).toBe(403);
+    expect(vieja.json().error.codigo).toBe('SIN_PERMISO');
+
+    const propia = await app.inject({
+      method: 'GET',
+      url: `/api/v1/sales/${ventaCentroId}`,
+      headers: auth(tokenVendedor),
+    });
+    expect(propia.statusCode).toBe(200);
+
+    const supervisor = await app.inject({
+      method: 'GET',
+      url: `/api/v1/sales/${ventaCentroAjenaId}`,
+      headers: auth(tokenSupervisor),
+    });
+    expect(supervisor.statusCode).toBe(200);
+  });
+
+  it('el supervisor lista todas las ventas de su sucursal', async () => {
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: '/api/v1/sales',
+      headers: auth(tokenSupervisor),
+    });
+
+    expect(respuesta.statusCode).toBe(200);
+    const ids = (respuesta.json().ventas as { id: string }[]).map((venta) => venta.id);
+    expect(ids).toContain(ventaCentroId);
+    expect(ids).toContain(ventaCentroAjenaId);
+    expect(ids).toContain(ventaAyerId);
+    expect(ids).not.toContain(ventaSecundariaId);
+  });
+
 
   it('rechaza listar una sucursal a la que no se tiene acceso', async () => {
     const respuesta = await app.inject({

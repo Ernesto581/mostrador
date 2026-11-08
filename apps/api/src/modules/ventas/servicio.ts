@@ -613,6 +613,8 @@ export interface FiltroVentas {
   sucursalId?: string | undefined;
   /** Sucursales a las que la sesion tiene acceso. Vacio = ninguna. */
   sucursalIds?: string[] | undefined;
+  /** Limita a las ventas de un usuario (cajero). */
+  usuarioId?: string | undefined;
   desde?: Date | undefined;
   hasta?: Date | undefined;
   limite?: number | undefined;
@@ -631,6 +633,9 @@ export async function listarVentas(base: BaseDatos, filtro: FiltroVentas) {
       return [];
     }
     condiciones.push(inArray(schema.sales.branchId, filtro.sucursalIds));
+  }
+  if (filtro.usuarioId) {
+    condiciones.push(eq(schema.sales.soldByUserId, filtro.usuarioId));
   }
   if (filtro.desde) {
     condiciones.push(gte(schema.sales.soldAt, filtro.desde));

@@ -322,6 +322,25 @@ describe('caja y cierre de turno', () => {
     expect(cajero.json().error.codigo).toBe('SIN_PERMISO');
   });
 
+  it('filtra cierres por sucursal y fecha', async () => {
+    const futuro = encodeURIComponent(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
+    const porFecha = await app.inject({
+      method: 'GET',
+      url: `/api/v1/cash-closures?desde=${futuro}`,
+      headers: authAdmin(),
+    });
+    expect(porFecha.statusCode).toBe(200);
+    expect(porFecha.json().cierres).toHaveLength(0);
+
+    const porSucursal = await app.inject({
+      method: 'GET',
+      url: `/api/v1/cash-closures?sucursalId=${semilla.sucursalSecundariaId}`,
+      headers: authAdmin(),
+    });
+    expect(porSucursal.statusCode).toBe(200);
+    expect(porSucursal.json().cierres).toHaveLength(0);
+  });
+
   it('no hay turno abierto al terminar', async () => {
     const respuesta = await app.inject({
       method: 'GET',

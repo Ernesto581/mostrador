@@ -34,6 +34,9 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
   const [resultado, setResultado] = useState<CierreCaja | null>(null);
   const [detalle, setDetalle] = useState<DetalleCierre | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [filtroSucursalId, setFiltroSucursalId] = useState('');
+  const [filtroDesde, setFiltroDesde] = useState('');
+  const [filtroHasta, setFiltroHasta] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -54,9 +57,18 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
   const { datos: datosCierres, recargar: recargarCierres } = useCarga(
     () =>
       puedeVerHistorial
-        ? api.cierres({ limite: 30 })
+        ? api.cierres({
+            ...(filtroSucursalId ? { sucursalId: filtroSucursalId } : {}),
+            ...(filtroDesde
+              ? { desde: new Date(`${filtroDesde}T00:00:00`).toISOString() }
+              : {}),
+            ...(filtroHasta
+              ? { hasta: new Date(`${filtroHasta}T23:59:59.999`).toISOString() }
+              : {}),
+            limite: 60,
+          })
         : Promise.resolve({ cierres: [] as CierreCaja[] }),
-    [puedeVerHistorial],
+    [puedeVerHistorial, filtroSucursalId, filtroDesde, filtroHasta],
   );
 
   const { datos: datosAbiertos } = useCarga(
@@ -360,9 +372,44 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
 
       {puedeVerHistorial ? (
         <div>
-          <h2 className="panel__titulo" style={{ marginBottom: '0.6rem' }}>
-            Historial de cierres
-          </h2>
+          <div className="inventario__seccion-cabecera" style={{ marginBottom: '0.6rem' }}>
+            <h2 className="panel__titulo">Historial de cierres</h2>
+            <div className="barra-filtros">
+              <select
+                className="selector"
+                value={filtroSucursalId}
+                onChange={(evento) => setFiltroSucursalId(evento.target.value)}
+                aria-label="Filtrar cierres por sucursal"
+              >
+                <option value="">Todas las sucursales</option>
+                {sesion.sucursales.map((opcion) => (
+                  <option key={opcion.id} value={opcion.id}>
+                    {opcion.codigo} · {opcion.nombre}
+                  </option>
+                ))}
+              </select>
+              <label className="inventario__fecha-campo">
+                <span>Desde</span>
+                <input
+                  className="entrada inventario__fecha"
+                  type="date"
+                  value={filtroDesde}
+                  onChange={(evento) => setFiltroDesde(evento.target.value)}
+                  aria-label="Fecha inicial de cierres"
+                />
+              </label>
+              <label className="inventario__fecha-campo">
+                <span>Hasta</span>
+                <input
+                  className="entrada inventario__fecha"
+                  type="date"
+                  value={filtroHasta}
+                  onChange={(evento) => setFiltroHasta(evento.target.value)}
+                  aria-label="Fecha final de cierres"
+                />
+              </label>
+            </div>
+          </div>
 
           {cierres.length === 0 ? (
             <div className="tarjeta">

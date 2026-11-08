@@ -187,6 +187,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [transferenciaAbierta, setTransferenciaAbierta] = useState(false);
   const [filtroSucursalId, setFiltroSucursalId] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroDesde, setFiltroDesde] = useState('');
+  const [filtroHasta, setFiltroHasta] = useState('');
   const enMovimientos = vista === 'movimientos' || (vista === undefined && verMovimientos);
   const enProductos = vista === 'productos';
   const enExistencias = !enProductos && !enMovimientos;
@@ -250,10 +252,16 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         ? api.movimientos({
             ...(filtroSucursalId ? { sucursalId: filtroSucursalId } : {}),
             ...(filtroTipo ? { tipo: filtroTipo } : {}),
+            ...(filtroDesde
+              ? { desde: new Date(`${filtroDesde}T00:00:00`).toISOString() }
+              : {}),
+            ...(filtroHasta
+              ? { hasta: new Date(`${filtroHasta}T23:59:59.999`).toISOString() }
+              : {}),
             limite: 100,
           })
         : Promise.resolve({ movimientos: [] as Movimiento[] }),
-    [enMovimientos, filtroSucursalId, filtroTipo],
+    [enMovimientos, filtroSucursalId, filtroTipo, filtroDesde, filtroHasta],
   );
 
   const puedeTransferir =
@@ -945,6 +953,26 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   </option>
                 ))}
               </select>
+              <label className="inventario__fecha-campo">
+                <span>Desde</span>
+                <input
+                  className="entrada inventario__fecha"
+                  type="date"
+                  value={filtroDesde}
+                  onChange={(evento) => setFiltroDesde(evento.target.value)}
+                  aria-label="Fecha inicial de movimientos"
+                />
+              </label>
+              <label className="inventario__fecha-campo">
+                <span>Hasta</span>
+                <input
+                  className="entrada inventario__fecha"
+                  type="date"
+                  value={filtroHasta}
+                  onChange={(evento) => setFiltroHasta(evento.target.value)}
+                  aria-label="Fecha final de movimientos"
+                />
+              </label>
             </div>
           </div>
 
