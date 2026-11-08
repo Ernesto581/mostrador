@@ -13,6 +13,7 @@ import {
 } from '../../auth/sesion.js';
 import { ErrorNoEncontrado, ErrorSinPermiso, validar } from '../../errors.js';
 import {
+  guardarMinimoSucursal,
   listarMovimientos,
   registrarMovimiento,
   stockGeneral,
@@ -69,6 +70,12 @@ const esquemaConsultaMovimientos = z.object({
   desde: z.coerce.date().optional(),
   hasta: z.coerce.date().optional(),
   limite: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+const esquemaMinimo = z.object({
+  sucursalId: z.string().min(1),
+  productoId: z.string().min(1),
+  stockMinimo: z.number().int().min(0),
 });
 
 const esquemaMovimiento = z.object({
@@ -171,6 +178,7 @@ export async function rutasInventario(app: FastifyInstance) {
         piso: fila.piso,
         almacen: fila.almacen,
         stockMinimo: fila.stockMinimo,
+        stockMinimoGeneral: fila.stockMinimoGeneral,
         bajoMinimo: fila.bajoMinimo,
         categoriaId: fila.categoriaId,
         ...(verCostos
@@ -203,6 +211,22 @@ export async function rutasInventario(app: FastifyInstance) {
       sucursales: sesion.sucursales,
       stock,
     };
+  });
+
+  app.put('/inventory/minimums', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.AJUSTAR_INVENTARIO);
+    const datos = validar(esquemaMinimo, request.body);
+    asegurarSucursal(sesion, datos.sucursalId);
+
+    const minimo = await guardarMinimoSucursal(app.db, {
+      empresaId: sesion.empresaId,
+      sucursalId: datos.sucursalId,
+      productoId: datos.productoId,
+      stockMinimo: datos.stockMinimo,
+    });
+
+    return { minimo };
   });
 
   app.get('/inventory/movements', { preHandler: [preHandler] }, async (request) => {

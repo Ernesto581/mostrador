@@ -127,7 +127,10 @@ export interface FilaStock {
   stock: number;
   piso: number;
   almacen: number;
+  /** Minimo efectivo de la sucursal. */
   stockMinimo: number;
+  /** Minimo general del producto. */
+  stockMinimoGeneral: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
 }
@@ -137,6 +140,9 @@ export interface RepartoSucursal {
   codigo: string;
   nombre: string;
   cantidad: number;
+  /** Minimo configurado para esta sucursal. */
+  minimo: number;
+  bajoMinimo: boolean;
 }
 
 export interface FilaStockGeneral {
@@ -150,6 +156,8 @@ export interface FilaStockGeneral {
   /** Total sumando todas las sucursales. */
   stock: number;
   stockMinimo: number;
+  /** Minimo general del producto. */
+  stockMinimoGeneral: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
   /** Cuanto hay en cada sucursal. */

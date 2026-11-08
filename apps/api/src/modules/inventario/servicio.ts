@@ -345,7 +345,10 @@ export interface FilaStock {
   stock: number;
   piso: number;
   almacen: number;
+  /** Minimo efectivo de la sucursal (regla propia o respaldo general). */
   stockMinimo: number;
+  /** Minimo general del producto, el respaldo de las sucursales sin regla. */
+  stockMinimoGeneral: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
 }
@@ -456,6 +459,60 @@ async function listarProductos(
     .limit(filtro.limite ?? 200);
 }
 
+/** Minimos por producto y sucursal: la regla propia gana sobre la general. */
+async function minimosPorSucursal(
+  base: BaseDatos,
+  empresaId: string,
+  productoIds: readonly string[],
+  sucursalIds: readonly string[],
+): Promise<Map<string, number>> {
+  const resultado = new Map<string, number>();
+  if (productoIds.length === 0 || sucursalIds.length === 0) {
+    return resultado;
+  }
+
+  const reglas = await base
+    .select({
+      productoId: schema.stockMinRules.productId,
+      branchId: schema.stockMinRules.branchId,
+      minStock: schema.stockMinRules.minStock,
+    })
+    .from(schema.stockMinRules)
+    .where(
+      and(
+        eq(schema.stockMinRules.companyId, empresaId),
+        inArray(schema.stockMinRules.productId, [...productoIds]),
+        isNull(schema.stockMinRules.deletedAt),
+        or(
+          isNull(schema.stockMinRules.branchId),
+          inArray(schema.stockMinRules.branchId, [...sucursalIds]),
+        ),
+      ),
+    );
+
+  const especificas = new Map<string, number>();
+  const generales = new Map<string, number>();
+  for (const regla of reglas) {
+    if (regla.branchId) {
+      especificas.set(`${regla.productoId}:${regla.branchId}`, regla.minStock);
+    } else {
+      generales.set(regla.productoId, regla.minStock);
+    }
+  }
+
+  for (const productoId of productoIds) {
+    for (const sucursalId of sucursalIds) {
+      const minimo =
+        especificas.get(`${productoId}:${sucursalId}`) ?? generales.get(productoId);
+      if (minimo !== undefined) {
+        resultado.set(`${productoId}:${sucursalId}`, minimo);
+      }
+    }
+  }
+
+  return resultado;
+}
+
 /** Stock por producto en una sucursal, con la alerta de minimo ya resuelta. */
 export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Promise<FilaStock[]> {
   const productos = await listarProductos(base, {
@@ -469,15 +526,15 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
     return [];
   }
 
-  const existencias = await existenciasDeProductos(
-    base,
-    filtro.sucursalId,
-    productos.map((producto) => producto.id),
-  );
+  const ids = productos.map((producto) => producto.id);
+  const existencias = await existenciasDeProductos(base, filtro.sucursalId, ids);
+  const minimos = await minimosPorSucursal(base, filtro.empresaId, ids, [filtro.sucursalId]);
 
   const resultado: FilaStock[] = productos.map((producto) => {
     const { piso, almacen } = existencias.get(producto.id) ?? { piso: 0, almacen: 0 };
     const stock = piso + almacen;
+    const stockMinimo =
+      minimos.get(`${producto.id}:${filtro.sucursalId}`) ?? producto.stockMinimo;
     return {
       productoId: producto.id,
       sku: producto.sku,
@@ -489,8 +546,9 @@ export async function stockPorSucursal(base: BaseDatos, filtro: FiltroStock): Pr
       stock,
       piso,
       almacen,
-      stockMinimo: producto.stockMinimo,
-      bajoMinimo: stock <= producto.stockMinimo,
+      stockMinimo,
+      stockMinimoGeneral: producto.stockMinimo,
+      bajoMinimo: stockMinimo > 0 && stock <= stockMinimo,
       categoriaId: producto.categoriaId,
     };
   });
@@ -517,6 +575,9 @@ export interface RepartoSucursal {
   codigo: string;
   nombre: string;
   cantidad: number;
+  /** Minimo configurado para esta sucursal. */
+  minimo: number;
+  bajoMinimo: boolean;
 }
 
 export interface FilaStockGeneral {
@@ -530,6 +591,8 @@ export interface FilaStockGeneral {
   /** Total sumando todas las sucursales. */
   stock: number;
   stockMinimo: number;
+  /** Minimo general del producto, el respaldo de las sucursales sin regla. */
+  stockMinimoGeneral: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
   /** Como esta repartido: cuanto hay en cada sucursal. */
@@ -556,18 +619,29 @@ export async function stockGeneral(
     return [];
   }
 
-  if (filtro.sucursalIds && filtro.sucursalIds.length === 0) {
+  const sucursalIds = filtro.sucursalIds ?? [];
+  if (sucursalIds.length === 0) {
     return [];
   }
 
   const ids = productos.map((producto) => producto.id);
 
+  const sucursales = await base
+    .select({ id: schema.branches.id, codigo: schema.branches.code, nombre: schema.branches.name })
+    .from(schema.branches)
+    .where(
+      and(
+        eq(schema.branches.companyId, filtro.empresaId),
+        inArray(schema.branches.id, [...sucursalIds]),
+        isNull(schema.branches.deletedAt),
+      ),
+    )
+    .orderBy(asc(schema.branches.code));
+
   const filas = await base
     .select({
       productoId: schema.stockBalances.productId,
       sucursalId: schema.stockBalances.branchId,
-      codigo: schema.branches.code,
-      nombreSucursal: schema.branches.name,
       cantidad: sql<number>`sum(${schema.stockBalances.quantity})`,
     })
     .from(schema.stockBalances)
@@ -576,33 +650,35 @@ export async function stockGeneral(
       and(
         eq(schema.branches.companyId, filtro.empresaId),
         inArray(schema.stockBalances.productId, ids),
-        ...(filtro.sucursalIds
-          ? [inArray(schema.stockBalances.branchId, filtro.sucursalIds)]
-          : []),
+        inArray(schema.stockBalances.branchId, [...sucursalIds]),
       ),
     )
-    .groupBy(
-      schema.stockBalances.productId,
-      schema.stockBalances.branchId,
-      schema.branches.code,
-      schema.branches.name,
-    )
-    .orderBy(asc(schema.branches.code));
+    .groupBy(schema.stockBalances.productId, schema.stockBalances.branchId);
 
-  const repartoPorProducto = new Map<string, RepartoSucursal[]>();
+  const cantidadesPorProducto = new Map<string, Map<string, number>>();
   for (const fila of filas) {
-    const lista = repartoPorProducto.get(fila.productoId) ?? [];
-    lista.push({
-      sucursalId: fila.sucursalId,
-      codigo: fila.codigo,
-      nombre: fila.nombreSucursal,
-      cantidad: Number(fila.cantidad),
-    });
-    repartoPorProducto.set(fila.productoId, lista);
+    const porSucursal = cantidadesPorProducto.get(fila.productoId) ?? new Map<string, number>();
+    porSucursal.set(fila.sucursalId, Number(fila.cantidad));
+    cantidadesPorProducto.set(fila.productoId, porSucursal);
   }
 
+  const minimos = await minimosPorSucursal(base, filtro.empresaId, ids, sucursalIds);
+
   const resultado: FilaStockGeneral[] = productos.map((producto) => {
-    const reparto = repartoPorProducto.get(producto.id) ?? [];
+    const cantidades = cantidadesPorProducto.get(producto.id) ?? new Map<string, number>();
+    const reparto: RepartoSucursal[] = sucursales.map((sucursal) => {
+      const cantidad = cantidades.get(sucursal.id) ?? 0;
+      const minimo =
+        minimos.get(`${producto.id}:${sucursal.id}`) ?? producto.stockMinimo;
+      return {
+        sucursalId: sucursal.id,
+        codigo: sucursal.codigo,
+        nombre: sucursal.nombre,
+        cantidad,
+        minimo,
+        bajoMinimo: minimo > 0 && cantidad <= minimo,
+      };
+    });
     const stock = reparto.reduce((total, parte) => total + parte.cantidad, 0);
 
     return {
@@ -615,7 +691,8 @@ export async function stockGeneral(
       costoPromedio: producto.costoPromedio,
       stock,
       stockMinimo: producto.stockMinimo,
-      bajoMinimo: stock <= producto.stockMinimo,
+      stockMinimoGeneral: producto.stockMinimo,
+      bajoMinimo: reparto.some((parte) => parte.bajoMinimo),
       categoriaId: producto.categoriaId,
       reparto,
     };
@@ -625,6 +702,72 @@ export async function stockGeneral(
     (fila) =>
       (!filtro.soloBajoMinimo || fila.bajoMinimo) && (!filtro.soloAgotados || fila.stock <= 0),
   );
+}
+
+export interface MinimoSucursal {
+  productoId: string;
+  sucursalId: string;
+  stockMinimo: number;
+}
+
+/**
+ * Guarda el minimo de un producto en una sucursal. Si ya existe una regla para
+ * esa pareja se actualiza; si no, se crea. El minimo general del producto queda
+ * como respaldo para las sucursales sin regla propia.
+ */
+export async function guardarMinimoSucursal(
+  db: Db,
+  datos: {
+    empresaId: string;
+    sucursalId: string;
+    productoId: string;
+    stockMinimo: number;
+  },
+): Promise<MinimoSucursal> {
+  return db.transaction(async (tx) => {
+    const producto = await productoExiste(tx, datos.empresaId, datos.productoId);
+    if (!producto) {
+      throw new ErrorNoEncontrado('El producto no existe');
+    }
+
+    const [existente] = await tx
+      .select({ id: schema.stockMinRules.id })
+      .from(schema.stockMinRules)
+      .where(
+        and(
+          eq(schema.stockMinRules.companyId, datos.empresaId),
+          eq(schema.stockMinRules.productId, datos.productoId),
+          eq(schema.stockMinRules.branchId, datos.sucursalId),
+          isNull(schema.stockMinRules.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (existente) {
+      await tx
+        .update(schema.stockMinRules)
+        .set({
+          minStock: datos.stockMinimo,
+          updatedAt: new Date(),
+          revision: sql`${schema.stockMinRules.revision} + 1`,
+        })
+        .where(eq(schema.stockMinRules.id, existente.id));
+    } else {
+      await tx.insert(schema.stockMinRules).values({
+        id: nuevoId(),
+        companyId: datos.empresaId,
+        productId: datos.productoId,
+        branchId: datos.sucursalId,
+        minStock: datos.stockMinimo,
+      });
+    }
+
+    return {
+      productoId: datos.productoId,
+      sucursalId: datos.sucursalId,
+      stockMinimo: datos.stockMinimo,
+    };
+  });
 }
 
 export interface FiltroMovimientos {

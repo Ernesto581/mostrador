@@ -435,6 +435,63 @@ describe('inventario', () => {
     expect(skus).not.toContain('ABA-001');
   });
 
+  it('permite minimos distintos por sucursal', async () => {
+    const dulce = producto('DUL-002');
+
+    const actualizar = await app.inject({
+      method: 'PUT',
+      url: '/api/v1/inventory/minimums',
+      headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        productoId: dulce.id,
+        stockMinimo: 30,
+      },
+    });
+    expect(actualizar.statusCode).toBe(200);
+    expect(actualizar.json().minimo.stockMinimo).toBe(30);
+
+    const stock = await app.inject({
+      method: 'GET',
+      url: `/api/v1/inventory/stock?sucursalId=${semilla.sucursalId}&buscar=DUL-002`,
+      headers: auth(),
+    });
+    const fila = stock.json().stock[0];
+    expect(fila.stockMinimo).toBe(30);
+    expect(fila.stockMinimoGeneral).toBe(12);
+    expect(fila.bajoMinimo).toBe(true);
+
+    const general = await app.inject({
+      method: 'GET',
+      url: '/api/v1/inventory/stock-general?buscar=DUL-002',
+      headers: auth(),
+    });
+    const generalFila = general.json().stock[0];
+    const centro = generalFila.reparto.find((parte: { codigo: string }) => parte.codigo === 'CENTRO');
+    expect(centro.minimo).toBe(30);
+    expect(centro.bajoMinimo).toBe(true);
+
+    // Cero desactiva la alerta de esa sucursal sin tocar el minimo general.
+    await app.inject({
+      method: 'PUT',
+      url: '/api/v1/inventory/minimums',
+      headers: auth(),
+      payload: {
+        sucursalId: semilla.sucursalId,
+        productoId: dulce.id,
+        stockMinimo: 0,
+      },
+    });
+    const despues = await app.inject({
+      method: 'GET',
+      url: `/api/v1/inventory/stock?sucursalId=${semilla.sucursalId}&buscar=DUL-002`,
+      headers: auth(),
+    });
+    const filaDespues = despues.json().stock[0];
+    expect(filaDespues.stockMinimo).toBe(0);
+    expect(filaDespues.bajoMinimo).toBe(false);
+  });
+
   it('registra una entrada de compra y sube el stock', async () => {
     const antes = await stockDe('ABA-005');
     const respuesta = await app.inject({

@@ -1796,6 +1796,7 @@ button {
   }
 
   /* Las acciones se agrupan en el menu de tres puntos. */
+  .accion-minimo,
   .accion-movimiento,
   .accion-transferir {
     display: none;
@@ -1956,6 +1957,7 @@ button {
   }
 
   /* Editar y Movimientos se quedan a la vista; el resto va al menu. */
+  .accion-minimo,
   .accion-movimiento,
   .accion-transferir {
     display: none;
@@ -2815,6 +2817,7 @@ button {
     display: block;
   }
 
+  .accion-minimo,
   .accion-movimiento,
   .accion-transferir {
     display: none;

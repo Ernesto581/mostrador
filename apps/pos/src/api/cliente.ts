@@ -52,7 +52,7 @@ export function leerToken(): string | null {
 }
 
 interface OpcionesPeticion {
-  metodo?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  metodo?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   cuerpo?: unknown;
 }
 
@@ -319,6 +319,16 @@ export const api = {
   ) =>
     pedir<{ conAlerta: number; sucursales: Sucursal[]; stock: FilaStockGeneral[] }>(
       `/inventory/stock-general${parametros({ limite: 200, ...filtros })}`,
+    ),
+
+  actualizarMinimo: (cuerpo: {
+    sucursalId: string;
+    productoId: string;
+    stockMinimo: number;
+  }) =>
+    pedir<{ minimo: { productoId: string; sucursalId: string; stockMinimo: number } }>(
+      '/inventory/minimums',
+      { metodo: 'PUT', cuerpo },
     ),
 
   movimientos: (filtros: {

@@ -132,7 +132,12 @@ export function Panel({ sesion, onIr }: Props) {
                 <span className="codigo">{fila.sku}</span>
               </span>
               <span className="numero">
-                {fila.stock} / {fila.stockMinimo}
+                {fila.reparto.some((parte) => parte.bajoMinimo)
+                  ? fila.reparto
+                      .filter((parte) => parte.bajoMinimo)
+                      .map((parte) => `${parte.codigo} ${parte.cantidad}/${parte.minimo}`)
+                      .join(' · ')
+                  : `${fila.stock} / ${fila.stockMinimo}`}
               </span>
             </div>
           ))}

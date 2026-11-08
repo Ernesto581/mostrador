@@ -48,6 +48,8 @@ interface FilaVista {
   precioVenta: number;
   stock: number;
   stockMinimo: number;
+  /** Minimo general del producto (respaldo). */
+  stockMinimoGeneral?: number;
   bajoMinimo: boolean;
   categoriaId: string | null;
   reparto?: RepartoSucursal[];
@@ -191,6 +193,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
   const [porBorrar, setPorBorrar] = useState<FilaVista | null>(null);
+  const [minimo, setMinimo] = useState<{ fila: FilaVista; valor: string } | null>(null);
   // Que fila tiene abierto el menu de tres puntos (solo se abre uno a la vez).
   const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -267,6 +270,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const nombrePorCategoria = new Map(categorias.map((categoria) => [categoria.id, categoria.nombre]));
   const movimientos = datosMovimientos?.movimientos ?? [];
   const nombrePorSucursal = new Map(sesion.sucursales.map((opcion) => [opcion.id, opcion.nombre]));
+  const sucursalActual = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
 
   useEffect(() => {
     setPagina(1);
@@ -431,6 +435,38 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     }
   }
 
+  async function guardarMinimo(): Promise<void> {
+    if (!minimo) {
+      return;
+    }
+
+    const valor = Number(minimo.valor);
+    if (!Number.isInteger(valor) || valor < 0) {
+      setError('El minimo debe ser un numero entero mayor o igual a cero');
+      return;
+    }
+
+    setGuardando(true);
+    setError(null);
+    try {
+      await api.actualizarMinimo({
+        sucursalId,
+        productoId: minimo.fila.productoId,
+        stockMinimo: valor,
+      });
+      await recargar();
+      setMinimo(null);
+      setOk(
+        `Minimo de ${minimo.fila.sku} en ${sucursalActual?.codigo ?? 'la sucursal'}: ${valor}.`,
+      );
+      window.setTimeout(() => setOk(null), 4500);
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   /** Ubicacion interna que representa a la sucursal en una transferencia. */
   function ubicacionInicialDe(sucursal: string): string {
     const ubicaciones = datosUbicaciones?.ubicaciones ?? [];
@@ -577,7 +613,12 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     if (!fila.reparto || fila.reparto.length === 0) {
       return '—';
     }
-    return fila.reparto.map((parte) => `${parte.codigo} ${parte.cantidad}`).join(' · ');
+    return fila.reparto
+      .map(
+        (parte) =>
+          `${parte.codigo} ${parte.cantidad}/${parte.minimo}${parte.bajoMinimo ? ' bajo' : ''}`,
+      )
+      .join(' · ');
   }
 
   return (
@@ -984,7 +1025,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   <th className="col-producto">Producto</th>
                   <th className="numero col-total">Stock</th>
                   {general ? <th className="col-reparto">Reparto por sucursal</th> : null}
-                  <th className="numero col-minimo">Minimo</th>
+                  <th className="numero col-minimo">{general ? 'Mínimos' : 'Minimo'}</th>
                   <th className="numero col-costo">Costo</th>
                   <th className="numero col-venta">Venta</th>
                   <th className="col-categoria">Categoria</th>
@@ -1033,8 +1074,16 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       </td>
                     ) : null}
                     <td className="numero col-minimo">
-                      <span className="solo-angosto">Minimo </span>
-                      {fila.stockMinimo}
+                      {general ? (
+                        <span className="panel__nota" title="El minimo se muestra por sucursal en el reparto">
+                          —
+                        </span>
+                      ) : (
+                        <>
+                          <span className="solo-angosto">Minimo </span>
+                          {fila.stockMinimo}
+                        </>
+                      )}
                     </td>
                     <td className="numero col-costo">
                       <span className="solo-angosto">Costo </span>
@@ -1059,7 +1108,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                               categoriaId: fila.categoriaId ?? '',
                               precioCosto: aTextoCaptura(fila.precioCosto),
                               precioVenta: aTextoCaptura(fila.precioVenta),
-                              stockMinimo: String(fila.stockMinimo),
+                              stockMinimo: String(fila.stockMinimoGeneral ?? fila.stockMinimo),
                               codigos: '',
                               stockInicial: '0',
                               sucursalId,
@@ -1091,6 +1140,19 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                           }}
                         >
                           Borrar
+                        </button>
+                      ) : null}
+
+                      {puedeMover && !enProductos && !general ? (
+                        <button
+                          type="button"
+                          className="boton accion-minimo"
+                          onClick={() => {
+                            setError(null);
+                            setMinimo({ fila, valor: String(fila.stockMinimo) });
+                          }}
+                        >
+                          Minimo
                         </button>
                       ) : null}
 
@@ -1140,6 +1202,20 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         onAbrir={() => setMenuAbiertoId(fila.productoId)}
                         onCerrar={() => setMenuAbiertoId(null)}
                       >
+                        {puedeMover && !enProductos && !general ? (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="menu-acciones__item"
+                            onClick={() => {
+                              setMenuAbiertoId(null);
+                              setError(null);
+                              setMinimo({ fila, valor: String(fila.stockMinimo) });
+                            }}
+                          >
+                            Minimo
+                          </button>
+                        ) : null}
                         {puedeMover && !enProductos && !general ? (
                           <button
                             type="button"
@@ -1239,8 +1315,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           titulo={producto.id ? `Editar ${producto.sku}` : 'Nuevo producto'}
           nota={
             producto.id
-              ? 'Los codigos y el stock inicial solo se capturan al crear. Para mover existencias usa Movimiento.'
-              : 'Si indicas stock inicial, eliges a que sucursal entra y queda registrado en los movimientos.'
+              ? 'Los codigos y el stock inicial solo se capturan al crear. Para mover existencias usa Movimiento. El minimo general se usa donde la sucursal no tenga uno propio.'
+              : 'Si indicas stock inicial, eliges a que sucursal entra y queda registrado en los movimientos. El minimo general se usa donde la sucursal no tenga uno propio.'
           }
           onCerrar={() => setProducto(null)}
         >
@@ -1354,7 +1430,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </label>
 
             <label className="campo-ancho">
-              <span>Stock minimo</span>
+              <span>Stock minimo general</span>
               <input
                 className="entrada entrada--numero"
                 inputMode="numeric"
@@ -1776,6 +1852,48 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           onCerrar={() => setTransferenciaAbierta(false)}
           onGuardada={alGuardarTransferencia}
         />
+      ) : null}
+
+      {/* ---------- Minimo por sucursal ---------- */}
+      {minimo ? (
+        <Modal
+          titulo={`Minimo de ${minimo.fila.sku}`}
+          nota={`${minimo.fila.nombre} · ${sucursalActual?.codigo ?? ''} ${sucursalActual?.nombre ?? ''}. Si lo dejas en cero, esta sucursal no avisa por minimo.`}
+          onCerrar={() => setMinimo(null)}
+        >
+          <div className="formulario">
+            <label className="campo-ancho campo-ancho--ancho">
+              <span>Stock minimo en esta sucursal</span>
+              <input
+                className="entrada entrada--numero"
+                inputMode="numeric"
+                value={minimo.valor}
+                onChange={(evento) => setMinimo({ ...minimo, valor: evento.target.value })}
+                autoFocus
+              />
+            </label>
+          </div>
+
+          {error ? (
+            <p className="aviso" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="modal__acciones">
+            <button type="button" className="boton" onClick={() => setMinimo(null)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="boton boton--acento"
+              onClick={() => void guardarMinimo()}
+              disabled={guardando}
+            >
+              {guardando ? 'Guardando…' : 'Guardar minimo'}
+            </button>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
