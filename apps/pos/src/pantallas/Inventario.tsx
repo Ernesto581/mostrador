@@ -622,9 +622,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       return '—';
     }
     return fila.reparto
-      .map(
-        (parte) =>
-          `${parte.codigo} ${parte.cantidad}/${parte.minimo}${parte.bajoMinimo ? ' bajo' : ''}`,
+      .map((parte) =>
+        parte.bajoMinimo
+          ? `${parte.codigo} ${parte.cantidad}/${parte.minimo}`
+          : `${parte.codigo} ${parte.cantidad}`,
       )
       .join(' · ');
   }
