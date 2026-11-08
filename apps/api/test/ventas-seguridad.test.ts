@@ -339,24 +339,32 @@ describe('descuentos', () => {
 });
 
 describe('caja', () => {
-  it('solo muestra los turnos abiertos de las sucursales de la sesion', async () => {
+  it('el administrador ve los turnos abiertos de todas las sucursales y el cajero no', async () => {
     const propios = await app.inject({
+      method: 'GET',
+      url: '/api/v1/shifts/abiertos',
+      headers: auth(tokenSupervisor),
+    });
+    expect(propios.statusCode).toBe(200);
+    const idsPropios = (propios.json().turnos as { id: string }[]).map((turno) => turno.id);
+    expect(idsPropios).not.toContain(turnoSecundariaId);
+
+    const todos = await app.inject({
+      method: 'GET',
+      url: '/api/v1/shifts/abiertos',
+      headers: auth(tokenAdmin),
+    });
+    expect(todos.statusCode).toBe(200);
+    const idsTodos = (todos.json().turnos as { id: string }[]).map((turno) => turno.id);
+    expect(idsTodos).toContain(turnoSecundariaId);
+
+    const cajero = await app.inject({
       method: 'GET',
       url: '/api/v1/shifts/abiertos',
       headers: auth(tokenVendedorAmplio),
     });
-    expect(propios.statusCode).toBe(200);
-    const idsPropios = (propios.json().turnos as { id: string }[]).map((turno) => turno.id);
-    expect(idsPropios).toContain(turnoSecundariaId);
-
-    const ajenos = await app.inject({
-      method: 'GET',
-      url: '/api/v1/shifts/abiertos',
-      headers: auth(tokenVendedor),
-    });
-    expect(ajenos.statusCode).toBe(200);
-    const idsAjenos = (ajenos.json().turnos as { id: string }[]).map((turno) => turno.id);
-    expect(idsAjenos).not.toContain(turnoSecundariaId);
+    expect(cajero.statusCode).toBe(403);
+    expect(cajero.json().error.codigo).toBe('SIN_PERMISO');
   });
 
   it('rechaza el resumen de un turno de otra sucursal', async () => {
@@ -393,7 +401,7 @@ describe('caja', () => {
     expect(respuesta.json().error.codigo).toBe('SIN_PERMISO');
   });
 
-  it('cierra el turno propio y no lo muestra a otra sucursal', async () => {
+  it('cierra el turno propio y no lo muestra a una sesion de otra sucursal', async () => {
     const cierre = await app.inject({
       method: 'POST',
       url: `/api/v1/shifts/${turnoSecundariaId}/cerrar`,
@@ -406,7 +414,7 @@ describe('caja', () => {
     const cierresAjenos = await app.inject({
       method: 'GET',
       url: '/api/v1/cash-closures',
-      headers: auth(tokenVendedor),
+      headers: auth(tokenSupervisor),
     });
     expect(cierresAjenos.statusCode).toBe(200);
     const sucursales = (cierresAjenos.json().cierres as { sucursalId: string }[]).map(

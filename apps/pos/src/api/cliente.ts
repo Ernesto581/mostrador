@@ -1,6 +1,7 @@
 import type {
   Categoria,
   CierreCaja,
+  DetalleCierre,
   DetalleVenta,
   EstadoTransferencia,
   FilaStock,
@@ -320,8 +321,12 @@ export const api = {
       `/inventory/stock-general${parametros({ limite: 200, ...filtros })}`,
     ),
 
-  movimientos: (filtros: { productoId?: string; sucursalId?: string; limite?: number }) =>
-    pedir<{ movimientos: Movimiento[] }>(`/inventory/movements${parametros(filtros)}`),
+  movimientos: (filtros: {
+    productoId?: string;
+    sucursalId?: string;
+    tipo?: string;
+    limite?: number;
+  }) => pedir<{ movimientos: Movimiento[] }>(`/inventory/movements${parametros(filtros)}`),
 
   registrarMovimiento: (cuerpo: {
     sucursalId: string;
@@ -516,6 +521,8 @@ export const api = {
 
   cierres: (filtros: { sucursalId?: string; desde?: string; hasta?: string; limite?: number }) =>
     pedir<{ cierres: CierreCaja[] }>(`/cash-closures${parametros(filtros)}`),
+
+  cierreDetalle: (id: string) => pedir<DetalleCierre>(`/cash-closures/${id}`),
 
   turnosAbiertos: () => pedir<{ turnos: TurnoAbiertoResumen[] }>('/shifts/abiertos'),
 

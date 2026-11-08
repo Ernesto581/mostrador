@@ -49,6 +49,7 @@ export const branches = pgTable(
      * false (lo normal): el mostrador vende solo del piso de venta.
      * true: si el piso no alcanza, la venta toma el resto del almacen.
      */
+    /** Conservado por compatibilidad: el stock ahora se maneja por sucursal. */
     ventaDesdeAlmacen: boolean().notNull().default(false),
     descripcion: text(),
     tipoNegocio: text(),

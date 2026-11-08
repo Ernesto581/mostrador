@@ -22,7 +22,17 @@ const esquemaResumen = z.object({
  */
 export async function rutasReportes(app: FastifyInstance) {
   const preHandler = exigirSesion(app);
-  const { sales, saleLines, salePayments, branches, companies } = schema;
+  const {
+    sales,
+    saleLines,
+    salePayments,
+    branches,
+    companies,
+    cashMovements,
+    expenses,
+    inventoryMovements,
+    products,
+  } = schema;
 
   app.get('/reports/resumen', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
@@ -97,6 +107,56 @@ export async function rutasReportes(app: FastifyInstance) {
       .where(and(...condiciones))
       .groupBy(salePayments.method);
 
+    // Compras de mercancia: entradas de inventario con su costo. Si la entrada
+    // no guardo costo unitario se usa el costo promedio actual del producto.
+    const [compras] = await app.db
+      .select({
+        total: sql<number>`coalesce(sum(${inventoryMovements.quantity} * coalesce(${inventoryMovements.unitCost}, ${products.averageCost})), 0)::int`,
+      })
+      .from(inventoryMovements)
+      .innerJoin(products, eq(products.id, inventoryMovements.productId))
+      .where(
+        and(
+          eq(inventoryMovements.companyId, sesion.empresaId),
+          eq(inventoryMovements.type, 'entrada_compra'),
+          gte(inventoryMovements.occurredAt, consulta.desde),
+          lte(inventoryMovements.occurredAt, consulta.hasta),
+          inArray(inventoryMovements.branchId, sucursalIds),
+        ),
+      );
+
+    // Gastos pagados de la caja en el periodo.
+    const [gastosCaja] = await app.db
+      .select({
+        total: sql<number>`coalesce(sum(${cashMovements.amount}), 0)::int`,
+      })
+      .from(cashMovements)
+      .where(
+        and(
+          eq(cashMovements.type, 'gasto'),
+          isNull(cashMovements.deletedAt),
+          gte(cashMovements.occurredAt, consulta.desde),
+          lte(cashMovements.occurredAt, consulta.hasta),
+          inArray(cashMovements.branchId, sucursalIds),
+        ),
+      );
+
+    // Gastos registrados en contabilidad (si existen).
+    const [gastosRegistrados] = await app.db
+      .select({
+        total: sql<number>`coalesce(sum(${expenses.amount}), 0)::int`,
+      })
+      .from(expenses)
+      .where(
+        and(
+          eq(expenses.companyId, sesion.empresaId),
+          isNull(expenses.deletedAt),
+          gte(expenses.date, consulta.desde.toISOString().slice(0, 10)),
+          lte(expenses.date, consulta.hasta.toISOString().slice(0, 10)),
+          inArray(expenses.branchId, sucursalIds),
+        ),
+      );
+
     const totalPagado = pagosFilas.reduce((total, fila) => total + Number(fila.monto), 0);
     const pagos = pagosFilas
       .map((fila) => ({
@@ -159,6 +219,11 @@ export async function rutasReportes(app: FastifyInstance) {
     const ventaNeta = Number(resumen?.ventaNeta ?? 0);
     const costo = Number(costos?.costo ?? 0);
     const utilidad = ventaNeta - costo;
+    const comprasTotal = Number(compras?.total ?? 0);
+    const gastosCajaTotal = Number(gastosCaja?.total ?? 0);
+    const gastosRegistradosTotal = Number(gastosRegistrados?.total ?? 0);
+    const gastosTotal = gastosCajaTotal + gastosRegistradosTotal;
+    const utilidadNeta = utilidad - gastosTotal;
 
     return {
       rango: { desde: consulta.desde.toISOString(), hasta: consulta.hasta.toISOString() },
@@ -175,6 +240,11 @@ export async function rutasReportes(app: FastifyInstance) {
         utilidad,
         margen: ventaNeta > 0 ? utilidad / ventaNeta : 0,
         ticketPromedio: tickets > 0 ? Math.round(ventaBruta / tickets) : 0,
+        compras: comprasTotal,
+        gastos: gastosTotal,
+        gastosCaja: gastosCajaTotal,
+        gastosRegistrados: gastosRegistradosTotal,
+        utilidadNeta,
       },
       pagos,
       porSucursal: porSucursal.map((fila) => ({
@@ -215,6 +285,11 @@ function reporteVacio(desde: Date, hasta: Date, moneda: string) {
       utilidad: 0,
       margen: 0,
       ticketPromedio: 0,
+      compras: 0,
+      gastos: 0,
+      gastosCaja: 0,
+      gastosRegistrados: 0,
+      utilidadNeta: 0,
     },
     pagos: [],
     porSucursal: [],

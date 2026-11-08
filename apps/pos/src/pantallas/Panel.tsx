@@ -18,20 +18,26 @@ function rangoDeHoy(): { desde: string; hasta: string } {
 /**
  * Resumen del día para quien administra.
  *
- * Ventas y alertas salen del servidor. La utilidad todavía no se calcula:
- * falta el costo de lo vendido en el listado de ventas.
+ * Ventas, compras, gastos y utilidad salen del reporte del servidor. Las alertas
+ * y los traslados se consultan aparte para no mezclar peras con manzanas.
  */
 export function Panel({ sesion, onIr }: Props) {
   const { desde, hasta } = rangoDeHoy();
-  const ventas = useCarga(() => api.ventas({ desde, hasta, limite: 200 }), []);
+  const reporte = useCarga(
+    () => api.reporteResumen({ desde, hasta, por: 'importe' }),
+    [],
+  );
   const alertas = useCarga(() => api.stockGeneral({ soloBajoMinimo: true, limite: 8 }), []);
   const traslados = useCarga(() => api.transferencias({ estado: 'en_transito', limite: 20 }), []);
 
-  const completadas = (ventas.datos?.ventas ?? []).filter((venta) => venta.estado === 'completada');
-  const ingresos = completadas.reduce((total, venta) => total + venta.total, 0);
-  const ticketMedio = completadas.length === 0 ? 0 : Math.round(ingresos / completadas.length);
+  const resumen = reporte.datos?.resumen;
+  const reporteListo = !reporte.cargando && !reporte.error;
+  const tickets = resumen?.tickets ?? 0;
+  const ingresos = resumen?.ventaBruta ?? 0;
+  const ticketMedio = resumen?.ticketPromedio ?? 0;
   const bajoMinimo = alertas.datos?.stock ?? [];
   const enTransito = traslados.datos?.transferencias ?? [];
+  const margen = Math.round((resumen?.margen ?? 0) * 1000) / 10;
 
   return (
     <div className="panel">
@@ -39,7 +45,7 @@ export function Panel({ sesion, onIr }: Props) {
         <div>
           <h1 className="panel__titulo">Panel</h1>
           <p className="panel__nota">
-            Resumen de ventas, ingresos, utilidad y alertas de inventario.
+            Resumen de ventas, compras, gastos, utilidad y alertas de inventario.
             {' '}
             {sesion.empresa.nombre || 'El negocio'} · hoy
           </p>
@@ -54,19 +60,35 @@ export function Panel({ sesion, onIr }: Props) {
       <div className="rejilla-tarjetas">
         <div className="tarjeta tarjeta--destacada">
           <p className="tarjeta__titulo">Ingresos por ventas</p>
-          <p className="cifra-grande">{ventas.cargando ? '…' : dinero(ingresos)}</p>
+          <p className="cifra-grande">{reporteListo ? dinero(ingresos) : '—'}</p>
           <p className="panel__nota">
-            {ventas.error
-              ? ventas.error
-              : `${completadas.length} ventas completadas · ticket medio ${dinero(ticketMedio)}`}
+            {reporte.error
+              ? reporte.error
+              : reporte.cargando
+                ? 'Cargando…'
+                : `${tickets} ventas completadas · ticket medio ${dinero(ticketMedio)}`}
           </p>
         </div>
 
         <div className="tarjeta">
-          <p className="tarjeta__titulo">Utilidad estimada</p>
-          <p className="cifra-grande">—</p>
+          <p className="tarjeta__titulo">Compras de mercancia</p>
+          <p className="cifra-grande">{reporteListo ? dinero(resumen?.compras ?? 0) : '—'}</p>
+          <p className="panel__nota">Entradas de inventario con su costo.</p>
+        </div>
+
+        <div className="tarjeta">
+          <p className="tarjeta__titulo">Gastos</p>
+          <p className="cifra-grande">{reporteListo ? dinero(resumen?.gastos ?? 0) : '—'}</p>
+          <p className="panel__nota">Gastos pagados de caja y gastos registrados.</p>
+        </div>
+
+        <div className="tarjeta">
+          <p className="tarjeta__titulo">Utilidad bruta</p>
+          <p className="cifra-grande">{reporteListo ? dinero(resumen?.utilidad ?? 0) : '—'}</p>
           <p className="panel__nota">
-            Se calcula restando el costo de lo vendido. El listado de ventas aún no trae ese costo.
+            {reporteListo
+              ? `Despues de gastos: ${dinero(resumen?.utilidadNeta ?? 0)} · margen ${margen}%`
+              : 'No se pudo cargar el resumen del dia.'}
           </p>
         </div>
 
@@ -78,6 +100,22 @@ export function Panel({ sesion, onIr }: Props) {
           </p>
         </div>
       </div>
+
+      {reporte.datos && reporte.datos.porSucursal.length > 0 ? (
+        <div className="tarjeta">
+          <p className="tarjeta__titulo">Ventas por sucursal</p>
+          {reporte.datos.porSucursal.map((fila) => (
+            <div className="fila-dato" key={fila.sucursalId}>
+              <span>
+                {fila.codigo} · {fila.nombre}
+                <br />
+                <span className="panel__nota">{fila.tickets} ventas</span>
+              </span>
+              <span className="numero">{dinero(fila.ventaBruta)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="columnas-dos">
         <div className="tarjeta">

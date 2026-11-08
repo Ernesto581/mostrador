@@ -20,6 +20,7 @@ import {
   ubicacionDeSucursal,
   ubicacionPrincipalDeSucursal,
 } from '../inventario/servicio.js';
+import { MS_MAXIMO_TURNO } from '../caja/servicio.js';
 
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'transferencia';
 
@@ -116,6 +117,40 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
     const config: ConfiguracionImpuestos = {
       preciosConImpuestoIncluido: empresa.pricesIncludeTax,
     };
+
+    // Si la venta trae turno, debe estar vigente: abierto o cerrado despues de
+    // la venta (para las ventas hechas sin conexion). Nunca mas de 24 horas.
+    if (entrada.turnoId) {
+      const [turno] = await tx
+        .select({
+          branchId: schema.shifts.branchId,
+          openedAt: schema.shifts.openedAt,
+          closedAt: schema.shifts.closedAt,
+          status: schema.shifts.status,
+        })
+        .from(schema.shifts)
+        .where(eq(schema.shifts.id, entrada.turnoId))
+        .limit(1);
+
+      const momento = entrada.vendidoEn ?? new Date();
+      const edad = turno ? momento.getTime() - turno.openedAt.getTime() : -1;
+      const ventaAntesDelCierre =
+        turno?.status === 'cerrado' && turno.closedAt !== null && momento <= turno.closedAt;
+
+      if (
+        !turno ||
+        turno.branchId !== entrada.sucursalId ||
+        edad < 0 ||
+        edad > MS_MAXIMO_TURNO ||
+        (turno.status !== 'abierto' && !ventaAntesDelCierre)
+      ) {
+        throw new ErrorDeAplicacion(
+          'El turno de caja no esta vigente. Cierra el turno y abre uno nuevo.',
+          409,
+          'TURNO_VENCIDO',
+        );
+      }
+    }
 
     const idsProductos = [...new Set(entrada.lineas.map((linea) => linea.productoId))];
     const filasProductos = await tx

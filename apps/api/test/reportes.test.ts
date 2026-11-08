@@ -61,6 +61,29 @@ beforeAll(async () => {
     'efectivo',
   );
 
+  // Un gasto pagado de la caja para comprobar el resumen del dashboard.
+  const turno = await app.inject({
+    method: 'POST',
+    url: '/api/v1/shifts',
+    headers: auth(tokenCajero),
+    payload: { sucursalId: semilla.sucursalId, fondoInicial: 10000 },
+  });
+  expect(turno.statusCode).toBe(201);
+
+  const gasto = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cash-movements',
+    headers: auth(tokenCajero),
+    payload: {
+      sucursalId: semilla.sucursalId,
+      turnoId: turno.json().turno.id,
+      tipo: 'gasto',
+      monto: 500,
+      motivo: 'Gasto de prueba',
+    },
+  });
+  expect(gasto.statusCode).toBe(201);
+
   const rolReporte = nuevoId();
   await app.db.insert(schema.roles).values({
     id: rolReporte,
@@ -154,6 +177,10 @@ describe('reporte de ventas', () => {
     expect(reporte.resumen.utilidad).toBe(3500);
     expect(reporte.resumen.ticketPromedio).toBe(2833);
     expect(reporte.resumen.margen).toBeCloseTo(3500 / 8500, 5);
+    expect(reporte.resumen.compras).toBe(24000);
+    expect(reporte.resumen.gastos).toBe(500);
+    expect(reporte.resumen.gastosCaja).toBe(500);
+    expect(reporte.resumen.utilidadNeta).toBe(3000);
     expect(reporte.porSucursal).toHaveLength(2);
   });
 
@@ -188,6 +215,9 @@ describe('reporte de ventas', () => {
     expect(reporte.resumen.ventaBruta).toBe(4900);
     expect(reporte.resumen.costo).toBe(2600);
     expect(reporte.resumen.utilidad).toBe(2300);
+    expect(reporte.resumen.compras).toBe(0);
+    expect(reporte.resumen.gastos).toBe(500);
+    expect(reporte.resumen.utilidadNeta).toBe(1800);
     expect(reporte.porSucursal).toHaveLength(1);
     expect(reporte.masVendidos.map((fila: { sku: string }) => fila.sku)).not.toContain('ABA-001');
   });

@@ -65,6 +65,7 @@ const esquemaConsultaStockGeneral = z.object({
 const esquemaConsultaMovimientos = z.object({
   productoId: z.string().min(1).optional(),
   sucursalId: z.string().min(1).optional(),
+  tipo: z.string().min(1).optional(),
   desde: z.coerce.date().optional(),
   hasta: z.coerce.date().optional(),
   limite: z.coerce.number().int().min(1).max(500).optional(),
@@ -217,6 +218,7 @@ export async function rutasInventario(app: FastifyInstance) {
       ...(consulta.sucursalId
         ? { sucursalId: consulta.sucursalId }
         : { sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id) }),
+      tipo: consulta.tipo,
       desde: consulta.desde,
       hasta: consulta.hasta,
       limite: consulta.limite,

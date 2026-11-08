@@ -1,3 +1,5 @@
+import { schema } from '@mostrador/db-cloud';
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sembrarDatosIniciales, type ResultadoSemilla } from '../src/db/seed.js';
@@ -41,6 +43,10 @@ afterAll(async () => {
 
 function auth(): Record<string, string> {
   return { authorization: `Bearer ${token}` };
+}
+
+function authAdmin(): Record<string, string> {
+  return { authorization: `Bearer ${tokenAdmin}` };
 }
 
 function producto(sku: string) {
@@ -253,11 +259,22 @@ describe('caja y cierre de turno', () => {
     expect(respuesta.json().error.codigo).toBe('TURNO_CERRADO');
   });
 
-  it('el historial de cierres trae los dos arqueos', async () => {
+  it('el cajero no ve el historial de cierres', async () => {
     const respuesta = await app.inject({
       method: 'GET',
       url: '/api/v1/cash-closures',
       headers: auth(),
+    });
+
+    expect(respuesta.statusCode).toBe(403);
+    expect(respuesta.json().error.codigo).toBe('SIN_PERMISO');
+  });
+
+  it('el historial de cierres trae los dos arqueos', async () => {
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: '/api/v1/cash-closures',
+      headers: authAdmin(),
     });
 
     expect(respuesta.statusCode).toBe(200);
@@ -265,6 +282,44 @@ describe('caja y cierre de turno', () => {
     expect(cierres.length).toBeGreaterThanOrEqual(2);
     expect(cierres.some((cierre) => cierre.diferencia === -500)).toBe(true);
     expect(cierres.every((cierre) => cierre.sucursal === 'CENTRO')).toBe(true);
+  });
+
+  it('el detalle de un cierre muestra ventas, productos y pagos', async () => {
+    const historial = await app.inject({
+      method: 'GET',
+      url: '/api/v1/cash-closures',
+      headers: authAdmin(),
+    });
+    const cierres = historial.json().cierres as { id: string; ventasTotal: number }[];
+    const cierre = cierres.find((fila) => fila.ventasTotal > 0);
+    expect(cierre).toBeTruthy();
+
+    const detalle = await app.inject({
+      method: 'GET',
+      url: `/api/v1/cash-closures/${cierre!.id}`,
+      headers: authAdmin(),
+    });
+    expect(detalle.statusCode).toBe(200);
+
+    const cuerpo = detalle.json() as {
+      turno: unknown;
+      resumen: unknown;
+      ventas: { pagos: { metodo: string; monto: number }[] }[];
+      productos: unknown[];
+    };
+    expect(cuerpo.turno).toBeTruthy();
+    expect(cuerpo.resumen).toBeTruthy();
+    expect(cuerpo.ventas.length).toBeGreaterThan(0);
+    expect(cuerpo.ventas[0]?.pagos.length).toBeGreaterThan(0);
+    expect(cuerpo.productos.length).toBeGreaterThan(0);
+
+    const cajero = await app.inject({
+      method: 'GET',
+      url: `/api/v1/cash-closures/${cierre!.id}`,
+      headers: auth(),
+    });
+    expect(cajero.statusCode).toBe(403);
+    expect(cajero.json().error.codigo).toBe('SIN_PERMISO');
   });
 
   it('no hay turno abierto al terminar', async () => {
@@ -275,5 +330,61 @@ describe('caja y cierre de turno', () => {
     });
 
     expect(respuesta.json().turno).toBeNull();
+  });
+
+  it('cierra automaticamente un turno que supera las 24 horas', async () => {
+    const abrir = await app.inject({
+      method: 'POST',
+      url: '/api/v1/shifts',
+      headers: auth(),
+      payload: { sucursalId: semilla.sucursalId, fondoInicial: 1000 },
+    });
+    expect(abrir.statusCode).toBe(201);
+    const turnoVencido = abrir.json().turno.id as string;
+
+    await app.db
+      .update(schema.shifts)
+      .set({ openedAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .where(eq(schema.shifts.id, turnoVencido));
+
+    const actual = await app.inject({
+      method: 'GET',
+      url: `/api/v1/shifts/actual?sucursalId=${semilla.sucursalId}`,
+      headers: auth(),
+    });
+    expect(actual.json().turno).toBeNull();
+
+    const historial = await app.inject({
+      method: 'GET',
+      url: '/api/v1/cash-closures',
+      headers: authAdmin(),
+    });
+    const automatico = (
+      historial.json().cierres as {
+        contado: number;
+        esperado: number;
+        diferencia: number;
+        notas: string | null;
+      }[]
+    ).find((cierre) => cierre.notas?.includes('24 horas'));
+    expect(automatico).toBeTruthy();
+    expect(automatico!.contado).toBe(automatico!.esperado);
+    expect(automatico!.diferencia).toBe(0);
+
+    // Despues del cierre automatico se puede abrir un turno nuevo.
+    const nuevo = await app.inject({
+      method: 'POST',
+      url: '/api/v1/shifts',
+      headers: auth(),
+      payload: { sucursalId: semilla.sucursalId, fondoInicial: 1000 },
+    });
+    expect(nuevo.statusCode).toBe(201);
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/shifts/${nuevo.json().turno.id}/cerrar`,
+      headers: auth(),
+      payload: { contado: 1000 },
+    });
   });
 });

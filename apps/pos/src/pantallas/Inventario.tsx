@@ -10,6 +10,7 @@ import type {
 } from '../api/tipos';
 import { AltaInventario } from '../componentes/AltaInventario';
 import { MenuAcciones } from '../componentes/MenuAcciones';
+import { NuevaTransferencia } from '../componentes/NuevaTransferencia';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
 import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
 import {
@@ -166,7 +167,7 @@ async function prepararImagen(archivo: File): Promise<File> {
 
 export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busquedaExterna, alCambiarBusqueda }: Props) {
   const [sucursalId, setSucursalId] = useState(sucursalInicial);
-  const [general] = useState(false);
+  const [general, setGeneral] = useState(false);
   const [busquedaInterna, setBusquedaInterna] = useState('');
   const buscar = busquedaExterna ?? busquedaInterna;
   const setBuscar = alCambiarBusqueda ?? setBusquedaInterna;
@@ -181,6 +182,9 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [rechazo, setRechazo] = useState<FormularioRechazo | null>(null);
   const [verMovimientos, setVerMovimientos] = useState(false);
   const [altaAbierta, setAltaAbierta] = useState(false);
+  const [transferenciaAbierta, setTransferenciaAbierta] = useState(false);
+  const [filtroSucursalId, setFiltroSucursalId] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('');
   const enMovimientos = vista === 'movimientos' || (vista === undefined && verMovimientos);
   const enProductos = vista === 'productos';
   const enExistencias = !enProductos && !enMovimientos;
@@ -240,9 +244,13 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   } = useCarga(
     () =>
       enMovimientos
-        ? api.movimientos({ limite: 60 })
+        ? api.movimientos({
+            ...(filtroSucursalId ? { sucursalId: filtroSucursalId } : {}),
+            ...(filtroTipo ? { tipo: filtroTipo } : {}),
+            limite: 100,
+          })
         : Promise.resolve({ movimientos: [] as Movimiento[] }),
-    [enMovimientos],
+    [enMovimientos, filtroSucursalId, filtroTipo],
   );
 
   const puedeTransferir =
@@ -542,6 +550,14 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     void recargarMovimientos();
   }
 
+  /** Se creo una transferencia desde Movimientos. */
+  function alGuardarTransferencia(texto: string): void {
+    setTransferenciaAbierta(false);
+    setOk(texto);
+    window.setTimeout(() => setOk(null), 5000);
+    void Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
+  }
+
   function claseStock(fila: FilaVista): string {
     if (fila.stock <= 0) {
       return 'insignia insignia--agotado';
@@ -580,7 +596,9 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               ? `Catalogo de productos: foto, codigos de barras, costos, precios y stock. ${datos?.filas.length ?? 0} productos en el catalogo. Usa Movimientos en un producto para ver su historial.`
               : enMovimientos
                 ? 'Agrega mercancia a cada sucursal y controla los traslados entre sucursales.'
-                : `Existencias por sucursal, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
+                : general
+                  ? `Existencias de todas las sucursales. ${datos?.filas.length ?? 0} productos en total.`
+                  : `Existencias por sucursal, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
           </p>
         </div>
 
@@ -588,10 +606,18 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           {sesion.sucursales.length > 1 ? (
             <select
               className="selector"
-              value={sucursalId}
-              onChange={(evento) => setSucursalId(evento.target.value)}
+              value={general ? 'todas' : sucursalId}
+              onChange={(evento) => {
+                if (evento.target.value === 'todas') {
+                  setGeneral(true);
+                } else {
+                  setGeneral(false);
+                  setSucursalId(evento.target.value);
+                }
+              }}
               aria-label="Sucursal"
             >
+              {enExistencias ? <option value="todas">Todas las sucursales</option> : null}
               {sesion.sucursales.map((opcion) => (
                 <option key={opcion.id} value={opcion.id}>
                   {opcion.nombre}
@@ -612,7 +638,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               <button
                 type="button"
                 className={enMovimientos ? 'pestana pestana--activa' : 'pestana'}
-                onClick={() => setVerMovimientos(true)}
+                onClick={() => {
+                  setGeneral(false);
+                  setVerMovimientos(true);
+                }}
               >
                 Movimientos
               </button>
@@ -628,7 +657,20 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                 setAltaAbierta(true);
               }}
             >
-              Agregar producto
+              Nuevo movimiento
+            </button>
+          ) : null}
+
+          {enMovimientos && puedeTransferir ? (
+            <button
+              type="button"
+              className="boton inventario__nuevo"
+              onClick={() => {
+                setError(null);
+                setTransferenciaAbierta(true);
+              }}
+            >
+              Nueva transferencia
             </button>
           ) : null}
 
@@ -829,10 +871,40 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {enMovimientos ? (
         <section className="inventario__seccion">
           <div className="inventario__seccion-cabecera">
-            <h2 className="inventario__seccion-titulo">Ultimos movimientos</h2>
-            <p className="panel__nota">
-              Entradas, salidas, mermas y ajustes de todas las sucursales.
-            </p>
+            <div>
+              <h2 className="inventario__seccion-titulo">Ultimos movimientos</h2>
+              <p className="panel__nota">
+                Entradas, salidas, mermas y ajustes de todas las sucursales.
+              </p>
+            </div>
+            <div className="barra-filtros">
+              <select
+                className="selector"
+                value={filtroSucursalId}
+                onChange={(evento) => setFiltroSucursalId(evento.target.value)}
+                aria-label="Filtrar movimientos por sucursal"
+              >
+                <option value="">Todas las sucursales</option>
+                {sesion.sucursales.map((opcion) => (
+                  <option key={opcion.id} value={opcion.id}>
+                    {opcion.codigo} · {opcion.nombre}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="selector"
+                value={filtroTipo}
+                onChange={(evento) => setFiltroTipo(evento.target.value)}
+                aria-label="Filtrar por tipo de movimiento"
+              >
+                <option value="">Todos los movimientos</option>
+                {Object.entries(ETIQUETA_MOVIMIENTO).map(([valor, etiqueta]) => (
+                  <option key={valor} value={valor}>
+                    {etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {cargandoMovimientos ? <p className="panel__nota">Cargando…</p> : null}
@@ -840,7 +912,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           {!cargandoMovimientos && movimientos.length === 0 ? (
             <div className="tarjeta">
               <p className="vacio">
-                Todavia no hay movimientos. Usa Agregar producto para dar la primera entrada.
+                No hay movimientos con esos filtros. Usa Nuevo movimiento para registrar una
+                entrada, una merma o un ajuste.
               </p>
             </div>
           ) : null}
@@ -855,6 +928,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                     <th>Sucursal</th>
                     <th>Movimiento</th>
                     <th className="numero">Cantidad</th>
+                    <th>Documento</th>
                     <th>Motivo</th>
                   </tr>
                 </thead>
@@ -872,6 +946,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                           ? `−${movimiento.cantidad}`
                           : `+${movimiento.cantidad}`}
                       </td>
+                      <td className="codigo">{movimiento.documentoFolio ?? '—'}</td>
                       <td>{movimiento.motivo ?? '—'}</td>
                     </tr>
                   ))}
@@ -935,7 +1010,15 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       <span className="solo-angosto">SKU </span>
                       {fila.sku}
                     </td>
-                    <td className="col-producto">{fila.nombre}</td>
+                    <td className="col-producto">
+                      {fila.nombre}
+                      {general ? (
+                        <span className="solo-angosto inventario__reparto">
+                          <br />
+                          Por sucursal: {repartoDe(fila)}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="numero col-total">
                       <span className="solo-angosto inventario__etiqueta-total">Total</span>
                       <span className={claseStock(fila)} title={estadoStock(fila)}>
@@ -1011,7 +1094,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         </button>
                       ) : null}
 
-                      {puedeMover && !enProductos ? (
+                      {puedeMover && !enProductos && !general ? (
                         <button
                           type="button"
                           className="boton accion-movimiento"
@@ -1031,7 +1114,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         </button>
                       ) : null}
 
-                      {puedeTransferir && !enProductos ? (
+                      {puedeTransferir && !enProductos && !general ? (
                         <button
                           type="button"
                           className="boton accion-transferir"
@@ -1051,13 +1134,13 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       ) : null}
 
                       {/* Donde no caben todos los botones, aqui siguen estando. */}
-                      {!enProductos ? (
+                      {!enProductos && !general ? (
                       <MenuAcciones
                         abierto={menuAbiertoId === fila.productoId}
                         onAbrir={() => setMenuAbiertoId(fila.productoId)}
                         onCerrar={() => setMenuAbiertoId(null)}
                       >
-                        {puedeMover && !enProductos ? (
+                        {puedeMover && !enProductos && !general ? (
                           <button
                             type="button"
                             role="menuitem"
@@ -1078,7 +1161,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                             Movimiento
                           </button>
                         ) : null}
-                        {puedeTransferir && !enProductos ? (
+                        {puedeTransferir && !enProductos && !general ? (
                           <button
                             type="button"
                             role="menuitem"
@@ -1674,13 +1757,24 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </Modal>
       ) : null}
 
-      {/* ---------- Agregar producto al inventario desde el catalogo ---------- */}
+      {/* ---------- Nuevo movimiento de inventario ---------- */}
       {altaAbierta ? (
         <AltaInventario
           sesion={sesion}
           sucursalId={sucursalId}
           onCerrar={() => setAltaAbierta(false)}
           onGuardado={alGuardarMovimiento}
+        />
+      ) : null}
+
+      {/* ---------- Nueva transferencia entre sucursales ---------- */}
+      {transferenciaAbierta ? (
+        <NuevaTransferencia
+          sesion={sesion}
+          sucursalId={sucursalId}
+          ubicacionDe={ubicacionInicialDe}
+          onCerrar={() => setTransferenciaAbierta(false)}
+          onGuardada={alGuardarTransferencia}
         />
       ) : null}
     </div>

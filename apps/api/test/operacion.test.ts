@@ -474,6 +474,19 @@ describe('inventario', () => {
     expect(await stockDe('ABA-005')).toBe(antes - 2);
   });
 
+  it('filtra el kardex por tipo de movimiento', async () => {
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: `/api/v1/inventory/movements?sucursalId=${semilla.sucursalId}&tipo=entrada_compra`,
+      headers: auth(),
+    });
+
+    expect(respuesta.statusCode).toBe(200);
+    const tipos = (respuesta.json().movimientos as { tipo: string }[]).map((fila) => fila.tipo);
+    expect(tipos.length).toBeGreaterThan(0);
+    expect(tipos.every((tipo) => tipo === 'entrada_compra')).toBe(true);
+  });
+
   it('guarda el kardex con el motivo y el documento', async () => {
     const respuesta = await app.inject({
       method: 'GET',
@@ -526,6 +539,35 @@ describe('inventario', () => {
     expect(recibida.json().transferencia.estado).toBe('recibida');
     expect(recibida.json().transferencia.hayIncidencia).toBe(false);
     expect(await stockDe('BEB-001', semilla.sucursalSecundariaId)).toBe(antesBodega + 5);
+  });
+
+  it('crea una transferencia con varios productos', async () => {
+    const creada = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/transfers',
+      headers: auth(),
+      payload: {
+        origenUbicacionId: semilla.pisoId,
+        destinoUbicacionId: semilla.almacenSecundariaId,
+        motivo: 'Reparto semanal',
+        lineas: [
+          { productoId: producto('BEB-002').id, cantidad: 2 },
+          { productoId: producto('BEB-003').id, cantidad: 1 },
+        ],
+      },
+    });
+
+    expect(creada.statusCode).toBe(201);
+    const transferencia = creada.json().transferencia;
+    expect(transferencia.estado).toBe('borrador');
+    expect(transferencia.lineas).toHaveLength(2);
+
+    const cancelada = await app.inject({
+      method: 'POST',
+      url: `/api/v1/inventory/transfers/${transferencia.id}/cancel`,
+      headers: auth(),
+    });
+    expect(cancelada.statusCode).toBe(200);
   });
 
   it('no permite transferir a la misma ubicacion', async () => {

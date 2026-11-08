@@ -7,6 +7,8 @@ import { validar } from '../../errors.js';
 import {
   abrirTurno,
   cerrarTurno,
+  cerrarTurnosVencidos,
+  detalleCierre,
   listarCierres,
   obtenerTurno,
   registrarMovimientoCaja,
@@ -41,16 +43,15 @@ const esquemaMovimiento = z.object({
   motivo: z.string().trim().min(3, 'Escribe el motivo').max(200),
 });
 
-/** Ver turnos y cierres no es lo mismo que abrir o cerrar la caja. */
-function asegurarConsultaCaja(sesion: Sesion): void {
-  if (
-    sesion.permisos.has(PERMISOS.CERRAR_CAJA) ||
-    sesion.permisos.has(PERMISOS.CANCELAR_VENTA) ||
-    sesion.permisos.has(PERMISOS.VER_UTILIDAD)
-  ) {
+/**
+ * Ver turnos abiertos y cierres es una tarea de supervision: el cajero solo
+ * consulta su turno actual. No es lo mismo que abrir o cerrar la caja.
+ */
+function asegurarVerCajaAdministrativa(sesion: Sesion): void {
+  if (sesion.permisos.has(PERMISOS.CANCELAR_VENTA) || sesion.permisos.has(PERMISOS.VER_UTILIDAD)) {
     return;
   }
-  asegurarPermiso(sesion, PERMISOS.CERRAR_CAJA);
+  asegurarPermiso(sesion, PERMISOS.CANCELAR_VENTA);
 }
 
 const esquemaConsultaCierres = z.object({
@@ -80,14 +81,13 @@ export async function rutasCaja(app: FastifyInstance) {
   app.get('/shifts/abiertos', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
     // El administrador supervisa turnos, pero no los abre ni los cierra.
-    asegurarConsultaCaja(sesion);
+    asegurarVerCajaAdministrativa(sesion);
+
+    const sucursalIds = sesion.sucursales.map((sucursal) => sucursal.id);
+    await cerrarTurnosVencidos(app.db, sesion.empresaId, sucursalIds);
 
     return {
-      turnos: await turnosAbiertos(
-        app.db,
-        sesion.empresaId,
-        sesion.sucursales.map((sucursal) => sucursal.id),
-      ),
+      turnos: await turnosAbiertos(app.db, sesion.empresaId, sucursalIds),
     };
   });
 
@@ -132,7 +132,6 @@ export async function rutasCaja(app: FastifyInstance) {
     asegurarSucursal(sesion, turno.sucursalId);
 
     return cerrarTurno(app.db, {
-      empresaId: sesion.empresaId,
       turnoId: id,
       usuarioId: sesion.usuarioId,
       contado: centavos(datos.contado),
@@ -162,7 +161,7 @@ export async function rutasCaja(app: FastifyInstance) {
 
   app.get('/cash-closures', { preHandler: [preHandler] }, async (request) => {
     const sesion = sesionDe(request);
-    asegurarConsultaCaja(sesion);
+    asegurarVerCajaAdministrativa(sesion);
     const consulta = validar(esquemaConsultaCierres, request.query);
 
     if (consulta.sucursalId) {
@@ -180,5 +179,16 @@ export async function rutasCaja(app: FastifyInstance) {
     });
 
     return { cierres };
+  });
+
+  app.get('/cash-closures/:id', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarVerCajaAdministrativa(sesion);
+    const { id } = validar(parametroId, request.params);
+
+    const detalle = await detalleCierre(app.db, sesion.empresaId, id);
+    asegurarSucursal(sesion, detalle.cierre.sucursalId);
+
+    return detalle;
   });
 }

@@ -112,8 +112,8 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
 
   return (
     <Modal
-      titulo="Agregar producto al inventario"
-      nota="Busca el producto y elige a que sucursal entra la mercancia. Si todavia no existe, crealo primero en Productos."
+      titulo="Nuevo movimiento de inventario"
+      nota="Busca el producto, elige la sucursal y el tipo de movimiento. Si todavia no existe, crealo primero en Productos."
       onCerrar={onCerrar}
     >
       <div className="formulario">
@@ -262,7 +262,7 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
           onClick={() => void guardar()}
           disabled={guardando || !elegido}
         >
-          {guardando ? 'Guardando…' : 'Agregar al inventario'}
+          {guardando ? 'Guardando…' : 'Registrar movimiento'}
         </button>
       </div>
     </Modal>

@@ -633,6 +633,7 @@ export interface FiltroMovimientos {
   sucursalId?: string | undefined;
   /** Sucursales a las que la sesion tiene acceso. Vacio = ninguna. */
   sucursalIds?: string[] | undefined;
+  tipo?: string | undefined;
   desde?: Date | undefined;
   hasta?: Date | undefined;
   limite?: number | undefined;
@@ -652,6 +653,11 @@ export async function listarMovimientos(base: BaseDatos, filtro: FiltroMovimient
       return [];
     }
     condiciones.push(inArray(schema.inventoryMovements.branchId, filtro.sucursalIds));
+  }
+  if (filtro.tipo) {
+    condiciones.push(
+      eq(schema.inventoryMovements.type, filtro.tipo as TipoMovimientoInventario),
+    );
   }
   if (filtro.desde) {
     condiciones.push(gte(schema.inventoryMovements.occurredAt, filtro.desde));

@@ -296,6 +296,11 @@ export interface ReporteResumen {
     utilidad: number;
     margen: number;
     ticketPromedio: number;
+    compras: number;
+    gastos: number;
+    gastosCaja: number;
+    gastosRegistrados: number;
+    utilidadNeta: number;
   };
   pagos: { metodo: string; monto: number; porcentaje: number }[];
   porSucursal: {
@@ -344,7 +349,15 @@ export interface Turno {
 
 export interface ResumenTurno {
   turno: Turno;
-  ventas: { cantidad: number; articulos: number; total: number; cambio: number };
+  ventas: {
+    cantidad: number;
+    articulos: number;
+    total: number;
+    cambio: number;
+    ventaNeta: number;
+    impuestos: number;
+    descuentos: number;
+  };
   porMetodo: Record<string, number>;
   movimientos: { ingresos: number; retiros: number; gastos: number };
   /** Devoluciones del turno. Las pagadas en efectivo ya salieron de la caja. */
@@ -366,6 +379,48 @@ export interface CierreCaja {
   cerradoEn: string;
   cerradoPor: string;
   notas: string | null;
+}
+
+/** Cierre con el detalle de lo que se vendio y como se pago. */
+export interface DetalleCierre {
+  cierre: CierreCaja;
+  turno: Turno | null;
+  turnoAbiertoPor: string | null;
+  resumen: ResumenTurno | null;
+  ventas: {
+    id: string;
+    folio: string;
+    vendidoEn: string;
+    total: number;
+    estado: string;
+    articulos: number;
+    cambio: number;
+    pagos: { metodo: string; monto: number }[];
+  }[];
+  productos: {
+    productoId: string | null;
+    nombre: string;
+    sku: string | null;
+    cantidad: number;
+    venta: number;
+    costo: number;
+  }[];
+  movimientos: {
+    id: string;
+    tipo: string;
+    monto: number;
+    motivo: string | null;
+    ocurridoEn: string;
+    usuario: string | null;
+  }[];
+  devoluciones: {
+    id: string;
+    folio: string;
+    motivo: string | null;
+    total: number;
+    metodo: string | null;
+    creadoEn: string;
+  }[];
 }
 
 export interface TurnoAbiertoResumen {

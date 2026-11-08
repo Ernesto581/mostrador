@@ -106,7 +106,7 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
       id: 'panel',
       etiqueta: 'Panel',
       etiquetaCorta: 'Panel',
-      descripcion: 'Resumen de ventas, ingresos y alertas de inventario.',
+      descripcion: 'Resumen de ventas, compras, gastos, utilidad y alertas de inventario.',
       grupo: 'principal',
     },
     ...(permisos.has('catalog.manage')
@@ -149,13 +149,13 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
           },
         ]
       : []),
-    ...(permisos.has('sale.void') || permisos.has('report.profit') || permisos.has('cash.close')
+    ...(permisos.has('sale.void') || permisos.has('report.profit')
       ? [
           {
             id: 'cajas' as const,
             etiqueta: 'Cajas y turnos',
             etiquetaCorta: 'Cajas',
-            descripcion: 'Aperturas, cierres, efectivo esperado, diferencias y pagos.',
+            descripcion: 'Turnos abiertos, cierres, efectivo esperado y diferencias.',
             grupo: 'principal' as const,
           },
         ]
