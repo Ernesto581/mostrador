@@ -1,5 +1,5 @@
 import { schema } from '@mostrador/db-cloud';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ErrorDeAutenticacion, ErrorSinPermiso } from '../errors.js';
 import { PERMISOS, type Permiso } from './permisos.js';
@@ -51,28 +51,51 @@ export function exigirSesion(app: FastifyInstance) {
       .innerJoin(roles, eq(roles.id, userRoles.roleId))
       .where(eq(userRoles.userId, usuario.id));
 
-    const sucursales = await app.db
-      .select({
-        id: branches.id,
-        codigo: branches.code,
-        nombre: branches.name,
-        tipo: branches.type,
-      })
-      .from(userBranchAccess)
-      .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
-      .where(
-        and(
-          eq(userBranchAccess.userId, usuario.id),
-          isNull(branches.deletedAt),
-          eq(branches.active, true),
-        ),
-      );
+    const permisos = new Set(filasRoles.flatMap((fila) => fila.permisos));
+    // El administrador gestiona todo el negocio: no depende de una asignacion
+    // expresa de sucursales. Los demas roles si quedan limitados a las suyas.
+    const accesoATodo =
+      permisos.has(PERMISOS.GESTIONAR_SUCURSALES) || permisos.has(PERMISOS.GESTIONAR_USUARIOS);
+
+    const sucursales = accesoATodo
+      ? await app.db
+          .select({
+            id: branches.id,
+            codigo: branches.code,
+            nombre: branches.name,
+            tipo: branches.type,
+          })
+          .from(branches)
+          .where(
+            and(
+              eq(branches.companyId, usuario.companyId),
+              isNull(branches.deletedAt),
+              eq(branches.active, true),
+            ),
+          )
+          .orderBy(asc(branches.code))
+      : await app.db
+          .select({
+            id: branches.id,
+            codigo: branches.code,
+            nombre: branches.name,
+            tipo: branches.type,
+          })
+          .from(userBranchAccess)
+          .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
+          .where(
+            and(
+              eq(userBranchAccess.userId, usuario.id),
+              isNull(branches.deletedAt),
+              eq(branches.active, true),
+            ),
+          );
 
     request.sesion = {
       usuarioId: usuario.id,
       empresaId: usuario.companyId,
       nombre: usuario.fullName,
-      permisos: new Set(filasRoles.flatMap((fila) => fila.permisos)),
+      permisos,
       sucursales,
     };
   };

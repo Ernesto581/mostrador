@@ -9,9 +9,7 @@ import {
 import { eq } from 'drizzle-orm';
 import {
   PERMISOS_ADMINISTRADOR,
-  PERMISOS_ALMACENISTA,
   PERMISOS_CAJERO,
-  PERMISOS_CONTADOR,
 } from '../auth/permisos.js';
 import { cargarConfig } from '../config.js';
 
@@ -31,8 +29,6 @@ import { cargarConfig } from '../config.js';
 const DEFINIDOS: Record<string, readonly string[]> = {
   administrador: PERMISOS_ADMINISTRADOR,
   cajero: PERMISOS_CAJERO,
-  almacenista: PERMISOS_ALMACENISTA,
-  contador: PERMISOS_CONTADOR,
 };
 
 async function actualizar(db: Db): Promise<void> {

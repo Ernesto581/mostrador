@@ -1,5 +1,5 @@
 import { schema } from '@mostrador/db-cloud';
-import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { hashearSecreto } from '../../auth/password.js';
@@ -8,14 +8,17 @@ import { asegurarPermiso, asegurarSucursal, exigirSesion, sesionDe } from '../..
 import { ErrorDeAplicacion, ErrorNoEncontrado, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
 
+/** Por ahora el sistema solo maneja estos dos roles. */
+const ROLES_DISPONIBLES = ['administrador', 'cajero'] as const;
+
 const esquemaCrear = z.object({
   username: z.string().trim().min(3, 'El usuario necesita al menos 3 caracteres').max(40),
   nombre: z.string().trim().min(1, 'Escribe el nombre completo').max(120),
   password: z.string().min(8, 'La contrasena necesita al menos 8 caracteres').max(200),
   email: z.string().trim().email('Correo invalido').max(160).optional(),
-  /** Codigo del rol: administrador, cajero, almacenista o contador. */
+  /** Codigo del rol: administrador o cajero. */
   rol: z.string().min(1, 'Elige un rol'),
-  sucursalIds: z.array(z.string().min(1)).min(1, 'Asigna al menos una sucursal'),
+  sucursalIds: z.array(z.string().min(1)).optional(),
 });
 
 const esquemaEditar = z.object({
@@ -23,7 +26,7 @@ const esquemaEditar = z.object({
   email: z.string().trim().email('Correo invalido').max(160).optional(),
   activo: z.boolean().optional(),
   rol: z.string().min(1).optional(),
-  sucursalIds: z.array(z.string().min(1)).min(1).optional(),
+  sucursalIds: z.array(z.string().min(1)).optional(),
 });
 
 const esquemaPassword = z.object({
@@ -47,7 +50,13 @@ export async function rutasUsuarios(app: FastifyInstance) {
         permisos: roles.permissions,
       })
       .from(roles)
-      .where(and(eq(roles.companyId, sesion.empresaId), isNull(roles.deletedAt)))
+      .where(
+        and(
+          eq(roles.companyId, sesion.empresaId),
+          isNull(roles.deletedAt),
+          inArray(roles.code, [...ROLES_DISPONIBLES]),
+        ),
+      )
       .orderBy(asc(roles.code));
 
     return { roles: lista };
@@ -83,6 +92,18 @@ export async function rutasUsuarios(app: FastifyInstance) {
       .from(userBranchAccess)
       .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
       .where(eq(branches.companyId, sesion.empresaId));
+
+    const todasLasSucursales = await app.db
+      .select({ id: branches.id, codigo: branches.code, nombre: branches.name })
+      .from(branches)
+      .where(
+        and(
+          eq(branches.companyId, sesion.empresaId),
+          isNull(branches.deletedAt),
+          eq(branches.active, true),
+        ),
+      )
+      .orderBy(asc(branches.code));
 
     const sucursalesPorUsuario = new Map<string, { id: string; codigo: string; nombre: string }[]>();
     for (const acceso of accesos) {
@@ -122,7 +143,9 @@ export async function rutasUsuarios(app: FastifyInstance) {
     return {
       usuarios: [...porUsuario.values()].map((usuario) => ({
         ...usuario,
-        sucursales: sucursalesPorUsuario.get(usuario.id) ?? [],
+        sucursales: usuario.roles.includes('administrador')
+          ? todasLasSucursales
+          : (sucursalesPorUsuario.get(usuario.id) ?? []),
       })),
     };
   });
@@ -131,11 +154,33 @@ export async function rutasUsuarios(app: FastifyInstance) {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_USUARIOS);
     const datos = validar(esquemaCrear, request.body);
-    for (const sucursalId of datos.sucursalIds) {
-      asegurarSucursal(sesion, sucursalId);
-    }
 
     const rol = await buscarRol(app, sesion.empresaId, datos.rol);
+    const esAdmin = rol.codigo === 'administrador';
+    const sucursalesUnicas = [...new Set(datos.sucursalIds ?? [])];
+
+    if (!esAdmin && sucursalesUnicas.length === 0) {
+      throw new ErrorDeAplicacion(
+        'Asigna al menos una sucursal al cajero',
+        422,
+        'SUCURSAL_REQUERIDA',
+      );
+    }
+
+    if (esAdmin) {
+      const administradores = await contarAdministradores(app, sesion.empresaId);
+      if (administradores > 0) {
+        throw new ErrorDeAplicacion(
+          'Solo puede existir un administrador. Usa una cuenta de cajero para el resto.',
+          409,
+          'ADMINISTRADOR_UNICO',
+        );
+      }
+    } else {
+      for (const sucursalId of sucursalesUnicas) {
+        asegurarSucursal(sesion, sucursalId);
+      }
+    }
 
     // Aviso claro si el nombre de usuario ya esta en uso (evita el mensaje generico).
     const [repetido] = await app.db
@@ -158,7 +203,6 @@ export async function rutasUsuarios(app: FastifyInstance) {
     }
 
     const usuarioId = nuevoId();
-    const sucursalesUnicas = [...new Set(datos.sucursalIds)];
 
     await app.db.transaction(async (tx) => {
       await tx.insert(users).values({
@@ -172,9 +216,11 @@ export async function rutasUsuarios(app: FastifyInstance) {
 
       await tx.insert(userRoles).values({ userId: usuarioId, roleId: rol.id });
 
-      await tx.insert(userBranchAccess).values(
-        sucursalesUnicas.map((sucursalId) => ({ userId: usuarioId, branchId: sucursalId })),
-      );
+      if (!esAdmin) {
+        await tx.insert(userBranchAccess).values(
+          sucursalesUnicas.map((sucursalId) => ({ userId: usuarioId, branchId: sucursalId })),
+        );
+      }
     });
 
     reply.status(201);
@@ -186,17 +232,14 @@ export async function rutasUsuarios(app: FastifyInstance) {
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_USUARIOS);
     const { id } = validar(parametroId, request.params);
     const datos = validar(esquemaEditar, request.body);
-    if (datos.sucursalIds) {
-      for (const sucursalId of datos.sucursalIds) {
-        asegurarSucursal(sesion, sucursalId);
-      }
-    }
+    const sucursalesNuevas = datos.sucursalIds
+      ? [...new Set(datos.sucursalIds)]
+      : null;
 
     const usuario = await buscarUsuario(app, sesion.empresaId, id);
 
     // Antes de tocar nada: si esta cuenta administra y el cambio le quita esa
-    // capacidad (o la desactiva), tiene que quedar otra cuenta activa que administre.
-    // Si no, nadie podria volver a crear usuarios ni corregir nada.
+    // capacidad (o la desactiva), no puede quedar el sistema sin administrador.
     const permisosActuales = await permisosDeUsuario(app, usuario.id);
     const administraActualmente = permisosActuales.includes(PERMISOS.GESTIONAR_USUARIOS);
 
@@ -205,6 +248,9 @@ export async function rutasUsuarios(app: FastifyInstance) {
       rolNuevo = await buscarRol(app, sesion.empresaId, datos.rol);
     }
 
+    const esAdminNuevo = rolNuevo
+      ? rolNuevo.codigo === 'administrador'
+      : administraActualmente;
     const dejaDeAdministrar =
       rolNuevo !== null && !rolNuevo.permisos.includes(PERMISOS.GESTIONAR_USUARIOS);
 
@@ -212,10 +258,41 @@ export async function rutasUsuarios(app: FastifyInstance) {
       const otros = await contarOtrosAdministradores(app, sesion.empresaId, usuario.id);
       if (otros === 0) {
         throw new ErrorDeAplicacion(
-          'Es la unica cuenta que puede administrar usuarios. Crea o activa otra antes de cambiarla.',
+          'No puedes quitar el unico administrador del sistema.',
           409,
           'ULTIMO_ADMINISTRADOR',
         );
+      }
+    }
+
+    if (rolNuevo && rolNuevo.codigo === 'administrador' && !administraActualmente) {
+      const otros = await contarOtrosAdministradores(app, sesion.empresaId, usuario.id);
+      if (otros > 0) {
+        throw new ErrorDeAplicacion(
+          'Solo puede existir un administrador.',
+          409,
+          'ADMINISTRADOR_UNICO',
+        );
+      }
+    }
+
+    if (!esAdminNuevo) {
+      if (rolNuevo && rolNuevo.codigo !== 'administrador' && !sucursalesNuevas) {
+        throw new ErrorDeAplicacion(
+          'Asigna al menos una sucursal al cajero',
+          422,
+          'SUCURSAL_REQUERIDA',
+        );
+      }
+      if (sucursalesNuevas && sucursalesNuevas.length === 0) {
+        throw new ErrorDeAplicacion(
+          'Asigna al menos una sucursal al cajero',
+          422,
+          'SUCURSAL_REQUERIDA',
+        );
+      }
+      for (const sucursalId of sucursalesNuevas ?? []) {
+        asegurarSucursal(sesion, sucursalId);
       }
     }
 
@@ -226,11 +303,14 @@ export async function rutasUsuarios(app: FastifyInstance) {
       });
     }
 
-    if (datos.sucursalIds) {
+    if (esAdminNuevo) {
+      // El administrador no necesita sucursales: la sesion le da todas.
+      await app.db.delete(userBranchAccess).where(eq(userBranchAccess.userId, usuario.id));
+    } else if (sucursalesNuevas) {
       await app.db.transaction(async (tx) => {
         await tx.delete(userBranchAccess).where(eq(userBranchAccess.userId, usuario.id));
         await tx.insert(userBranchAccess).values(
-          datos.sucursalIds!.map((sucursalId) => ({ userId: usuario.id, branchId: sucursalId })),
+          sucursalesNuevas.map((sucursalId) => ({ userId: usuario.id, branchId: sucursalId })),
         );
       });
     }
@@ -363,9 +443,13 @@ async function buscarUsuario(app: FastifyInstance, empresaId: string, usuarioId:
 }
 
 async function buscarRol(app: FastifyInstance, empresaId: string, codigo: string) {
+  if (!(ROLES_DISPONIBLES as readonly string[]).includes(codigo)) {
+    throw new ErrorDeAplicacion(`El rol "${codigo}" no existe`, 422, 'ROL_INVALIDO');
+  }
+
   const { roles } = schema;
   const [rol] = await app.db
-    .select({ id: roles.id, nombre: roles.name, permisos: roles.permissions })
+    .select({ id: roles.id, codigo: roles.code, nombre: roles.name, permisos: roles.permissions })
     .from(roles)
     .where(and(eq(roles.companyId, empresaId), eq(roles.code, codigo), isNull(roles.deletedAt)))
     .limit(1);
@@ -374,4 +458,24 @@ async function buscarRol(app: FastifyInstance, empresaId: string, codigo: string
     throw new ErrorDeAplicacion(`El rol "${codigo}" no existe`, 422, 'ROL_INVALIDO');
   }
   return rol;
+}
+
+/** Cuenta las cuentas activas que pueden administrar usuarios. */
+async function contarAdministradores(app: FastifyInstance, empresaId: string): Promise<number> {
+  const { users, userRoles, roles } = schema;
+  const [fila] = await app.db
+    .select({ total: sql<number>`count(distinct ${users.id})` })
+    .from(users)
+    .innerJoin(userRoles, eq(userRoles.userId, users.id))
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(
+      and(
+        eq(users.companyId, empresaId),
+        eq(users.active, true),
+        isNull(users.deletedAt),
+        sql`${PERMISOS.GESTIONAR_USUARIOS} = any(${roles.permissions})`,
+      ),
+    );
+
+  return Number(fila?.total ?? 0);
 }

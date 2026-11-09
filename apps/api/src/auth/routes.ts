@@ -1,8 +1,9 @@
 import { schema } from '@mostrador/db-cloud';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ErrorDeAutenticacion, validar } from '../errors.js';
+import { PERMISOS } from './permisos.js';
 import { hashearSecreto, verificarSecreto } from './password.js';
 import { autenticar } from './plugin.js';
 
@@ -102,25 +103,49 @@ export async function rutasAuth(app: FastifyInstance) {
       .innerJoin(roles, eq(roles.id, userRoles.roleId))
       .where(eq(userRoles.userId, usuario.id));
 
-    const sucursales = await app.db
-      .select({
-        id: branches.id,
-        codigo: branches.code,
-        nombre: branches.name,
-        tipo: branches.type,
-        direccion: branches.address,
-        telefono: branches.phone,
-        whatsapp: branches.whatsapp,
-      })
-      .from(userBranchAccess)
-      .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
-      .where(
-        and(
-          eq(userBranchAccess.userId, usuario.id),
-          isNull(branches.deletedAt),
-          eq(branches.active, true),
-        ),
-      );
+    const permisos = new Set(filasRoles.flatMap((fila) => fila.permisos));
+    const accesoATodo =
+      permisos.has(PERMISOS.GESTIONAR_SUCURSALES) || permisos.has(PERMISOS.GESTIONAR_USUARIOS);
+
+    const sucursales = accesoATodo
+      ? await app.db
+          .select({
+            id: branches.id,
+            codigo: branches.code,
+            nombre: branches.name,
+            tipo: branches.type,
+            direccion: branches.address,
+            telefono: branches.phone,
+            whatsapp: branches.whatsapp,
+          })
+          .from(branches)
+          .where(
+            and(
+              eq(branches.companyId, usuario.companyId),
+              isNull(branches.deletedAt),
+              eq(branches.active, true),
+            ),
+          )
+          .orderBy(asc(branches.code))
+      : await app.db
+          .select({
+            id: branches.id,
+            codigo: branches.code,
+            nombre: branches.name,
+            tipo: branches.type,
+            direccion: branches.address,
+            telefono: branches.phone,
+            whatsapp: branches.whatsapp,
+          })
+          .from(userBranchAccess)
+          .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
+          .where(
+            and(
+              eq(userBranchAccess.userId, usuario.id),
+              isNull(branches.deletedAt),
+              eq(branches.active, true),
+            ),
+          );
 
     return {
       empresa: {
@@ -135,7 +160,7 @@ export async function rutasAuth(app: FastifyInstance) {
         email: usuario.email,
       },
       roles: filasRoles.map((fila) => fila.codigo),
-      permisos: [...new Set(filasRoles.flatMap((fila) => fila.permisos))].sort(),
+      permisos: [...permisos].sort(),
       sucursales,
     };
   });

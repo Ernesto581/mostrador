@@ -208,7 +208,7 @@ describe('usuarios', () => {
     expect(desactivar.json().error.codigo).toBe('ULTIMO_ADMINISTRADOR');
   });
 
-  it('permite cambiar a un administrador cuando queda otro activo', async () => {
+  it('permite crear solo un administrador y no le exige sucursales', async () => {
     const creado = await app.inject({
       method: 'POST',
       url: '/api/v1/users',
@@ -218,45 +218,36 @@ describe('usuarios', () => {
         nombre: 'Administrador Dos',
         password: 'admin12345',
         rol: 'administrador',
-        sucursalIds: [semilla.sucursalId],
       },
     });
-    expect(creado.statusCode).toBe(201);
-    const admin2 = creado.json().usuario.id as string;
 
-    // Desactivarlo esta permitido porque "ernesto" sigue administrando.
-    const desactivar = await app.inject({
-      method: 'PATCH',
-      url: `/api/v1/users/${admin2}`,
-      headers: auth(),
-      payload: { activo: false },
-    });
-    expect(desactivar.statusCode).toBe(200);
-
-    // Se reactiva y se degrada: tambien esta permitido.
-    const reactivar = await app.inject({
-      method: 'PATCH',
-      url: `/api/v1/users/${admin2}`,
-      headers: auth(),
-      payload: { activo: true },
-    });
-    expect(reactivar.statusCode).toBe(200);
-
-    const degradar = await app.inject({
-      method: 'PATCH',
-      url: `/api/v1/users/${admin2}`,
-      headers: auth(),
-      payload: { rol: 'cajero' },
-    });
-    expect(degradar.statusCode).toBe(200);
+    expect(creado.statusCode).toBe(409);
+    expect(creado.json().error.codigo).toBe('ADMINISTRADOR_UNICO');
   });
 
-  it('entrega roles y sucursales para el formulario', async () => {
+  it('exige al menos una sucursal a los cajeros', async () => {
+    const respuesta = await app.inject({
+      method: 'POST',
+      url: '/api/v1/users',
+      headers: auth(),
+      payload: {
+        username: 'sin_sucursal',
+        nombre: 'Sin Sucursal',
+        password: 'cajero12345',
+        rol: 'cajero',
+      },
+    });
+
+    expect(respuesta.statusCode).toBe(422);
+    expect(respuesta.json().error.codigo).toBe('SUCURSAL_REQUERIDA');
+  });
+
+  it('entrega solo los roles administrador y cajero', async () => {
     const listaRoles = await app.inject({ method: 'GET', url: '/api/v1/roles', headers: auth() });
     const listaSucursales = await app.inject({ method: 'GET', url: '/api/v1/branches', headers: auth() });
 
     const codigos = (listaRoles.json().roles as { codigo: string }[]).map((rol) => rol.codigo);
-    expect(codigos).toEqual(expect.arrayContaining(['administrador', 'cajero', 'almacenista', 'contador']));
+    expect(codigos.sort()).toEqual(['administrador', 'cajero']);
     expect(listaSucursales.json().sucursales).toHaveLength(2);
   });
 });

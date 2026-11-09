@@ -78,18 +78,22 @@ export function Usuarios() {
       return;
     }
 
+    const esAdmin = borrador.rol === 'administrador';
+
     if (borrador.nombre.trim().length === 0) {
       setError('Escribe el nombre completo');
       return;
     }
-    if (borrador.sucursalIds.length === 0) {
-      setError('Asigna al menos una sucursal');
+    if (!esAdmin && borrador.sucursalIds.length === 0) {
+      setError('Asigna al menos una sucursal al cajero');
       return;
     }
     if (!borrador.id && (borrador.username.trim().length < 3 || borrador.password.length < 8)) {
       setError('El usuario necesita 3 letras y la contrasena al menos 8');
       return;
     }
+
+    const sucursalIds = esAdmin ? [] : borrador.sucursalIds;
 
     setGuardando(true);
     setError(null);
@@ -101,7 +105,7 @@ export function Usuarios() {
           ...(borrador.email.trim() ? { email: borrador.email.trim() } : {}),
           activo: borrador.activo,
           rol: borrador.rol,
-          sucursalIds: borrador.sucursalIds,
+          sucursalIds,
         });
         terminarCon('Usuario actualizado.');
       } else {
@@ -111,7 +115,7 @@ export function Usuarios() {
           password: borrador.password,
           ...(borrador.email.trim() ? { email: borrador.email.trim() } : {}),
           rol: borrador.rol,
-          sucursalIds: borrador.sucursalIds,
+          sucursalIds,
         });
         terminarCon('Usuario creado. Ya puede entrar con su usuario y contrasena.');
       }
@@ -175,7 +179,8 @@ export function Usuarios() {
           className="boton boton--acento"
           onClick={() => {
             setError(null);
-            setBorrador(borradorVacio(roles[0]?.codigo ?? 'cajero'));
+            const rolCajero = roles.find((rol) => rol.codigo === 'cajero')?.codigo ?? 'cajero';
+            setBorrador(borradorVacio(rolCajero));
           }}
         >
           Nuevo usuario
@@ -205,7 +210,11 @@ export function Usuarios() {
                   <td className="codigo" data-label="Usuario">{usuario.username}</td>
                   <td data-label="Nombre">{usuario.nombre}</td>
                   <td data-label="Rol">{usuario.rolNombres.join(', ') || '—'}</td>
-                  <td data-label="Sucursales">{usuario.sucursales.map((sucursal) => sucursal.codigo).join(', ') || '—'}</td>
+                  <td data-label="Sucursales">
+                    {usuario.roles.includes('administrador')
+                      ? 'Todas'
+                      : usuario.sucursales.map((sucursal) => sucursal.codigo).join(', ') || '—'}
+                  </td>
                   <td data-label="Estado">
                     <span className={usuario.activo ? 'insignia insignia--ok' : 'insignia insignia--agotado'}>
                       {usuario.activo ? 'Activo' : 'Inactivo'}
@@ -313,6 +322,10 @@ export function Usuarios() {
               </select>
             </label>
 
+            <p className="panel__nota campo-ancho campo-ancho--ancho">
+              Solo puede existir un administrador. Los cajeros se asignan a una sucursal.
+            </p>
+
             {borrador.id ? (
               <label className="opcion-casilla" style={{ alignSelf: 'end', paddingBottom: '0.5rem' }}>
                 <input
@@ -324,28 +337,34 @@ export function Usuarios() {
               </label>
             ) : null}
 
-            <div className="campo-ancho campo-ancho--ancho">
-              <span>Sucursales donde trabaja</span>
-              <div className="opciones-lista">
-                {sucursales.map((sucursal) => (
-                  <label className="opcion-casilla" key={sucursal.id}>
-                    <input
-                      type="checkbox"
-                      checked={borrador.sucursalIds.includes(sucursal.id)}
-                      onChange={(evento) =>
-                        setBorrador({
-                          ...borrador,
-                          sucursalIds: evento.target.checked
-                            ? [...borrador.sucursalIds, sucursal.id]
-                            : borrador.sucursalIds.filter((id) => id !== sucursal.id),
-                        })
-                      }
-                    />
-                    {sucursal.codigo} · {sucursal.nombre}
-                  </label>
-                ))}
+            {borrador.rol === 'administrador' ? (
+              <p className="panel__nota campo-ancho campo-ancho--ancho">
+                El administrador tiene acceso a todas las sucursales del negocio.
+              </p>
+            ) : (
+              <div className="campo-ancho campo-ancho--ancho">
+                <span>Sucursales donde trabaja</span>
+                <div className="opciones-lista">
+                  {sucursales.map((sucursal) => (
+                    <label className="opcion-casilla" key={sucursal.id}>
+                      <input
+                        type="checkbox"
+                        checked={borrador.sucursalIds.includes(sucursal.id)}
+                        onChange={(evento) =>
+                          setBorrador({
+                            ...borrador,
+                            sucursalIds: evento.target.checked
+                              ? [...borrador.sucursalIds, sucursal.id]
+                              : borrador.sucursalIds.filter((id) => id !== sucursal.id),
+                          })
+                        }
+                      />
+                      {sucursal.codigo} · {sucursal.nombre}
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <Aviso error={error} ok={null} />

@@ -2,9 +2,7 @@ import { schema, type Db } from '@mostrador/db-cloud';
 import { centavos } from '@mostrador/domain';
 import {
   PERMISOS_ADMINISTRADOR,
-  PERMISOS_ALMACENISTA,
   PERMISOS_CAJERO,
-  PERMISOS_CONTADOR,
 } from '../auth/permisos.js';
 import { hashearSecreto } from '../auth/password.js';
 import { nuevoId } from '../util/id.js';
@@ -139,8 +137,6 @@ export async function sembrarDatosIniciales(
   const definicionesRoles = [
     { code: 'administrador', name: 'Administrador', permisos: PERMISOS_ADMINISTRADOR },
     { code: 'cajero', name: 'Cajero', permisos: PERMISOS_CAJERO },
-    { code: 'almacenista', name: 'Almacenista', permisos: PERMISOS_ALMACENISTA },
-    { code: 'contador', name: 'Contador', permisos: PERMISOS_CONTADOR },
   ].map((rol) => ({ ...rol, id: nuevoId(), companyId: empresaId }));
 
   await db.insert(schema.roles).values(
@@ -163,10 +159,7 @@ export async function sembrarDatosIniciales(
 
   await db.insert(schema.userRoles).values({ userId: usuarioId, roleId: definicionesRoles[0]!.id });
 
-  await db.insert(schema.userBranchAccess).values([
-    { userId: usuarioId, branchId: sucursalId },
-    { userId: usuarioId, branchId: sucursalSecundariaId },
-  ]);
+  // El administrador no necesita asignacion de sucursales: la sesion le da todas.
 
   // La cuenta de mostrador: cobra y cierra el turno, pero no administra nada.
   await db.insert(schema.users).values({
