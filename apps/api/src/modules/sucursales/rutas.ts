@@ -1,11 +1,12 @@
 import { schema } from '@mostrador/db-cloud';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { PERMISOS } from '../../auth/permisos.js';
 import { asegurarPermiso, exigirSesion, sesionDe } from '../../auth/sesion.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado, ErrorSinPermiso, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
+import { CODIGO_SUCURSAL_GENERAL } from '../inventario/general.js';
 
 /**
  * Sucursales.
@@ -99,7 +100,13 @@ export async function rutasSucursales(app: FastifyInstance) {
         horarios: branches.horarios,
       })
       .from(branches)
-      .where(and(eq(branches.companyId, sesion.empresaId), isNull(branches.deletedAt)))
+      .where(
+        and(
+          eq(branches.companyId, sesion.empresaId),
+          isNull(branches.deletedAt),
+          ne(branches.code, CODIGO_SUCURSAL_GENERAL),
+        ),
+      )
       .orderBy(asc(branches.name));
 
     return { sucursales: lista };
@@ -339,6 +346,7 @@ async function asegurarNoEsLaUltima(app: FastifyInstance, empresaId: string): Pr
         eq(branches.companyId, empresaId),
         eq(branches.active, true),
         isNull(branches.deletedAt),
+        ne(branches.code, CODIGO_SUCURSAL_GENERAL),
       ),
     );
 

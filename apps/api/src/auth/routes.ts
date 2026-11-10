@@ -1,8 +1,9 @@
 import { schema } from '@mostrador/db-cloud';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ErrorDeAutenticacion, validar } from '../errors.js';
+import { CODIGO_SUCURSAL_GENERAL } from '../modules/inventario/general.js';
 import { PERMISOS } from './permisos.js';
 import { hashearSecreto, verificarSecreto } from './password.js';
 import { autenticar } from './plugin.js';
@@ -124,6 +125,7 @@ export async function rutasAuth(app: FastifyInstance) {
               eq(branches.companyId, usuario.companyId),
               isNull(branches.deletedAt),
               eq(branches.active, true),
+              ne(branches.code, CODIGO_SUCURSAL_GENERAL),
             ),
           )
           .orderBy(asc(branches.name))
@@ -144,6 +146,7 @@ export async function rutasAuth(app: FastifyInstance) {
               eq(userBranchAccess.userId, usuario.id),
               isNull(branches.deletedAt),
               eq(branches.active, true),
+              ne(branches.code, CODIGO_SUCURSAL_GENERAL),
             ),
           );
 

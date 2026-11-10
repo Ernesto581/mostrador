@@ -12,7 +12,9 @@ import {
   type Sesion,
 } from '../../auth/sesion.js';
 import { ErrorNoEncontrado, ErrorSinPermiso, validar } from '../../errors.js';
+import { buscarSucursalGeneral, NOMBRE_SUCURSAL_GENERAL, obtenerSucursalGeneral } from './general.js';
 import {
+  asignarASucursal,
   guardarMinimoSucursal,
   listarMovimientos,
   registrarMovimiento,
@@ -61,6 +63,18 @@ const esquemaConsultaStockGeneral = z.object({
   soloBajoMinimo: booleanoDeConsulta.optional(),
   soloAgotados: booleanoDeConsulta.optional(),
   limite: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+const esquemaConsultaGeneral = z.object({
+  buscar: z.string().trim().max(120).optional(),
+  limite: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const esquemaAsignacion = z.object({
+  productoId: z.string().min(1),
+  sucursalId: z.string().min(1),
+  cantidad: z.number().int().min(1),
+  motivo: z.string().trim().max(200).optional(),
 });
 
 const esquemaConsultaMovimientos = z.object({
@@ -195,10 +209,14 @@ export async function rutasInventario(app: FastifyInstance) {
       throw new ErrorSinPermiso('No tienes permiso para ver el inventario general');
     }
     const consulta = validar(esquemaConsultaStockGeneral, request.query);
+    const general = await buscarSucursalGeneral(app.db, sesion.empresaId);
 
     const stock = await stockGeneral(app.db, {
       empresaId: sesion.empresaId,
-      sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id),
+      sucursalIds: [
+        ...sesion.sucursales.map((sucursal) => sucursal.id),
+        ...(general ? [general.sucursalId] : []),
+      ],
       buscar: consulta.buscar,
       categoriaId: consulta.categoriaId,
       soloBajoMinimo: consulta.soloBajoMinimo,
@@ -211,6 +229,52 @@ export async function rutasInventario(app: FastifyInstance) {
       sucursales: sesion.sucursales,
       stock,
     };
+  });
+
+  app.get('/inventory/general/stock', { preHandler: [preHandler] }, async (request) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.AJUSTAR_INVENTARIO);
+    const consulta = validar(esquemaConsultaGeneral, request.query);
+
+    const general = await obtenerSucursalGeneral(app.db, sesion.empresaId);
+    const stock = await stockPorSucursal(app.db, {
+      empresaId: sesion.empresaId,
+      sucursalId: general.sucursalId,
+      buscar: consulta.buscar,
+      limite: consulta.limite ?? 12,
+    });
+
+    return {
+      sucursalId: general.sucursalId,
+      nombre: NOMBRE_SUCURSAL_GENERAL,
+      stock: stock
+        .filter((fila) => fila.stock > 0)
+        .map((fila) => ({
+          productoId: fila.productoId,
+          sku: fila.sku,
+          nombre: fila.nombre,
+          stock: fila.stock,
+        })),
+    };
+  });
+
+  app.post('/inventory/assign', { preHandler: [preHandler] }, async (request, reply) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.AJUSTAR_INVENTARIO);
+    const datos = validar(esquemaAsignacion, request.body);
+    asegurarSucursal(sesion, datos.sucursalId);
+
+    const asignacion = await asignarASucursal(app.db, {
+      empresaId: sesion.empresaId,
+      sucursalId: datos.sucursalId,
+      productoId: datos.productoId,
+      cantidad: datos.cantidad,
+      motivo: datos.motivo,
+      usuarioId: sesion.usuarioId,
+    });
+
+    reply.status(201);
+    return { asignacion };
   });
 
   app.put('/inventory/minimums', { preHandler: [preHandler] }, async (request) => {
@@ -236,12 +300,23 @@ export async function rutasInventario(app: FastifyInstance) {
       asegurarSucursal(sesion, consulta.sucursalId);
     }
 
+    const sucursalIds = consulta.sucursalId
+      ? [consulta.sucursalId]
+      : sesion.sucursales.map((sucursal) => sucursal.id);
+
+    // El deposito general tambien tiene historia: sus entradas y salidas deben
+    // verse en Movimientos, aunque no aparezca en los selectores de sucursal.
+    if (!consulta.sucursalId && puedeVerCostos(sesion)) {
+      const general = await buscarSucursalGeneral(app.db, sesion.empresaId);
+      if (general) {
+        sucursalIds.push(general.sucursalId);
+      }
+    }
+
     const movimientos = await listarMovimientos(app.db, {
       empresaId: sesion.empresaId,
       productoId: consulta.productoId,
-      ...(consulta.sucursalId
-        ? { sucursalId: consulta.sucursalId }
-        : { sucursalIds: sesion.sucursales.map((sucursal) => sucursal.id) }),
+      ...(consulta.sucursalId ? { sucursalId: consulta.sucursalId } : { sucursalIds }),
       tipo: consulta.tipo,
       desde: consulta.desde,
       hasta: consulta.hasta,
@@ -263,6 +338,7 @@ export async function rutasInventario(app: FastifyInstance) {
         producto: fila.producto,
         sku: fila.sku,
         sucursalId: fila.sucursalId,
+        sucursalNombre: fila.sucursalNombre,
         ...(verCostos ? { costoUnitario: fila.costoUnitario } : {}),
       })),
     };

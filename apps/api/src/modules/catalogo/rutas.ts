@@ -13,6 +13,7 @@ import {
 } from '../../auth/sesion.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
+import { obtenerSucursalGeneral } from '../inventario/general.js';
 import { registrarMovimiento, stockDeProductos } from '../inventario/servicio.js';
 
 const esquemaConsultaProductos = z.object({
@@ -33,9 +34,8 @@ const esquemaCrearProducto = z.object({
   tasaImpuesto: z.number().int().min(0).max(100).optional(),
   stockMinimo: z.number().int().min(0).default(0),
   codigosBarras: z.array(z.string().trim().min(1).max(64)).max(20).default([]),
-  /** Si se indica, se registra una entrada de inventario inicial. */
+  /** Si se indica, entra al inventario general; luego se asigna a una sucursal. */
   stockInicial: z.number().int().min(0).default(0),
-  sucursalId: z.string().min(1).optional(),
   /** Foto publica: la sube el API a Supabase Storage o se pega una URL externa. */
   imagenUrl: z.string().trim().url('La foto debe ser una direccion valida').max(500).nullable().optional(),
 });
@@ -200,9 +200,6 @@ export async function rutasCatalogo(app: FastifyInstance) {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
     const datos = validar(esquemaCrearProducto, request.body);
-    if (datos.sucursalId) {
-      asegurarSucursal(sesion, datos.sucursalId);
-    }
 
     const [empresa] = await app.db
       .select({ tasaPorDefecto: schema.companies.defaultTaxRate })
@@ -242,15 +239,17 @@ export async function rutasCatalogo(app: FastifyInstance) {
       }
     });
 
-    if (datos.stockInicial > 0 && datos.sucursalId) {
+    if (datos.stockInicial > 0) {
+      const general = await obtenerSucursalGeneral(app.db, sesion.empresaId);
       await registrarMovimiento(app.db, {
         empresaId: sesion.empresaId,
-        sucursalId: datos.sucursalId,
+        sucursalId: general.sucursalId,
+        almacenId: general.almacenId,
         productoId,
         tipo: 'inventario_inicial',
         cantidad: datos.stockInicial,
         costoUnitario: centavos(datos.precioCosto),
-        motivo: 'Alta de producto',
+        motivo: 'Alta de producto en inventario general',
         usuarioId: sesion.usuarioId,
         documentoTipo: 'producto',
         documentoId: productoId,

@@ -9,6 +9,7 @@ import type {
   Transferencia,
 } from '../api/tipos';
 import { AltaInventario } from '../componentes/AltaInventario';
+import { AsignarInventario } from '../componentes/AsignarInventario';
 import { MenuAcciones } from '../componentes/MenuAcciones';
 import { NuevaTransferencia } from '../componentes/NuevaTransferencia';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
@@ -102,11 +103,10 @@ interface BorradorProducto {
   stockMinimo: string;
   codigos: string;
   stockInicial: string;
-  sucursalId: string;
   imagenUrl: string;
 }
 
-function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
+function borradorVacioDeProducto(): BorradorProducto {
   return {
     id: null,
     sku: '',
@@ -117,9 +117,6 @@ function borradorVacioDeProducto(sucursalId: string): BorradorProducto {
     stockMinimo: '0',
     codigos: '',
     stockInicial: '0',
-    // Viene elegida la sucursal que se esta viendo arriba: se puede cambiar o dejar
-    // el stock inicial en cero para no surtir nada todavia.
-    sucursalId,
     imagenUrl: '',
   };
 }
@@ -184,6 +181,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [rechazo, setRechazo] = useState<FormularioRechazo | null>(null);
   const [verMovimientos, setVerMovimientos] = useState(false);
   const [altaAbierta, setAltaAbierta] = useState(false);
+  const [asignacionAbierta, setAsignacionAbierta] = useState(false);
   const [transferenciaAbierta, setTransferenciaAbierta] = useState(false);
   const [filtroSucursalId, setFiltroSucursalId] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
@@ -192,6 +190,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const enMovimientos = vista === 'movimientos' || (vista === undefined && verMovimientos);
   const enProductos = vista === 'productos';
   const enExistencias = !enProductos && !enMovimientos;
+  // Productos es el catalogo general: no se filtra por sucursal.
+  const verGlobal = general || enProductos;
+  // El reparto solo tiene sentido viendo todas las sucursales desde Existencias.
+  const mostrarReparto = verGlobal && !enProductos;
   const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
   const [porBorrar, setPorBorrar] = useState<FilaVista | null>(null);
@@ -216,13 +218,13 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       limite: 500,
     };
 
-    if (general) {
+    if (verGlobal) {
       const respuesta = await api.stockGeneral(filtros);
       return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
     }
     const respuesta = await api.stock(sucursalId, filtros);
     return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
-  }, [general, buscar, categoriaId, soloBajoMinimo, soloAgotados, sucursalId]);
+  }, [verGlobal, buscar, categoriaId, soloBajoMinimo, soloAgotados, sucursalId]);
 
   const { datos: datosKardex, cargando: cargandoKardex } = useCarga(
     () =>
@@ -277,12 +279,11 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const categorias: Categoria[] = datosCategorias?.categorias ?? [];
   const nombrePorCategoria = new Map(categorias.map((categoria) => [categoria.id, categoria.nombre]));
   const movimientos = datosMovimientos?.movimientos ?? [];
-  const nombrePorSucursal = new Map(sesion.sucursales.map((opcion) => [opcion.id, opcion.nombre]));
   const sucursalActual = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
 
   useEffect(() => {
     setPagina(1);
-  }, [buscar, general, sucursalId, categoriaId, soloBajoMinimo, soloAgotados, porPagina]);
+  }, [buscar, verGlobal, sucursalId, categoriaId, soloBajoMinimo, soloAgotados, porPagina]);
 
   function cerrarConMensaje(texto: string): void {
     setOk(texto);
@@ -323,10 +324,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     }
 
     const inicial = Number(producto.stockInicial) || 0;
-    if (!producto.id && inicial > 0 && !producto.sucursalId) {
-      setError('Elige la sucursal donde entra el stock inicial, o deja el stock en cero');
-      return;
-    }
 
     setGuardando(true);
     setError(null);
@@ -365,14 +362,13 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           stockMinimo: Number(producto.stockMinimo) || 0,
           codigosBarras: codigos,
           stockInicial: inicial,
-          ...(inicial > 0 ? { sucursalId: producto.sucursalId } : {}),
           imagenUrl,
         });
 
         await recargar();
         cerrarConMensaje(
           inicial > 0
-            ? `Producto creado con ${inicial} piezas de existencia.`
+            ? `Producto creado con ${inicial} piezas en el inventario general. Asignalas a una sucursal desde Movimientos.`
             : 'Producto creado. Todavia sin existencia: registra una entrada cuando llegue.',
         );
       }
@@ -594,6 +590,14 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     void recargarMovimientos();
   }
 
+  /** Se asigno mercancia del inventario general a una sucursal. */
+  function alGuardarAsignacion(texto: string): void {
+    setAsignacionAbierta(false);
+    setOk(texto);
+    window.setTimeout(() => setOk(null), 5000);
+    void Promise.all([recargar(), recargarMovimientos()]);
+  }
+
   /** Se creo una transferencia desde Movimientos. */
   function alGuardarTransferencia(texto: string): void {
     setTransferenciaAbierta(false);
@@ -602,11 +606,19 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     void Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
   }
 
+  function bajoMinimoDe(fila: FilaVista): boolean {
+    if (enProductos) {
+      const minimo = fila.stockMinimoGeneral ?? fila.stockMinimo;
+      return minimo > 0 && fila.stock <= minimo;
+    }
+    return Boolean(fila.bajoMinimo);
+  }
+
   function claseStock(fila: FilaVista): string {
     if (fila.stock <= 0) {
       return 'insignia insignia--agotado';
     }
-    return fila.bajoMinimo ? 'insignia insignia--baja' : 'insignia insignia--ok';
+    return bajoMinimoDe(fila) ? 'insignia insignia--baja' : 'insignia insignia--ok';
   }
 
   /** El mismo estado, en palabras: el color solo no avisa a todo el mundo. */
@@ -614,14 +626,18 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     if (fila.stock <= 0) {
       return 'Agotado';
     }
-    return fila.bajoMinimo ? 'Bajo el minimo' : 'Con existencia';
+    return bajoMinimoDe(fila) ? 'Bajo el minimo' : 'Con existencia';
   }
 
   function repartoDe(fila: FilaVista): string {
     if (!fila.reparto || fila.reparto.length === 0) {
       return '—';
     }
-    return fila.reparto
+    const partes = fila.reparto.filter((parte) => parte.cantidad > 0 || parte.bajoMinimo);
+    if (partes.length === 0) {
+      return '—';
+    }
+    return partes
       .map((parte) =>
         parte.bajoMinimo
           ? `${parte.nombre} ${parte.cantidad}/${parte.minimo}`
@@ -643,17 +659,17 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           </h1>
           <p className="panel__nota">
             {enProductos
-              ? `Catalogo de productos: foto, codigos de barras, costos, precios y stock. ${datos?.filas.length ?? 0} productos en el catalogo. Usa Movimientos en un producto para ver su historial.`
+              ? `Catalogo general de productos: foto, codigos, costos, precios y stock total. ${datos?.filas.length ?? 0} productos. El stock inicial entra al inventario general y se asigna a las sucursales desde Movimientos.`
               : enMovimientos
-                ? 'Agrega mercancia a cada sucursal y controla los traslados entre sucursales.'
+                ? 'Asigna mercancia del inventario general a cada sucursal y controla los traslados entre sucursales.'
                 : general
-                  ? `Existencias de todas las sucursales. ${datos?.filas.length ?? 0} productos en total.`
+                  ? `Existencias de todas las sucursales y del inventario general. ${datos?.filas.length ?? 0} productos en total.`
                   : `Existencias por sucursal, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
           </p>
         </div>
 
         <div className="barra-filtros inventario__controles">
-          {sesion.sucursales.length > 1 ? (
+          {!enProductos && sesion.sucursales.length > 1 ? (
             <select
               className="selector"
               value={general ? 'todas' : sucursalId}
@@ -704,6 +720,19 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               className="boton boton--acento inventario__nuevo"
               onClick={() => {
                 setError(null);
+                setAsignacionAbierta(true);
+              }}
+            >
+              Asignar a sucursal
+            </button>
+          ) : null}
+
+          {enMovimientos && puedeMover ? (
+            <button
+              type="button"
+              className="boton inventario__nuevo"
+              onClick={() => {
+                setError(null);
                 setAltaAbierta(true);
               }}
             >
@@ -730,7 +759,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               className="boton boton--acento inventario__nuevo"
               onClick={() => {
                 setError(null);
-                setProducto(borradorVacioDeProducto(sucursalId));
+                setProducto(borradorVacioDeProducto());
               }}
             >
               Nuevo producto
@@ -1009,7 +1038,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       <td>
                         <span className="codigo">{movimiento.sku}</span> · {movimiento.producto}
                       </td>
-                      <td>{nombrePorSucursal.get(movimiento.sucursalId) ?? '—'}</td>
+                      <td>{movimiento.sucursalNombre}</td>
                       <td>{ETIQUETA_MOVIMIENTO[movimiento.tipo] ?? movimiento.tipo}</td>
                       <td className="numero">
                         {MOVIMIENTOS_QUE_RESTAN.has(movimiento.tipo)
@@ -1052,9 +1081,11 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   <th className="col-imagen" aria-label="Imagen" />
                   <th className="col-sku">SKU</th>
                   <th className="col-producto">Producto</th>
-                  <th className="numero col-total">Stock</th>
-                  {general ? <th className="col-reparto">Reparto por sucursal</th> : null}
-                  <th className="numero col-minimo">{general ? 'Mínimos' : 'Minimo'}</th>
+                  <th className="numero col-total">{enProductos ? 'Stock total' : 'Stock'}</th>
+                  {mostrarReparto ? <th className="col-reparto">Reparto por sucursal</th> : null}
+                  <th className="numero col-minimo">
+                    {mostrarReparto ? 'Mínimos' : 'Minimo'}
+                  </th>
                   <th className="numero col-costo">Costo</th>
                   <th className="numero col-venta">Venta</th>
                   <th className="col-categoria">Categoria</th>
@@ -1082,7 +1113,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                     </td>
                     <td className="col-producto">
                       {fila.nombre}
-                      {general ? (
+                      {mostrarReparto ? (
                         <span className="solo-angosto inventario__reparto">
                           <br />
                           Por sucursal: {repartoDe(fila)}
@@ -1096,21 +1127,23 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       </span>
                       <span className="solo-angosto inventario__estado-stock">{estadoStock(fila)}</span>
                     </td>
-                    {general ? (
+                    {mostrarReparto ? (
                       <td className="reparto col-reparto">
                         <span className="solo-angosto">Por sucursal: </span>
                         {repartoDe(fila)}
                       </td>
                     ) : null}
                     <td className="numero col-minimo">
-                      {general ? (
+                      {mostrarReparto ? (
                         <span className="panel__nota" title="El minimo se muestra por sucursal en el reparto">
                           —
                         </span>
                       ) : (
                         <>
                           <span className="solo-angosto">Minimo </span>
-                          {fila.stockMinimo}
+                          {enProductos
+                            ? (fila.stockMinimoGeneral ?? fila.stockMinimo)
+                            : fila.stockMinimo}
                         </>
                       )}
                     </td>
@@ -1140,7 +1173,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                               stockMinimo: String(fila.stockMinimoGeneral ?? fila.stockMinimo),
                               codigos: '',
                               stockInicial: '0',
-                              sucursalId,
                               imagenUrl: fila.imagenUrl ?? '',
                             });
                           }}
@@ -1345,7 +1377,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           nota={
             producto.id
               ? 'Los codigos y el stock inicial solo se capturan al crear. Para mover existencias usa Movimiento. El minimo general se usa donde la sucursal no tenga uno propio.'
-              : 'Si indicas stock inicial, eliges a que sucursal entra y queda registrado en los movimientos. El minimo general se usa donde la sucursal no tenga uno propio.'
+              : 'El stock inicial entra al inventario general, sin sucursal. Despues lo repartes a cada sucursal desde Movimientos. El minimo general se usa donde la sucursal no tenga uno propio.'
           }
           onCerrar={() => setProducto(null)}
         >
@@ -1489,26 +1521,9 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                     setProducto({ ...producto, stockInicial: evento.target.value })
                   }
                 />
-              </label>
-            ) : null}
-
-            {!producto.id && (Number(producto.stockInicial) || 0) > 0 ? (
-              <label className="campo-ancho">
-                <span>Sucursal donde entra</span>
-                <select
-                  className="entrada"
-                  value={producto.sucursalId}
-                  onChange={(evento) =>
-                    setProducto({ ...producto, sucursalId: evento.target.value })
-                  }
-                >
-                  <option value="">Elegir sucursal…</option>
-                  {sesion.sucursales.map((opcion) => (
-                    <option key={opcion.id} value={opcion.id}>
-                  {opcion.nombre}
-                    </option>
-                  ))}
-                </select>
+                <span className="panel__nota">
+                  Entra al inventario general; luego lo asignas a una sucursal.
+                </span>
               </label>
             ) : null}
           </div>
@@ -1837,6 +1852,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                 <thead>
                   <tr>
                     <th>Cuando</th>
+                    <th>Sucursal</th>
                     <th>Movimiento</th>
                     <th className="numero">Cantidad</th>
                     <th>Motivo</th>
@@ -1846,6 +1862,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   {(datosKardex?.movimientos ?? []).map((movimiento) => (
                     <tr key={movimiento.id}>
                       <td>{fechaLarga(movimiento.ocurridoEn)}</td>
+                      <td>{movimiento.sucursalNombre}</td>
                       <td>{ETIQUETA_MOVIMIENTO[movimiento.tipo] ?? movimiento.tipo}</td>
                       <td className="numero">
                         {MOVIMIENTOS_QUE_RESTAN.has(movimiento.tipo)
@@ -1860,6 +1877,16 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </div>
           ) : null}
         </Modal>
+      ) : null}
+
+      {/* ---------- Asignar inventario general a una sucursal ---------- */}
+      {asignacionAbierta ? (
+        <AsignarInventario
+          sesion={sesion}
+          sucursalId={sucursalId}
+          onCerrar={() => setAsignacionAbierta(false)}
+          onGuardado={alGuardarAsignacion}
+        />
       ) : null}
 
       {/* ---------- Nuevo movimiento de inventario ---------- */}

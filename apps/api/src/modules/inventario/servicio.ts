@@ -1,10 +1,11 @@
 import { schema, type Db } from '@mostrador/db-cloud';
 import type { TipoMovimientoInventario, TipoUbicacion } from '@mostrador/db-cloud/schema';
-import { type Centavos, type TipoMovimiento, signoMovimiento } from '@mostrador/domain';
+import { type Centavos, type TipoMovimiento, centavos, signoMovimiento } from '@mostrador/domain';
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { BaseDatos } from '../../db/tipos.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
+import { obtenerSucursalGeneral } from './general.js';
 
 export interface EntradaMovimiento {
   empresaId: string;
@@ -320,6 +321,81 @@ export async function registrarMovimiento(
     }
 
     return aplicado!;
+  });
+}
+
+export interface AsignacionInventario {
+  productoId: string;
+  sucursalId: string;
+  cantidad: number;
+  salida: MovimientoAplicado;
+  entrada: MovimientoAplicado;
+}
+
+/**
+ * Mueve existencia del deposito general a una sucursal.
+ *
+ * No es compra ni venta: son dos movimientos de transferencia dentro de la misma
+ * transaccion. El total de la empresa no cambia, solo el reparto.
+ */
+export async function asignarASucursal(
+  db: Db,
+  datos: {
+    empresaId: string;
+    sucursalId: string;
+    productoId: string;
+    cantidad: number;
+    motivo?: string | undefined;
+    usuarioId: string;
+  },
+): Promise<AsignacionInventario> {
+  const general = await obtenerSucursalGeneral(db, datos.empresaId);
+  if (general.sucursalId === datos.sucursalId) {
+    throw new ErrorDeAplicacion(
+      'Elige una sucursal de venta, no el inventario general',
+      422,
+      'DESTINO_INVALIDO',
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const producto = await productoExiste(tx, datos.empresaId, datos.productoId);
+    if (!producto) {
+      throw new ErrorNoEncontrado('El producto no existe');
+    }
+
+    const documentoId = nuevoId();
+    const comun = {
+      empresaId: datos.empresaId,
+      productoId: datos.productoId,
+      cantidad: datos.cantidad,
+      costoUnitario: centavos(producto.costoPromedio),
+      motivo: datos.motivo ?? 'Asignacion a sucursal',
+      usuarioId: datos.usuarioId,
+      documentoTipo: 'asignacion_inventario',
+      documentoId,
+    };
+
+    const salida = await aplicarMovimiento(tx, {
+      ...comun,
+      sucursalId: general.sucursalId,
+      almacenId: general.almacenId,
+      tipo: 'transferencia_salida',
+    });
+
+    const entrada = await aplicarMovimiento(tx, {
+      ...comun,
+      sucursalId: datos.sucursalId,
+      tipo: 'transferencia_entrada',
+    });
+
+    return {
+      productoId: datos.productoId,
+      sucursalId: datos.sucursalId,
+      cantidad: datos.cantidad,
+      salida,
+      entrada,
+    };
   });
 }
 
@@ -823,9 +899,11 @@ export async function listarMovimientos(base: BaseDatos, filtro: FiltroMovimient
       producto: schema.products.name,
       sku: schema.products.sku,
       sucursalId: schema.inventoryMovements.branchId,
+      sucursalNombre: schema.branches.name,
     })
     .from(schema.inventoryMovements)
     .innerJoin(schema.products, eq(schema.products.id, schema.inventoryMovements.productId))
+    .innerJoin(schema.branches, eq(schema.branches.id, schema.inventoryMovements.branchId))
     .where(and(...condiciones))
     .orderBy(desc(schema.inventoryMovements.occurredAt))
     .limit(filtro.limite ?? 100);

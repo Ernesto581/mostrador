@@ -112,8 +112,8 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
 
   return (
     <Modal
-      titulo="Nuevo movimiento de inventario"
-      nota="Busca el producto, elige la sucursal y el tipo de movimiento. Si todavia no existe, crealo primero en Productos."
+      titulo="Movimiento en una sucursal"
+      nota="Registra compras, ajustes o mermas directamente en una sucursal. Para repartir existencia del inventario general usa Asignar a sucursal."
       onCerrar={onCerrar}
     >
       <div className="formulario">

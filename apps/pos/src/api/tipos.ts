@@ -229,6 +229,7 @@ export interface Movimiento {
   producto: string;
   sku: string;
   sucursalId: string;
+  sucursalNombre: string;
 }
 
 export interface VentaResumen {

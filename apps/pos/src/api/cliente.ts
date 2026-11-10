@@ -258,7 +258,6 @@ export const api = {
     stockMinimo: number;
     codigosBarras: string[];
     stockInicial: number;
-    sucursalId?: string;
     imagenUrl?: string | null;
   }) => pedir<{ producto: { id: string; sku: string; nombre: string } }>('/products', {
     metodo: 'POST',
@@ -322,6 +321,24 @@ export const api = {
   ) =>
     pedir<{ conAlerta: number; sucursales: Sucursal[]; stock: FilaStockGeneral[] }>(
       `/inventory/stock-general${parametros({ limite: 200, ...filtros })}`,
+    ),
+
+  stockEnGeneral: (buscar: string, limite = 12) =>
+    pedir<{
+      sucursalId: string;
+      nombre: string;
+      stock: { productoId: string; sku: string; nombre: string; stock: number }[];
+    }>(`/inventory/general/stock${parametros({ limite, ...(buscar.trim() ? { buscar } : {}) })}`),
+
+  asignarSucursal: (cuerpo: {
+    productoId: string;
+    sucursalId: string;
+    cantidad: number;
+    motivo?: string;
+  }) =>
+    pedir<{ asignacion: { productoId: string; sucursalId: string; cantidad: number } }>(
+      '/inventory/assign',
+      { metodo: 'POST', cuerpo },
     ),
 
   actualizarMinimo: (cuerpo: {

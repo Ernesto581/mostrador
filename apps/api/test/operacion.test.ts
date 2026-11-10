@@ -85,6 +85,26 @@ async function stockDe(sku: string, sucursalId = semilla.sucursalId): Promise<nu
   return filas.find((fila) => fila.sku === sku)?.stock ?? 0;
 }
 
+async function stockGeneralDe(sku: string): Promise<number> {
+  const respuesta = await app.inject({
+    method: 'GET',
+    url: `/api/v1/inventory/stock-general?buscar=${sku}`,
+    headers: auth(),
+  });
+  const filas = respuesta.json().stock as { sku: string; stock: number }[];
+  return filas.find((fila) => fila.sku === sku)?.stock ?? 0;
+}
+
+async function stockEnGeneral(sku: string): Promise<number> {
+  const respuesta = await app.inject({
+    method: 'GET',
+    url: `/api/v1/inventory/general/stock?buscar=${sku}`,
+    headers: auth(),
+  });
+  const filas = respuesta.json().stock as { sku: string; stock: number }[];
+  return filas.find((fila) => fila.sku === sku)?.stock ?? 0;
+}
+
 describe('catalogo', () => {
   it('encuentra productos por nombre', async () => {
     const respuesta = await app.inject({
@@ -129,7 +149,7 @@ describe('catalogo', () => {
     expect(respuesta.json().error.codigo).toBe('NO_ENCONTRADO');
   });
 
-  it('crea un producto con codigo de barras y stock inicial', async () => {
+  it('crea un producto con codigo de barras y stock inicial en el inventario general', async () => {
     const respuesta = await app.inject({
       method: 'POST',
       url: '/api/v1/products',
@@ -142,12 +162,53 @@ describe('catalogo', () => {
         stockMinimo: 3,
         codigosBarras: ['9999999999999'],
         stockInicial: 7,
-        sucursalId: semilla.sucursalId,
       },
     });
 
     expect(respuesta.statusCode).toBe(201);
-    expect(await stockDe('NUE-001')).toBe(7);
+    expect(await stockGeneralDe('NUE-001')).toBe(7);
+    expect(await stockEnGeneral('NUE-001')).toBe(7);
+    expect(await stockDe('NUE-001')).toBe(0);
+  });
+
+  it('asigna existencia del inventario general a una sucursal', async () => {
+    const creado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: auth(),
+      payload: {
+        sku: 'ASI-001',
+        nombre: 'Producto para asignar',
+        precioCosto: 500,
+        precioVenta: 900,
+        stockInicial: 10,
+      },
+    });
+    const productoId = creado.json().producto.id as string;
+
+    const asignado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/assign',
+      headers: auth(),
+      payload: { productoId, sucursalId: semilla.sucursalId, cantidad: 4 },
+    });
+
+    expect(asignado.statusCode).toBe(201);
+    expect(await stockDe('ASI-001')).toBe(4);
+    expect(await stockEnGeneral('ASI-001')).toBe(6);
+    expect(await stockGeneralDe('ASI-001')).toBe(10);
+
+    const exceso = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/assign',
+      headers: auth(),
+      payload: { productoId, sucursalId: semilla.sucursalId, cantidad: 99 },
+    });
+
+    expect(exceso.statusCode).toBe(409);
+    expect(exceso.json().error.codigo).toBe('SIN_EXISTENCIA');
+    expect(await stockDe('ASI-001')).toBe(4);
+    expect(await stockEnGeneral('ASI-001')).toBe(6);
   });
 
   it('rechaza un codigo de barras repetido', async () => {
@@ -272,7 +333,6 @@ describe('catalogo', () => {
         stockMinimo: 0,
         codigosBarras: ['8888888888888'],
         stockInicial: 3,
-        sucursalId: semilla.sucursalId,
       },
     });
     expect(creado.statusCode).toBe(201);

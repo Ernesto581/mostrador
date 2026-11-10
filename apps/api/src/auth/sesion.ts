@@ -1,7 +1,8 @@
 import { schema } from '@mostrador/db-cloud';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ErrorDeAutenticacion, ErrorSinPermiso } from '../errors.js';
+import { CODIGO_SUCURSAL_GENERAL } from '../modules/inventario/general.js';
 import { PERMISOS, type Permiso } from './permisos.js';
 
 export interface SucursalSesion {
@@ -71,6 +72,7 @@ export function exigirSesion(app: FastifyInstance) {
               eq(branches.companyId, usuario.companyId),
               isNull(branches.deletedAt),
               eq(branches.active, true),
+              ne(branches.code, CODIGO_SUCURSAL_GENERAL),
             ),
           )
           .orderBy(asc(branches.name))
@@ -88,6 +90,7 @@ export function exigirSesion(app: FastifyInstance) {
               eq(userBranchAccess.userId, usuario.id),
               isNull(branches.deletedAt),
               eq(branches.active, true),
+              ne(branches.code, CODIGO_SUCURSAL_GENERAL),
             ),
           );
 
