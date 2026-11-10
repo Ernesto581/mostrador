@@ -250,4 +250,23 @@ describe('usuarios', () => {
     expect(codigos.sort()).toEqual(['administrador', 'cajero']);
     expect(listaSucursales.json().sucursales).toHaveLength(2);
   });
+
+  it('crea una sucursal sin codigo y lo genera solo', async () => {
+    const creada = await app.inject({
+      method: 'POST',
+      url: '/api/v1/branches',
+      headers: auth(),
+      payload: { nombre: 'Sucursal Norte', tipo: 'tienda' },
+    });
+
+    expect(creada.statusCode).toBe(201);
+    const sucursal = creada.json().sucursal as { id: string; codigo: string; nombre: string };
+    expect(sucursal.nombre).toBe('Sucursal Norte');
+    expect(sucursal.codigo).toMatch(/^SUC\d+$/);
+
+    const lista = await app.inject({ method: 'GET', url: '/api/v1/branches', headers: auth() });
+    const filas = lista.json().sucursales as { id: string; nombre: string }[];
+    const encontrada = filas.find((fila) => fila.id === sucursal.id);
+    expect(encontrada?.nombre).toBe('Sucursal Norte');
+  });
 });

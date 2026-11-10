@@ -636,7 +636,7 @@ export async function stockGeneral(
         isNull(schema.branches.deletedAt),
       ),
     )
-    .orderBy(asc(schema.branches.code));
+    .orderBy(asc(schema.branches.name));
 
   const filas = await base
     .select({

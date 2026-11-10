@@ -281,6 +281,9 @@ export const api = {
   subirImagenProducto: (archivo: File) =>
     pedirFormulario<{ url: string }>('/uploads/producto', archivo),
 
+  subirImagenSucursal: (archivo: File) =>
+    pedirFormulario<{ url: string }>('/uploads/sucursal', archivo),
+
   borrarProducto: (id: string) =>
     pedir<{ producto: { id: string; borrado: boolean } }>(`/products/${id}`, {
       metodo: 'DELETE',
@@ -429,7 +432,6 @@ export const api = {
   sucursales: () => pedir<{ sucursales: SucursalDelPanel[] }>('/branches'),
 
   crearSucursal: (cuerpo: {
-    codigo: string;
     nombre: string;
     tipo: 'tienda' | 'almacen';
     direccion?: string;
@@ -453,13 +455,12 @@ export const api = {
     id: string,
     cuerpo: {
       nombre?: string;
-      tipo?: 'tienda' | 'almacen';
       direccion?: string;
       telefono?: string;
       activa?: boolean;
       descripcion?: string;
       tipoNegocio?: string;
-      fotoUrl?: string;
+      fotoUrl?: string | null;
       provincia?: string;
       municipio?: string;
       whatsapp?: string;

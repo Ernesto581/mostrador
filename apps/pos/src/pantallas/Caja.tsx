@@ -177,7 +177,7 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
         alcance: 'turno',
         fecha: new Date().toISOString().slice(0, 10),
         sucursalId,
-        sucursal: sucursal?.codigo ?? '',
+        sucursal: sucursal?.nombre ?? '',
         ventasTotal: respuesta.resumen.ventas.total,
         esperado: respuesta.cierre.esperado,
         contado: respuesta.cierre.contado,
@@ -204,7 +204,7 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
         <div>
           <h1 className="panel__titulo">{titulo ?? 'Caja'}</h1>
           <p className="panel__nota">
-            Sucursal {sucursal?.codigo ?? '—'} ·{' '}
+            Sucursal {sucursal?.nombre ?? '—'} ·{' '}
             {turno ? 'turno abierto' : 'sin turno abierto'}
           </p>
         </div>
@@ -384,7 +384,7 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
                 <option value="">Todas las sucursales</option>
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} · {opcion.nombre}
+                    {opcion.nombre}
                   </option>
                 ))}
               </select>

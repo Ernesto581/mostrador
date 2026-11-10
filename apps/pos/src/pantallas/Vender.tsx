@@ -490,7 +490,7 @@ export function Vender({ sesion, sucursalId }: Props) {
               <Ticket
                 lineas={carrito}
                 totales={totales}
-                sucursal={sucursal?.codigo ?? ''}
+                sucursal={sucursal?.nombre ?? ''}
                 vendedor={sesion.usuario.nombre}
                 onCantidad={cambiarCantidad}
                 onQuitar={quitar}

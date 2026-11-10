@@ -281,7 +281,7 @@ describe('caja y cierre de turno', () => {
     const cierres = respuesta.json().cierres as { diferencia: number; sucursal: string }[];
     expect(cierres.length).toBeGreaterThanOrEqual(2);
     expect(cierres.some((cierre) => cierre.diferencia === -500)).toBe(true);
-    expect(cierres.every((cierre) => cierre.sucursal === 'CENTRO')).toBe(true);
+    expect(cierres.every((cierre) => cierre.sucursal === 'Sucursal Centro')).toBe(true);
   });
 
   it('el detalle de un cierre muestra ventas, productos y pagos', async () => {

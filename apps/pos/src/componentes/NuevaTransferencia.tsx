@@ -192,7 +192,7 @@ export function NuevaTransferencia({
           >
             {sesion.sucursales.map((opcion) => (
               <option key={opcion.id} value={opcion.id}>
-                {opcion.codigo} · {opcion.nombre}
+                {opcion.nombre}
               </option>
             ))}
           </select>
@@ -210,7 +210,7 @@ export function NuevaTransferencia({
               .filter((opcion) => opcion.id !== origenSucursalId)
               .map((opcion) => (
                 <option key={opcion.id} value={opcion.id}>
-                  {opcion.codigo} · {opcion.nombre}
+                  {opcion.nombre}
                 </option>
               ))}
           </select>

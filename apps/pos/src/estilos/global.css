@@ -1745,6 +1745,40 @@ button {
   color: var(--texto-tenue);
 }
 
+/* Sucursales: nombre con su miniatura. */
+.sucursal__nombre {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.sucursal__miniatura {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radio-chico);
+  object-fit: cover;
+  border: 1px solid var(--tinta-borde);
+  background: var(--tinta-media);
+}
+
+.sucursal__miniatura--vacia {
+  display: grid;
+  place-items: center;
+  color: var(--texto-tenue);
+}
+
+.sucursal__miniatura--vacia svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .inventario__paginacion {
   display: flex;
   align-items: center;

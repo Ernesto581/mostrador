@@ -57,8 +57,6 @@ export function Comprobante({
               <p className="ticket__meta">
                 {venta.folio}
                 <br />
-                {sucursal?.codigo ?? ''}
-                <br />
                 {sucursal?.nombre ?? ''} · {sesion.usuario.nombre}
                 <br />
                 {fechaLarga(venta.vendidoEn)}

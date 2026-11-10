@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { PERMISOS } from '../../auth/permisos.js';
 import { asegurarPermiso, exigirSesion, sesionDe } from '../../auth/sesion.js';
 import { ErrorDeAplicacion } from '../../errors.js';
@@ -11,11 +11,11 @@ const TIPOS: Record<string, string> = {
 };
 
 /**
- * Fotos de productos en Supabase Storage.
+ * Fotos de productos y sucursales en Supabase Storage.
  *
  * La clave de servicio vive solo en el servidor: el navegador nunca la recibe.
  * El bucket se crea como publico la primera vez, para que las fotos se puedan
- * mostrar sin firmar cada URL. Solo administracion y almacen pueden subir.
+ * mostrar sin firmar cada URL. Solo administracion puede subir.
  */
 export async function rutasSubidas(app: FastifyInstance) {
   const preHandler = exigirSesion(app);
@@ -57,50 +57,65 @@ export async function rutasSubidas(app: FastifyInstance) {
   app.post('/uploads/producto', { preHandler: [preHandler] }, async (request, reply) => {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_CATALOGO);
-
-    const { SUPABASE_URL } = app.config;
-    const clave = app.config.SUPABASE_SECRET_KEY ?? app.config.SUPABASE_SERVICE_ROLE_KEY;
-    if (!SUPABASE_URL || !clave) {
-      throw new ErrorDeAplicacion(
-        'El almacenamiento de fotos no esta configurado. Falta SUPABASE_URL y SUPABASE_SECRET_KEY en el servidor.',
-        503,
-        'ALMACENAMIENTO_NO_CONFIGURADO',
-      );
-    }
-
-    const archivo = await request.file();
-    if (!archivo) {
-      throw new ErrorDeAplicacion('Adjunta una imagen del producto', 422, 'ARCHIVO_FALTANTE');
-    }
-
-    const extension = TIPOS[archivo.mimetype];
-    if (!extension) {
-      throw new ErrorDeAplicacion(
-        'La foto debe ser JPG, PNG o WebP',
-        422,
-        'FORMATO_NO_SOPORTADO',
-      );
-    }
-
-    const contenido = await archivo.toBuffer();
-    if (contenido.length === 0) {
-      throw new ErrorDeAplicacion('La imagen esta vacia', 422, 'ARCHIVO_VACIO');
-    }
-
-    const bucket = app.config.SUPABASE_BUCKET;
-    const ruta = `${sesion.empresaId}/${nuevoId()}.${extension}`;
-    const url = await subirASupabase({
-      base: SUPABASE_URL.replace(/\/+$/, ''),
-      clave,
-      bucket,
-      ruta,
-      tipo: archivo.mimetype,
-      contenido,
-    });
-
-    reply.status(201);
-    return { url };
+    return subirImagen(app, request, reply);
   });
+
+  app.post('/uploads/sucursal', { preHandler: [preHandler] }, async (request, reply) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.GESTIONAR_SUCURSALES);
+    return subirImagen(app, request, reply);
+  });
+}
+
+/** Sube la imagen que venga en el formulario y devuelve su URL publica. */
+async function subirImagen(
+  app: FastifyInstance,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<{ url: string }> {
+  const sesion = sesionDe(request);
+  const { SUPABASE_URL } = app.config;
+  const clave = app.config.SUPABASE_SECRET_KEY ?? app.config.SUPABASE_SERVICE_ROLE_KEY;
+  if (!SUPABASE_URL || !clave) {
+    throw new ErrorDeAplicacion(
+      'El almacenamiento de fotos no esta configurado. Falta SUPABASE_URL y SUPABASE_SECRET_KEY en el servidor.',
+      503,
+      'ALMACENAMIENTO_NO_CONFIGURADO',
+    );
+  }
+
+  const archivo = await request.file();
+  if (!archivo) {
+    throw new ErrorDeAplicacion('Adjunta una imagen', 422, 'ARCHIVO_FALTANTE');
+  }
+
+  const extension = TIPOS[archivo.mimetype];
+  if (!extension) {
+    throw new ErrorDeAplicacion(
+      'La foto debe ser JPG, PNG o WebP',
+      422,
+      'FORMATO_NO_SOPORTADO',
+    );
+  }
+
+  const contenido = await archivo.toBuffer();
+  if (contenido.length === 0) {
+    throw new ErrorDeAplicacion('La imagen esta vacia', 422, 'ARCHIVO_VACIO');
+  }
+
+  const bucket = app.config.SUPABASE_BUCKET;
+  const ruta = `${sesion.empresaId}/${nuevoId()}.${extension}`;
+  const url = await subirASupabase({
+    base: SUPABASE_URL.replace(/\/+$/, ''),
+    clave,
+    bucket,
+    ruta,
+    tipo: archivo.mimetype,
+    contenido,
+  });
+
+  reply.status(201);
+  return { url };
 }
 
 async function subirASupabase(datos: {

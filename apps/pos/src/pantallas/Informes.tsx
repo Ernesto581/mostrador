@@ -115,7 +115,7 @@ export function Informes({ sesion, sucursalId }: Props) {
       [],
       ['Sucursal', 'Tickets', 'Venta bruta', 'Venta neta'],
       ...reporte.porSucursal.map((fila) => [
-        `${fila.codigo} - ${fila.nombre}`,
+        fila.nombre,
         String(fila.tickets),
         pesos(fila.ventaBruta),
         pesos(fila.ventaNeta),
@@ -189,7 +189,7 @@ export function Informes({ sesion, sucursalId }: Props) {
             className={alcance === 'sucursal' ? 'pestana pestana--activa' : 'pestana'}
             onClick={() => setAlcance('sucursal')}
           >
-            {sucursal?.codigo ?? 'Sucursal'}
+            {sucursal?.nombre ?? 'Sucursal'}
           </button>
         </div>
       </div>

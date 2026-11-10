@@ -18,12 +18,12 @@ interface HorarioDia {
 
 interface Borrador {
   id: string | null;
-  codigo: string;
   nombre: string;
   descripcion: string;
   tipoNegocio: string;
   fotoUrl: string;
   tipo: 'tienda' | 'almacen';
+  activa: boolean;
   direccion: string;
   provincia: string;
   municipio: string;
@@ -42,12 +42,12 @@ const HORARIOS_VACIOS: Record<string, HorarioDia> = Object.fromEntries(
 
 const BORRADOR_VACIO: Borrador = {
   id: null,
-  codigo: '',
   nombre: '',
   descripcion: '',
   tipoNegocio: 'tienda',
   fotoUrl: '',
   tipo: 'tienda',
+  activa: true,
   direccion: '',
   provincia: '',
   municipio: '',
@@ -58,7 +58,46 @@ const BORRADOR_VACIO: Borrador = {
   horarios: { ...HORARIOS_VACIOS },
 };
 
-export function Sucursales() {
+/** Reduce la foto antes de subirla para no llenar el almacenamiento. */
+async function prepararImagen(archivo: File): Promise<File> {
+  try {
+    const mapa = await createImageBitmap(archivo);
+    const mayor = Math.max(mapa.width, mapa.height);
+    const escala = Math.min(1, 1200 / mayor);
+
+    if (escala === 1 && archivo.size <= 600 * 1024) {
+      mapa.close();
+      return archivo;
+    }
+
+    const lienzo = document.createElement('canvas');
+    lienzo.width = Math.max(1, Math.round(mapa.width * escala));
+    lienzo.height = Math.max(1, Math.round(mapa.height * escala));
+    const contexto = lienzo.getContext('2d');
+    if (!contexto) {
+      mapa.close();
+      return archivo;
+    }
+
+    contexto.drawImage(mapa, 0, 0, lienzo.width, lienzo.height);
+    mapa.close();
+
+    const reducida = await new Promise<Blob | null>((resolver) =>
+      lienzo.toBlob(resolver, 'image/jpeg', 0.82),
+    );
+    if (!reducida) {
+      return archivo;
+    }
+
+    return new File([reducida], archivo.name.replace(/\.[^.]+$/, '') + '.jpg', {
+      type: 'image/jpeg',
+    });
+  } catch {
+    return archivo;
+  }
+}
+
+export function Sucursales({ onActualizarSesion }: { onActualizarSesion: () => Promise<void> }) {
   const [borrador, setBorrador] = useState<Borrador | null>(null);
   const archivoFoto = useRef<HTMLInputElement>(null);
   const [codigosPais] = useState<string[]>(['+53', '+1', '+52', '+34', '+54', '+57', '+56', '+51', '+55', '+58', '+33', '+49', '+39', '+44']);
@@ -67,6 +106,7 @@ export function Sucursales() {
   // al consultar servicios externos desde el navegador.
   const [porQuitar, setPorQuitar] = useState<SucursalDelPanel | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -80,15 +120,25 @@ export function Sucursales() {
     window.setTimeout(() => setOk(null), 6000);
   }
 
+  async function subirFoto(archivo: File): Promise<void> {
+    setSubiendoFoto(true);
+    setError(null);
+    try {
+      const reducida = await prepararImagen(archivo);
+      const { url } = await api.subirImagenSucursal(reducida);
+      setBorrador((actual) => (actual ? { ...actual, fotoUrl: url } : actual));
+    } catch (fallo) {
+      setError(mensajeDe(fallo));
+    } finally {
+      setSubiendoFoto(false);
+    }
+  }
+
   async function guardar(): Promise<void> {
     if (!borrador) {
       return;
     }
 
-    if (!borrador.id && borrador.codigo.trim().length === 0) {
-      setError('Escribe el codigo de la sucursal');
-      return;
-    }
     if (borrador.nombre.trim().length === 0) {
       setError('Escribe el nombre de la sucursal');
       return;
@@ -101,12 +151,12 @@ export function Sucursales() {
       if (borrador.id) {
         await api.editarSucursal(borrador.id, {
           nombre: borrador.nombre.trim(),
-          tipo: borrador.tipo,
+          activa: borrador.activa,
           ...(borrador.direccion.trim() ? { direccion: borrador.direccion.trim() } : {}),
           ...(borrador.telefono.trim() ? { telefono: borrador.telefono.trim() } : {}),
           descripcion: borrador.descripcion.trim(),
           tipoNegocio: borrador.tipoNegocio,
-          ...(borrador.fotoUrl.trim() ? { fotoUrl: borrador.fotoUrl.trim() } : {}),
+          fotoUrl: borrador.fotoUrl.trim() || null,
           ...(borrador.provincia.trim() ? { provincia: borrador.provincia.trim() } : {}),
           ...(borrador.municipio.trim() ? { municipio: borrador.municipio.trim() } : {}),
           ...(borrador.whatsapp.trim() ? { whatsapp: borrador.whatsapp.trim() } : {}),
@@ -117,7 +167,6 @@ export function Sucursales() {
         terminarCon('Sucursal actualizada.');
       } else {
         const creada = await api.crearSucursal({
-          codigo: borrador.codigo.trim().toUpperCase(),
           nombre: borrador.nombre.trim(),
           tipo: borrador.tipo,
           ...(borrador.direccion.trim() ? { direccion: borrador.direccion.trim() } : {}),
@@ -132,13 +181,16 @@ export function Sucursales() {
           ...(borrador.lng.trim() ? { lng: Number(borrador.lng) } : {}),
           horarios: borrador.horarios,
         });
-        // El selector de sucursal del sistema se arma al entrar, por eso el aviso.
-        terminarCon(
-          `Se agrego la sucursal ${creada.sucursal.codigo}. Cierra sesion y vuelve a entrar para verla en el selector.`,
-        );
+        // El selector de sucursal se refresca al vuelo con la sesion nueva.
+        terminarCon(`Se agrego la sucursal ${creada.sucursal.nombre}.`);
       }
 
       await recargar();
+      try {
+        await onActualizarSesion();
+      } catch {
+        // La lista ya se actualizo; el menu tomara el cambio al volver a entrar.
+      }
     } catch (fallo) {
       setError(mensajeDe(fallo));
     } finally {
@@ -157,7 +209,12 @@ export function Sucursales() {
     try {
       await api.quitarSucursal(porQuitar.id);
       await recargar();
-      terminarCon(`Se quito ${porQuitar.codigo}. Su historial de ventas y turnos se conserva.`);
+      try {
+        await onActualizarSesion();
+      } catch {
+        // El historial ya se conserva; el menu se corrige al volver a entrar.
+      }
+      terminarCon(`Se quito ${porQuitar.nombre}. Su historial de ventas y turnos se conserva.`);
     } catch (fallo) {
       setError(mensajeDe(fallo));
       setPorQuitar(null);
@@ -203,7 +260,6 @@ export function Sucursales() {
           <table className="tabla tabla--responsive">
             <thead>
               <tr>
-                <th>Codigo</th>
                 <th>Nombre</th>
                 <th>Tipo</th>
                 <th>Direccion</th>
@@ -214,8 +270,26 @@ export function Sucursales() {
             <tbody>
               {sucursales.map((sucursal) => (
                 <tr key={sucursal.id}>
-                  <td className="codigo" data-label="Codigo">{sucursal.codigo}</td>
-                  <td data-label="Nombre">{sucursal.nombre}</td>
+                  <td data-label="Nombre">
+                    <div className="sucursal__nombre">
+                      {sucursal.fotoUrl ? (
+                        <img
+                          className="sucursal__miniatura"
+                          src={sucursal.fotoUrl}
+                          alt=""
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="sucursal__miniatura sucursal__miniatura--vacia" aria-hidden="true">
+                          <svg viewBox="0 0 24 24">
+                            <path d="M3 21V8l9-5 9 5v13" />
+                            <path d="M9 21v-6h6v6" />
+                          </svg>
+                        </span>
+                      )}
+                      <span>{sucursal.nombre}</span>
+                    </div>
+                  </td>
                   <td data-label="Tipo">{sucursal.tipo === 'almacen' ? 'Bodega' : 'Tienda'}</td>
                   <td data-label="Direccion">{sucursal.direccion ?? '—'}</td>
                   <td data-label="Estado">
@@ -232,12 +306,12 @@ export function Sucursales() {
                           setError(null);
                           setBorrador({
                             id: sucursal.id,
-                            codigo: sucursal.codigo,
                             nombre: sucursal.nombre,
                             descripcion: sucursal.descripcion ?? '',
                             tipoNegocio: sucursal.tipoNegocio ?? 'tienda',
                             fotoUrl: sucursal.fotoUrl ?? '',
                             tipo: sucursal.tipo === 'almacen' ? 'almacen' : 'tienda',
+                            activa: sucursal.activa,
                             direccion: sucursal.direccion ?? '',
                             provincia: sucursal.provincia ?? '',
                             municipio: sucursal.municipio ?? '',
@@ -272,27 +346,15 @@ export function Sucursales() {
 
       {borrador ? (
         <Modal
-          titulo={borrador.id ? `Editar ${borrador.codigo}` : 'Nueva sucursal'}
+          titulo={borrador.id ? `Editar ${borrador.nombre}` : 'Nueva sucursal'}
           nota={
             borrador.id
-              ? 'El codigo no se cambia: va dentro de los folios de las ventas.'
-              : 'El codigo va dentro de los folios (por ejemplo SUC1-20260117-0001): usa letras, numeros o guiones.'
+              ? 'El nombre identifica la sucursal en todo el sistema y en los reportes.'
+              : 'Escribe el nombre de la sucursal. El sistema se encarga del resto.'
           }
           onCerrar={() => setBorrador(null)}
         >
           <div className="formulario">
-            {!borrador.id ? (
-              <label className="campo-ancho">
-                <span>Codigo</span>
-                <input
-                  className="entrada"
-                  placeholder="SUC1"
-                  value={borrador.codigo}
-                  onChange={(evento) => setBorrador({ ...borrador, codigo: evento.target.value })}
-                />
-              </label>
-            ) : null}
-
             <label className="campo-ancho">
               <span>Nombre</span>
               <input
@@ -302,6 +364,22 @@ export function Sucursales() {
                 onChange={(evento) => setBorrador({ ...borrador, nombre: evento.target.value })}
               />
             </label>
+
+            {!borrador.id ? (
+              <label className="campo-ancho">
+                <span>Tipo de sucursal</span>
+                <select
+                  className="entrada"
+                  value={borrador.tipo}
+                  onChange={(evento) =>
+                    setBorrador({ ...borrador, tipo: evento.target.value as 'tienda' | 'almacen' })
+                  }
+                >
+                  <option value="tienda">Tienda</option>
+                  <option value="almacen">Bodega</option>
+                </select>
+              </label>
+            ) : null}
 
             <label className="campo-ancho campo-ancho--ancho">
               <span>Descripcion</span>
@@ -326,6 +404,17 @@ export function Sucursales() {
               </select>
             </label>
 
+            {borrador.id ? (
+              <label className="opcion-casilla" style={{ alignSelf: 'end', paddingBottom: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={borrador.activa}
+                  onChange={(evento) => setBorrador({ ...borrador, activa: evento.target.checked })}
+                />
+                Activa
+              </label>
+            ) : null}
+
             <div className="campo-ancho campo-ancho--ancho">
               <span>Foto</span>
               <div style={{ border: '1px solid var(--tinta-borde)', borderRadius: 'var(--radio-chico)', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
@@ -339,22 +428,38 @@ export function Sucursales() {
                 <input
                   ref={archivoFoto}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   style={{ display: 'none' }}
                   onChange={(evento) => {
                     const archivo = evento.target.files?.[0];
-                    if (!archivo) return;
-                    const lector = new FileReader();
-                    lector.onload = () => setBorrador((actual) => actual ? { ...actual, fotoUrl: String(lector.result) } : actual);
-                    lector.readAsDataURL(archivo);
+                    if (archivo) {
+                      void subirFoto(archivo);
+                    }
+                    evento.target.value = '';
                   }}
                 />
                 <div className="acciones-fila">
-                  <button type="button" className="boton" onClick={() => archivoFoto.current?.click()}>
-                    {borrador.fotoUrl ? 'Cambiar imagen' : 'Seleccionar imagen'}
+                  <button
+                    type="button"
+                    className="boton"
+                    onClick={() => archivoFoto.current?.click()}
+                    disabled={subiendoFoto}
+                  >
+                    {subiendoFoto
+                      ? 'Subiendo…'
+                      : borrador.fotoUrl
+                        ? 'Cambiar imagen'
+                        : 'Seleccionar imagen'}
                   </button>
                   {borrador.fotoUrl ? (
-                    <button type="button" className="boton" onClick={() => setBorrador((actual) => actual ? { ...actual, fotoUrl: '' } : actual)}>
+                    <button
+                      type="button"
+                      className="boton"
+                      onClick={() =>
+                        setBorrador((actual) => (actual ? { ...actual, fotoUrl: '' } : actual))
+                      }
+                      disabled={subiendoFoto}
+                    >
                       Quitar
                     </button>
                   ) : null}
@@ -445,7 +550,7 @@ export function Sucursales() {
               type="button"
               className="boton boton--acento"
               onClick={() => void guardar()}
-              disabled={guardando}
+              disabled={guardando || subiendoFoto}
             >
               {guardando ? 'Guardando…' : 'Guardar'}
             </button>
@@ -455,7 +560,7 @@ export function Sucursales() {
 
       {porQuitar ? (
         <Modal
-          titulo={`Quitar ${porQuitar.codigo}`}
+          titulo={`Quitar ${porQuitar.nombre}`}
           nota="Deja de aparecer en el sistema. Las ventas, los turnos y el kardex de esa sucursal se conservan."
           onCerrar={() => setPorQuitar(null)}
         >

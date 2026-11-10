@@ -107,7 +107,7 @@ export function Panel({ sesion, onIr }: Props) {
           {reporte.datos.porSucursal.map((fila) => (
             <div className="fila-dato" key={fila.sucursalId}>
               <span>
-                {fila.codigo} · {fila.nombre}
+                {fila.nombre}
                 <br />
                 <span className="panel__nota">{fila.tickets} ventas</span>
               </span>
@@ -135,7 +135,7 @@ export function Panel({ sesion, onIr }: Props) {
                 {fila.reparto.some((parte) => parte.bajoMinimo)
                   ? fila.reparto
                       .filter((parte) => parte.bajoMinimo)
-                      .map((parte) => `${parte.codigo} ${parte.cantidad}/${parte.minimo}`)
+                      .map((parte) => `${parte.nombre} ${parte.cantidad}/${parte.minimo}`)
                       .join(' · ')
                   : `${fila.stock} / ${fila.stockMinimo}`}
               </span>

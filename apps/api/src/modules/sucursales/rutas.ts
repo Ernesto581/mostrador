@@ -21,7 +21,8 @@ const esquemaCrear = z.object({
     .trim()
     .min(1, 'Escribe un codigo')
     .max(12, 'El codigo es muy largo')
-    .regex(/^[A-Za-z0-9-]+$/, 'Solo letras, numeros y guiones, sin espacios'),
+    .regex(/^[A-Za-z0-9-]+$/, 'Solo letras, numeros y guiones, sin espacios')
+    .optional(),
   nombre: z.string().trim().min(1, 'Escribe el nombre').max(120),
   tipo: z.enum(['tienda', 'almacen']).default('tienda'),
   direccion: z.string().trim().max(200).optional(),
@@ -39,14 +40,13 @@ const esquemaCrear = z.object({
 
 const esquemaEditar = z.object({
   nombre: z.string().trim().min(1).max(120).optional(),
-  tipo: z.enum(['tienda', 'almacen']).optional(),
   direccion: z.string().trim().max(200).optional(),
   telefono: z.string().trim().max(40).optional(),
   activa: z.boolean().optional(),
   ventaDesdeAlmacen: z.boolean().optional(),
   descripcion: z.string().trim().max(500).optional(),
   tipoNegocio: z.string().trim().max(80).optional(),
-  fotoUrl: z.string().trim().max(500).optional(),
+  fotoUrl: z.string().trim().max(500).nullable().optional(),
   provincia: z.string().trim().max(80).optional(),
   municipio: z.string().trim().max(80).optional(),
   whatsapp: z.string().trim().max(40).optional(),
@@ -59,8 +59,7 @@ const parametroId = z.object({ id: z.string().min(1) });
 
 export async function rutasSucursales(app: FastifyInstance) {
   const preHandler = exigirSesion(app);
-  const { branches, warehouses, users, roles, userRoles, userBranchAccess, stockBalances } =
-    schema;
+  const { branches, warehouses, stockBalances } = schema;
 
   /**
    * Lista de sucursales de la empresa.
@@ -101,7 +100,7 @@ export async function rutasSucursales(app: FastifyInstance) {
       })
       .from(branches)
       .where(and(eq(branches.companyId, sesion.empresaId), isNull(branches.deletedAt)))
-      .orderBy(asc(branches.code));
+      .orderBy(asc(branches.name));
 
     return { sucursales: lista };
   });
@@ -110,6 +109,8 @@ export async function rutasSucursales(app: FastifyInstance) {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.GESTIONAR_SUCURSALES);
     const datos = validar(esquemaCrear, request.body);
+    const codigo =
+      datos.codigo?.trim().toUpperCase() ?? (await generarCodigoSucursal(app, sesion.empresaId));
 
     const [repetida] = await app.db
       .select({ id: branches.id })
@@ -117,7 +118,7 @@ export async function rutasSucursales(app: FastifyInstance) {
       .where(
         and(
           eq(branches.companyId, sesion.empresaId),
-          eq(branches.code, datos.codigo.toUpperCase()),
+          eq(branches.code, codigo),
           isNull(branches.deletedAt),
         ),
       )
@@ -125,7 +126,7 @@ export async function rutasSucursales(app: FastifyInstance) {
 
     if (repetida) {
       throw new ErrorDeAplicacion(
-        `Ya existe una sucursal con el codigo ${datos.codigo.toUpperCase()}`,
+        `Ya existe una sucursal con el codigo ${codigo}`,
         409,
         'CODIGO_REPETIDO',
       );
@@ -133,28 +134,11 @@ export async function rutasSucursales(app: FastifyInstance) {
 
     const sucursalId = nuevoId();
 
-    // Quien la crea y los demas administradores quedan con acceso, para que la
-    // sucursal aparezca en su selector y no se quede "invisible".
-    const administradores = await app.db
-      .select({ id: users.id })
-      .from(users)
-      .innerJoin(userRoles, eq(userRoles.userId, users.id))
-      .innerJoin(roles, eq(roles.id, userRoles.roleId))
-      .where(
-        and(
-          eq(users.companyId, sesion.empresaId),
-          eq(roles.code, 'administrador'),
-          isNull(users.deletedAt),
-        ),
-      );
-
-    const conAcceso = new Set([sesion.usuarioId, ...administradores.map((fila) => fila.id)]);
-
     await app.db.transaction(async (tx) => {
       await tx.insert(branches).values({
         id: sucursalId,
         companyId: sesion.empresaId,
-        code: datos.codigo.toUpperCase(),
+        code: codigo,
         name: datos.nombre,
         type: datos.tipo,
         address: datos.direccion ?? null,
@@ -199,16 +183,11 @@ export async function rutasSucursales(app: FastifyInstance) {
               },
             ],
       );
-
-      await tx
-        .insert(userBranchAccess)
-        .values([...conAcceso].map((usuarioId) => ({ userId: usuarioId, branchId: sucursalId })))
-        .onConflictDoNothing();
     });
 
     reply.status(201);
     return {
-      sucursal: { id: sucursalId, codigo: datos.codigo.toUpperCase(), nombre: datos.nombre },
+      sucursal: { id: sucursalId, codigo, nombre: datos.nombre },
     };
   });
 
@@ -223,13 +202,13 @@ export async function rutasSucursales(app: FastifyInstance) {
     // No se puede quedar la empresa sin ninguna sucursal activa: nadie podria vender.
     if (datos.activa === false) {
       await asegurarNoEsLaUltima(app, sesion.empresaId);
+      await asegurarSinTurnoAbierto(app, id);
     }
 
     await app.db
       .update(branches)
       .set({
         ...(datos.nombre !== undefined ? { name: datos.nombre } : {}),
-        ...(datos.tipo !== undefined ? { type: datos.tipo } : {}),
         ...(datos.direccion !== undefined ? { address: datos.direccion } : {}),
         ...(datos.telefono !== undefined ? { phone: datos.telefono } : {}),
         ...(datos.activa !== undefined ? { active: datos.activa } : {}),
@@ -260,6 +239,7 @@ export async function rutasSucursales(app: FastifyInstance) {
 
     await buscarSucursal(app, sesion.empresaId, id);
     await asegurarNoEsLaUltima(app, sesion.empresaId);
+    await asegurarSinTurnoAbierto(app, id);
 
     // Si todavia hay mercancia, quitarla dejaria piezas "en el aire": mejor avisar.
     const [existencia] = await app.db
@@ -304,6 +284,48 @@ async function buscarSucursal(app: FastifyInstance, empresaId: string, sucursalI
     throw new ErrorNoEncontrado('La sucursal no existe');
   }
   return sucursal;
+}
+
+async function generarCodigoSucursal(
+  app: FastifyInstance,
+  empresaId: string,
+): Promise<string> {
+  const { branches } = schema;
+  const usados = new Set(
+    (
+      await app.db
+        .select({ codigo: branches.code })
+        .from(branches)
+        .where(eq(branches.companyId, empresaId))
+    ).map((fila) => fila.codigo),
+  );
+
+  let numero = 1;
+  while (usados.has(`SUC${numero}`)) {
+    numero += 1;
+  }
+  return `SUC${numero}`;
+}
+
+/** Una sucursal no puede desaparecer del selector con la caja abierta. */
+async function asegurarSinTurnoAbierto(
+  app: FastifyInstance,
+  sucursalId: string,
+): Promise<void> {
+  const { shifts } = schema;
+  const [abierto] = await app.db
+    .select({ id: shifts.id })
+    .from(shifts)
+    .where(and(eq(shifts.branchId, sucursalId), eq(shifts.status, 'abierto')))
+    .limit(1);
+
+  if (abierto) {
+    throw new ErrorDeAplicacion(
+      'No se puede desactivar ni quitar: hay un turno de caja abierto en esa sucursal. Cierralo primero.',
+      409,
+      'SUCURSAL_CON_TURNO_ABIERTO',
+    );
+  }
 }
 
 /** Evita dejar la empresa sin ninguna sucursal donde vender. */

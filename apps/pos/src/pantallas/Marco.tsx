@@ -39,6 +39,7 @@ interface OpcionMenu {
 
 interface Props {
   sesion: Sesion;
+  onActualizarSesion: () => Promise<void>;
   onSalir: () => void;
 }
 
@@ -365,7 +366,7 @@ function ListaMenu({
   );
 }
 
-export function Marco({ sesion, onSalir }: Props) {
+export function Marco({ sesion, onActualizarSesion, onSalir }: Props) {
   const admin = esAdministracion(sesion);
   const opciones = opcionesDe(sesion);
   const [pestana, setPestana] = useState<Seccion>(() => opcionesDe(sesion)[0]?.id ?? 'panel');
@@ -404,6 +405,16 @@ export function Marco({ sesion, onSalir }: Props) {
 
     return () => window.removeEventListener('online', alVolver);
   }, [revisar]);
+
+  // Si quitaron la sucursal elegida, se toma la primera que siga existiendo.
+  useEffect(() => {
+    if (sesion.sucursales.length === 0) {
+      return;
+    }
+    if (!sesion.sucursales.some((opcion) => opcion.id === sucursalId)) {
+      setSucursalId(sesion.sucursales[0]!.id);
+    }
+  }, [sesion.sucursales, sucursalId]);
 
   const sucursal = sesion.sucursales.find((opcion) => opcion.id === sucursalId);
   // Si la seccion guardada no existe para esta cuenta, se muestra la primera.
@@ -558,15 +569,13 @@ export function Marco({ sesion, onSalir }: Props) {
               >
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} · {opcion.nombre}
+                    {opcion.nombre}
                   </option>
                 ))}
               </select>
             </label>
           ) : (
-            <span className="vendedor">
-              {sucursal?.codigo} · {sucursal?.nombre}
-            </span>
+            <span className="vendedor">{sucursal?.nombre}</span>
           )}
 
           <span className="vendedor">{sesion.usuario.nombre}</span>
@@ -629,7 +638,9 @@ export function Marco({ sesion, onSalir }: Props) {
       {seccion?.id === 'informes' ? <Informes sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'usuarios' ? <Usuarios /> : null}
-      {seccion?.id === 'sucursales' ? <Sucursales /> : null}
+      {seccion?.id === 'sucursales' ? (
+        <Sucursales onActualizarSesion={onActualizarSesion} />
+      ) : null}
       {seccion?.id === 'impresora' ? <Impresora /> : null}
     </div>
   );

@@ -10,6 +10,13 @@ export function App() {
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [cargando, setCargando] = useState(true);
 
+  /** Vuelve a pedir la sesion: sirve cuando cambian sucursales o permisos. */
+  async function actualizarSesion(): Promise<void> {
+    const datos = await api.sesion();
+    guardarSesion(datos);
+    setSesion(datos);
+  }
+
   useEffect(() => {
     let activo = true;
 
@@ -68,6 +75,7 @@ export function App() {
     <ProveedorConexion>
       <Marco
         sesion={sesion}
+        onActualizarSesion={actualizarSesion}
         onSalir={() => {
           // Cerrar el mostrador NO borra la sesion del telefono: si no hay internet
           // despues, hay que poder volver a entrar. La sesion se limpia sola cuando

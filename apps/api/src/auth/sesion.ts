@@ -73,7 +73,7 @@ export function exigirSesion(app: FastifyInstance) {
               eq(branches.active, true),
             ),
           )
-          .orderBy(asc(branches.code))
+          .orderBy(asc(branches.name))
       : await app.db
           .select({
             id: branches.id,

@@ -452,7 +452,7 @@ export async function listarCierres(base: BaseDatos, filtro: FiltroCierres) {
       alcance: schema.cashClosures.scope,
       fecha: schema.cashClosures.date,
       sucursalId: schema.cashClosures.branchId,
-      sucursal: schema.branches.code,
+      sucursal: schema.branches.name,
       ventasTotal: schema.cashClosures.salesTotal,
       esperado: schema.cashClosures.expectedCash,
       contado: schema.cashClosures.countedCash,
@@ -538,7 +538,7 @@ export async function detalleCierre(
       alcance: schema.cashClosures.scope,
       fecha: schema.cashClosures.date,
       sucursalId: schema.cashClosures.branchId,
-      sucursal: schema.branches.code,
+      sucursal: schema.branches.name,
       ventasTotal: schema.cashClosures.salesTotal,
       esperado: schema.cashClosures.expectedCash,
       contado: schema.cashClosures.countedCash,
@@ -755,7 +755,7 @@ export async function turnosAbiertos(
     .select({
       id: schema.shifts.id,
       sucursalId: schema.shifts.branchId,
-      sucursal: schema.branches.code,
+      sucursal: schema.branches.name,
       abiertoEn: schema.shifts.openedAt,
       fondoInicial: schema.shifts.initialCash,
       abiertoPor: schema.users.fullName,
@@ -764,5 +764,5 @@ export async function turnosAbiertos(
     .innerJoin(schema.branches, eq(schema.branches.id, schema.shifts.branchId))
     .innerJoin(schema.users, eq(schema.users.id, schema.shifts.openedByUserId))
     .where(and(...condiciones))
-    .orderBy(asc(schema.branches.code));
+    .orderBy(asc(schema.branches.name));
 }

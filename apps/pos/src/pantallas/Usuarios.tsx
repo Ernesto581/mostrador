@@ -213,7 +213,7 @@ export function Usuarios() {
                   <td data-label="Sucursales">
                     {usuario.roles.includes('administrador')
                       ? 'Todas'
-                      : usuario.sucursales.map((sucursal) => sucursal.codigo).join(', ') || '—'}
+                      : usuario.sucursales.map((sucursal) => sucursal.nombre).join(', ') || '—'}
                   </td>
                   <td data-label="Estado">
                     <span className={usuario.activo ? 'insignia insignia--ok' : 'insignia insignia--agotado'}>
@@ -359,7 +359,7 @@ export function Usuarios() {
                           })
                         }
                       />
-                      {sucursal.codigo} · {sucursal.nombre}
+                      {sucursal.nombre}
                     </label>
                   ))}
                 </div>

@@ -434,7 +434,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       await Promise.all([recargar(), recargarMovimientos()]);
       const destino = sesion.sucursales.find((opcion) => opcion.id === formulario.sucursalId);
       cerrarConMensaje(
-        `${ETIQUETA_MOVIMIENTO[formulario.tipo] ?? formulario.tipo}: ${cantidad} en ${destino?.codigo ?? ''}`,
+        `${ETIQUETA_MOVIMIENTO[formulario.tipo] ?? formulario.tipo}: ${cantidad} en ${destino?.nombre ?? ''}`,
       );
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -465,7 +465,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       await recargar();
       setMinimo(null);
       setOk(
-        `Minimo de ${minimo.fila.sku} en ${sucursalActual?.codigo ?? 'la sucursal'}: ${valor}.`,
+        `Minimo de ${minimo.fila.sku} en ${sucursalActual?.nombre ?? 'la sucursal'}: ${valor}.`,
       );
       window.setTimeout(() => setOk(null), 4500);
     } catch (fallo) {
@@ -624,8 +624,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     return fila.reparto
       .map((parte) =>
         parte.bajoMinimo
-          ? `${parte.codigo} ${parte.cantidad}/${parte.minimo}`
-          : `${parte.codigo} ${parte.cantidad}`,
+          ? `${parte.nombre} ${parte.cantidad}/${parte.minimo}`
+          : `${parte.nombre} ${parte.cantidad}`,
       )
       .join(' · ');
   }
@@ -831,10 +831,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                       ) : null}
                     </td>
                     <td>
-                      {fila.origen.sucursalCodigo} · {fila.origen.sucursalNombre}
+                      {fila.origen.sucursalNombre}
                     </td>
                     <td>
-                      {fila.destino.sucursalCodigo} · {fila.destino.sucursalNombre}
+                      {fila.destino.sucursalNombre}
                     </td>
                     <td>
                       {fila.lineas
@@ -937,7 +937,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                 <option value="">Todas las sucursales</option>
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} · {opcion.nombre}
+                    {opcion.nombre}
                   </option>
                 ))}
               </select>
@@ -1674,7 +1674,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               >
                 {sesion.sucursales.map((opcion) => (
                   <option key={opcion.id} value={opcion.id}>
-                    {opcion.codigo} · {opcion.nombre}
+                    {opcion.nombre}
                   </option>
                 ))}
               </select>
@@ -1694,7 +1694,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   .filter((opcion) => opcion.id !== transferencia.origenSucursalId)
                   .map((opcion) => (
                     <option key={opcion.id} value={opcion.id}>
-                      {opcion.codigo} · {opcion.nombre}
+                      {opcion.nombre}
                     </option>
                   ))}
               </select>
@@ -1788,7 +1788,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {rechazo ? (
         <Modal
           titulo="Rechazar transferencia"
-          nota={`${rechazo.transferencia.folio} · la mercancia regresa completa a ${rechazo.transferencia.origen.sucursalCodigo} · ${rechazo.transferencia.origen.nombre}`}
+          nota={`${rechazo.transferencia.folio} · la mercancia regresa completa a ${rechazo.transferencia.origen.sucursalNombre}`}
           onCerrar={() => setRechazo(null)}
         >
           <div className="formulario">
@@ -1887,7 +1887,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {minimo ? (
         <Modal
           titulo={`Minimo de ${minimo.fila.sku}`}
-          nota={`${minimo.fila.nombre} · ${sucursalActual?.codigo ?? ''} ${sucursalActual?.nombre ?? ''}. Si lo dejas en cero, esta sucursal no avisa por minimo.`}
+          nota={`${minimo.fila.nombre} · ${sucursalActual?.nombre ?? ''}. Si lo dejas en cero, esta sucursal no avisa por minimo.`}
           onCerrar={() => setMinimo(null)}
         >
           <div className="formulario">

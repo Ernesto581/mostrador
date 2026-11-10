@@ -193,7 +193,7 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
           >
             {sesion.sucursales.map((opcion) => (
               <option key={opcion.id} value={opcion.id}>
-                {opcion.codigo} · {opcion.nombre}
+                {opcion.nombre}
               </option>
             ))}
           </select>
