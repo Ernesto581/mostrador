@@ -21,7 +21,7 @@ interface Linea {
  * Transferencia entre sucursales con varios productos.
  *
  * El stock se maneja por sucursal: se elige el origen, el destino y se agregan
- * productos del catalogo. La transferencia queda en borrador hasta despacharse.
+ * productos del catalogo. La transferencia se registra de inmediato.
  */
 export function NuevaTransferencia({
   sesion,
@@ -156,7 +156,7 @@ export function NuevaTransferencia({
     setError(null);
 
     try {
-      const { transferencia } = await api.crearTransferencia({
+      const { transferencia } = await api.transferirDirecto({
         origenUbicacionId,
         destinoUbicacionId,
         ...(motivo.trim() ? { motivo: motivo.trim() } : {}),
@@ -167,7 +167,7 @@ export function NuevaTransferencia({
       });
 
       onGuardada(
-        `Transferencia ${transferencia.folio} creada. Despachala desde Movimientos cuando salga la mercancia.`,
+        `Transferencia ${transferencia.folio} realizada: la mercancia ya esta en el destino.`,
       );
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -179,7 +179,7 @@ export function NuevaTransferencia({
   return (
     <Modal
       titulo="Nueva transferencia"
-      nota="Mueve mercancia entre sucursales. Puedes agregar varios productos; queda en borrador hasta despacharla."
+      nota="Mueve mercancia entre sucursales. Puedes agregar varios productos; la transferencia se registra al momento."
       onCerrar={onCerrar}
     >
       <div className="formulario">
@@ -308,7 +308,7 @@ export function NuevaTransferencia({
           onClick={() => void guardar()}
           disabled={guardando}
         >
-          {guardando ? 'Creando…' : 'Crear transferencia'}
+          {guardando ? 'Transfiriendo…' : 'Transferir'}
         </button>
       </div>
     </Modal>

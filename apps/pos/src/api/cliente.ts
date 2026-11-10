@@ -3,7 +3,6 @@ import type {
   CierreCaja,
   DetalleCierre,
   DetalleVenta,
-  EstadoTransferencia,
   FilaStock,
   FilaStockGeneral,
   MetodoPago,
@@ -371,40 +370,15 @@ export const api = {
 
   ubicaciones: () => pedir<{ ubicaciones: Ubicacion[] }>('/inventory/locations'),
 
-  transferencias: (filtros: {
-    sucursalId?: string;
-    estado?: EstadoTransferencia;
-    limite?: number;
-  }) => pedir<{ transferencias: Transferencia[] }>(`/inventory/transfers${parametros(filtros)}`),
-
-  crearTransferencia: (cuerpo: {
+  transferirDirecto: (cuerpo: {
     origenUbicacionId: string;
     destinoUbicacionId: string;
     motivo?: string;
     lineas: { productoId: string; cantidad: number }[];
   }) =>
-    pedir<{ transferencia: Transferencia }>('/inventory/transfers', { metodo: 'POST', cuerpo }),
-
-  despacharTransferencia: (id: string) =>
-    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/dispatch`, {
+    pedir<{ transferencia: Transferencia }>('/inventory/transfers/direct', {
       metodo: 'POST',
-    }),
-
-  recibirTransferencia: (id: string, lineas?: { lineaId: string; cantidadRecibida: number }[]) =>
-    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/receive`, {
-      metodo: 'POST',
-      cuerpo: { lineas },
-    }),
-
-  rechazarTransferencia: (id: string, motivo: string) =>
-    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/reject`, {
-      metodo: 'POST',
-      cuerpo: { motivo },
-    }),
-
-  cancelarTransferencia: (id: string) =>
-    pedir<{ transferencia: Transferencia }>(`/inventory/transfers/${id}/cancel`, {
-      metodo: 'POST',
+      cuerpo,
     }),
 
   /* ---------- Ventas ---------- */

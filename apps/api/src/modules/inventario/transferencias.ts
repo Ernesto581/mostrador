@@ -501,6 +501,110 @@ export async function crearTransferencia(
   });
 }
 
+/**
+ * Transferencia inmediata entre sucursales.
+ *
+ * A diferencia de `crearTransferencia`, no queda en borrador ni pasa por
+ * transito: descuenta del origen y entrega en el destino dentro de la misma
+ * transaccion. Es la accion que usa el mostrador cuando la mercancia ya se movio.
+ */
+export async function transferirDirecto(
+  db: Db,
+  entrada: EntradaTransferencia,
+): Promise<TransferenciaVista> {
+  return db.transaction(async (tx) => {
+    const ubicaciones = new Map(
+      (await listarUbicaciones(tx, entrada.empresaId)).map((ubicacion) => [ubicacion.id, ubicacion]),
+    );
+    const origen = ubicaciones.get(entrada.origenUbicacionId);
+    const destino = ubicaciones.get(entrada.destinoUbicacionId);
+    if (!origen || !destino) {
+      throw new ErrorNoEncontrado('La ubicacion no existe');
+    }
+    if (!origen.sucursalActiva || !destino.sucursalActiva) {
+      throw new ErrorDeAplicacion(
+        'Una de las sucursales esta inactiva',
+        409,
+        'SUCURSAL_INACTIVA',
+      );
+    }
+    if (origen.sucursalId === destino.sucursalId) {
+      throw new ErrorDeAplicacion(
+        'Elige dos sucursales distintas para transferir',
+        422,
+        'MISMA_SUCURSAL',
+      );
+    }
+
+    const ahora = new Date();
+    const folio = await siguienteFolioTransferencia(
+      tx,
+      origen.sucursalId,
+      origen.sucursalCodigo,
+      ahora,
+    );
+    const id = nuevoId();
+    const transferencia = { id, folio, motivo: entrada.motivo ?? null };
+
+    await tx.insert(schema.transfers).values({
+      id,
+      companyId: entrada.empresaId,
+      folio,
+      fromWarehouseId: origen.id,
+      toWarehouseId: destino.id,
+      fromBranchId: origen.sucursalId,
+      toBranchId: destino.sucursalId,
+      status: 'recibida',
+      reason: entrada.motivo ?? null,
+      createdByUserId: entrada.usuarioId,
+      dispatchedByUserId: entrada.usuarioId,
+      dispatchedAt: ahora,
+      receivedByUserId: entrada.usuarioId,
+      receivedAt: ahora,
+      createdAt: ahora,
+      updatedAt: ahora,
+    });
+
+    await tx.insert(schema.transferLines).values(
+      entrada.lineas.map((linea) => ({
+        id: nuevoId(),
+        transferId: id,
+        productId: linea.productoId,
+        quantitySent: linea.cantidad,
+        quantityReceived: linea.cantidad,
+      })),
+    );
+
+    const destinoUbicacionId = await ubicacionPrincipalDeSucursal(tx, destino.sucursalId);
+
+    for (const linea of entrada.lineas) {
+      await descontarDeSucursal(tx, {
+        empresaId: entrada.empresaId,
+        usuarioId: entrada.usuarioId,
+        transferencia,
+        sucursalId: origen.sucursalId,
+        productoId: linea.productoId,
+        cantidad: linea.cantidad,
+        ahora,
+      });
+
+      await moverMercancia(tx, {
+        empresaId: entrada.empresaId,
+        usuarioId: entrada.usuarioId,
+        transferencia,
+        sucursalId: destino.sucursalId,
+        ubicacionId: destinoUbicacionId,
+        productoId: linea.productoId,
+        tipo: 'transferencia_entrada',
+        cantidad: linea.cantidad,
+        ahora,
+      });
+    }
+
+    return cargar(tx, entrada.empresaId, id);
+  });
+}
+
 /** Sale la mercancia de la sucursal de origen. */
 export async function despacharTransferencia(
   db: Db,

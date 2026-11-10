@@ -28,7 +28,6 @@ export function Panel({ sesion, onIr }: Props) {
     [],
   );
   const alertas = useCarga(() => api.stockGeneral({ soloBajoMinimo: true, limite: 8 }), []);
-  const traslados = useCarga(() => api.transferencias({ estado: 'en_transito', limite: 20 }), []);
 
   const resumen = reporte.datos?.resumen;
   const reporteListo = !reporte.cargando && !reporte.error;
@@ -36,7 +35,6 @@ export function Panel({ sesion, onIr }: Props) {
   const ingresos = resumen?.ventaBruta ?? 0;
   const ticketMedio = resumen?.ticketPromedio ?? 0;
   const bajoMinimo = alertas.datos?.stock ?? [];
-  const enTransito = traslados.datos?.transferencias ?? [];
   const margen = Math.round((resumen?.margen ?? 0) * 1000) / 10;
 
   return (
@@ -144,26 +142,6 @@ export function Panel({ sesion, onIr }: Props) {
           {onIr && bajoMinimo.length > 0 ? (
             <button type="button" className="boton boton--fantasma" onClick={() => onIr('inventario')}>
               Ver inventario
-            </button>
-          ) : null}
-        </div>
-
-        <div className="tarjeta">
-          <p className="tarjeta__titulo">Traslados en tránsito</p>
-          {traslados.cargando ? <p className="panel__nota">Cargando…</p> : null}
-          {traslados.error ? <p className="panel__nota">{traslados.error}</p> : null}
-          {!traslados.cargando && !traslados.error && enTransito.length === 0 ? (
-            <p className="vacio">No hay mercancía en camino.</p>
-          ) : null}
-          {enTransito.map((fila) => (
-            <div className="fila-dato" key={fila.id}>
-              <span>{fila.folio}</span>
-              <span className="numero">{fila.lineas.length} productos</span>
-            </div>
-          ))}
-          {onIr && enTransito.length > 0 ? (
-            <button type="button" className="boton boton--fantasma" onClick={() => onIr('movimientos')}>
-              Ver movimientos
             </button>
           ) : null}
         </div>

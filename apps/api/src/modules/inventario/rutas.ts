@@ -30,6 +30,7 @@ import {
   obtenerTransferencia,
   recibirTransferencia,
   rechazarTransferencia,
+  transferirDirecto,
   type TransferenciaVista,
 } from './transferencias.js';
 
@@ -428,6 +429,33 @@ export async function rutasInventario(app: FastifyInstance) {
     asegurarSucursal(sesion, destino.sucursalId);
 
     const transferencia = await crearTransferencia(app.db, {
+      empresaId: sesion.empresaId,
+      origenUbicacionId: datos.origenUbicacionId,
+      destinoUbicacionId: datos.destinoUbicacionId,
+      usuarioId: sesion.usuarioId,
+      motivo: datos.motivo,
+      lineas: datos.lineas,
+    });
+
+    reply.status(201);
+    return { transferencia };
+  });
+
+  app.post('/inventory/transfers/direct', { preHandler: [preHandler] }, async (request, reply) => {
+    const sesion = sesionDe(request);
+    asegurarPermiso(sesion, PERMISOS.TRANSFERIR_INVENTARIO);
+    const datos = validar(esquemaTransferencia, request.body);
+
+    const ubicaciones = await listarUbicaciones(app.db, sesion.empresaId);
+    const origen = ubicaciones.find((ubicacion) => ubicacion.id === datos.origenUbicacionId);
+    const destino = ubicaciones.find((ubicacion) => ubicacion.id === datos.destinoUbicacionId);
+    if (!origen || !destino) {
+      throw new ErrorNoEncontrado('La ubicacion no existe');
+    }
+    asegurarSucursal(sesion, origen.sucursalId);
+    asegurarSucursal(sesion, destino.sucursalId);
+
+    const transferencia = await transferirDirecto(app.db, {
       empresaId: sesion.empresaId,
       origenUbicacionId: datos.origenUbicacionId,
       destinoUbicacionId: datos.destinoUbicacionId,

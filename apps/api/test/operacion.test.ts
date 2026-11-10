@@ -211,6 +211,45 @@ describe('catalogo', () => {
     expect(await stockEnGeneral('ASI-001')).toBe(6);
   });
 
+  it('transfiere de inmediato entre sucursales', async () => {
+    const creado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: auth(),
+      payload: {
+        sku: 'DIR-001',
+        nombre: 'Producto para transferir',
+        precioCosto: 400,
+        precioVenta: 700,
+        stockInicial: 5,
+      },
+    });
+    const productoId = creado.json().producto.id as string;
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/assign',
+      headers: auth(),
+      payload: { productoId, sucursalId: semilla.sucursalId, cantidad: 5 },
+    });
+
+    const transferencia = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/transfers/direct',
+      headers: auth(),
+      payload: {
+        origenUbicacionId: semilla.pisoId,
+        destinoUbicacionId: semilla.almacenSecundariaId,
+        lineas: [{ productoId, cantidad: 2 }],
+      },
+    });
+
+    expect(transferencia.statusCode).toBe(201);
+    expect(transferencia.json().transferencia.estado).toBe('recibida');
+    expect(await stockDe('DIR-001', semilla.sucursalId)).toBe(3);
+    expect(await stockDe('DIR-001', semilla.sucursalSecundariaId)).toBe(2);
+  });
+
   it('rechaza un codigo de barras repetido', async () => {
     const respuesta = await app.inject({
       method: 'POST',

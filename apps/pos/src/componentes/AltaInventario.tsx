@@ -1,39 +1,61 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/cliente';
-import type { Producto, Sesion, TipoMovimiento } from '../api/tipos';
+import type { Sesion, TipoMovimiento } from '../api/tipos';
 import { Modal, mensajeDe } from '../util/pantalla';
 import { aCentavos } from '../util/dinero';
-import { TIPOS_MANUALES } from '../util/movimientos';
 
 interface Props {
   sesion: Sesion;
   sucursalId: string;
+  modo: 'entrada' | 'salida';
   onCerrar: () => void;
   onGuardado: (mensaje: string) => void;
 }
 
+interface ProductoElegido {
+  id: string;
+  sku: string;
+  nombre: string;
+  stock: number;
+}
+
+const TIPOS_SALIDA: { valor: TipoMovimiento; etiqueta: string }[] = [
+  { valor: 'merma', etiqueta: 'Merma (se perdio o se rompio)' },
+  { valor: 'ajuste_negativo', etiqueta: 'Ajuste que resta' },
+  { valor: 'devolucion_proveedor', etiqueta: 'Devolucion a proveedor' },
+];
+
 /**
- * Agregar un producto a una sucursal.
+ * Registrar una entrada o una salida de inventario.
  *
- * Primero se busca el producto en el catalogo y despues se elige la sucursal, el
- * tipo de movimiento y la cantidad. Sirve para dar entrada a la mercancia que
- * llega, sin tener que buscarla antes en la tabla de existencias.
+ * La entrada puede ser una compra nueva o mercancia que ya estaba en el
+ * inventario general. La salida sirve para mermas, ajustes negativos y
+ * devoluciones a proveedor.
  */
-export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Props) {
+export function AltaInventario({
+  sesion,
+  sucursalId,
+  modo,
+  onCerrar,
+  onGuardado,
+}: Props) {
   const [texto, setTexto] = useState('');
-  const [resultados, setResultados] = useState<Producto[]>([]);
+  const [resultados, setResultados] = useState<ProductoElegido[]>([]);
   const [buscando, setBuscando] = useState(false);
-  const [elegido, setElegido] = useState<Producto | null>(null);
+  const [elegido, setElegido] = useState<ProductoElegido | null>(null);
   const [destino, setDestino] = useState(sucursalId);
-  const [tipo, setTipo] = useState<TipoMovimiento>('entrada_compra');
+  const [origen, setOrigen] = useState<'compra' | 'general'>('compra');
+  const [tipoSalida, setTipoSalida] = useState<TipoMovimiento>('merma');
   const [cantidad, setCantidad] = useState('');
   const [costo, setCosto] = useState('');
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Busca mientras se escribe. Al elegir un producto se deja de buscar para que la
-  // lista no tape el formulario.
+  const desdeGeneral = modo === 'entrada' && origen === 'general';
+
+  // Busca mientras se escribe. Al elegir un producto se deja de buscar para que
+  // la lista no tape el formulario.
   useEffect(() => {
     if (elegido) {
       return;
@@ -45,9 +67,32 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
         void (async () => {
           setBuscando(true);
           try {
-            const { productos } = await api.buscarProductos(texto.trim(), destino, 8);
+            if (desdeGeneral) {
+              const { stock } = await api.stockEnGeneral(texto.trim(), 8);
+              if (vigente) {
+                setResultados(
+                  stock.map((fila) => ({
+                    id: fila.productoId,
+                    sku: fila.sku,
+                    nombre: fila.nombre,
+                    stock: fila.stock,
+                  })),
+                );
+              }
+            } else {
+              const { productos } = await api.buscarProductos(texto.trim(), destino, 8);
+              if (vigente) {
+                setResultados(
+                  productos.map((producto) => ({
+                    id: producto.id,
+                    sku: producto.sku,
+                    nombre: producto.nombre,
+                    stock: producto.stock ?? 0,
+                  })),
+                );
+              }
+            }
             if (vigente) {
-              setResultados(productos);
               setError(null);
             }
           } catch (fallo) {
@@ -68,15 +113,18 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
       vigente = false;
       window.clearTimeout(temporizador);
     };
-  }, [texto, destino, elegido]);
+  }, [texto, destino, elegido, desdeGeneral]);
 
-  function etiquetaDe(valor: TipoMovimiento): string {
-    return TIPOS_MANUALES.find((opcion) => opcion.valor === valor)?.etiqueta ?? valor;
+  function limpiarSeleccion(): void {
+    setElegido(null);
+    setTexto('');
+    setResultados([]);
+    setError(null);
   }
 
   async function guardar(): Promise<void> {
     if (!elegido) {
-      setError('Elige el producto que quieres agregar al inventario');
+      setError('Elige el producto');
       return;
     }
 
@@ -86,22 +134,48 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
       return;
     }
 
+    if ((desdeGeneral || modo === 'salida') && piezas > elegido.stock) {
+      setError(
+        desdeGeneral
+          ? `Solo hay ${elegido.stock} en el inventario general`
+          : `Solo hay ${elegido.stock} en la sucursal`,
+      );
+      return;
+    }
+
     setGuardando(true);
     setError(null);
 
     try {
-      await api.registrarMovimiento({
-        sucursalId: destino,
-        productoId: elegido.id,
-        tipo,
-        cantidad: piezas,
-        ...(costo.trim() ? { costoUnitario: aCentavos(costo) } : {}),
-        ...(motivo.trim() ? { motivo: motivo.trim() } : {}),
-      });
+      if (desdeGeneral) {
+        await api.asignarSucursal({
+          productoId: elegido.id,
+          sucursalId: destino,
+          cantidad: piezas,
+          ...(motivo.trim() ? { motivo: motivo.trim() } : {}),
+        });
+      } else {
+        await api.registrarMovimiento({
+          sucursalId: destino,
+          productoId: elegido.id,
+          tipo: modo === 'entrada' ? 'entrada_compra' : tipoSalida,
+          cantidad: piezas,
+          ...(modo === 'entrada' && costo.trim()
+            ? { costoUnitario: aCentavos(costo) }
+            : {}),
+          ...(motivo.trim() ? { motivo: motivo.trim() } : {}),
+        });
+      }
 
       const sucursal = sesion.sucursales.find((opcion) => opcion.id === destino);
+      const nombre = sucursal?.nombre ?? 'la sucursal';
+      const etiquetaSalida =
+        TIPOS_SALIDA.find((tipo) => tipo.valor === tipoSalida)?.etiqueta ?? 'Salida';
+
       onGuardado(
-        `${etiquetaDe(tipo)}: ${piezas} de ${elegido.sku} en ${sucursal?.nombre ?? 'la sucursal'}.`,
+        modo === 'entrada'
+          ? `Entrada: ${piezas} de ${elegido.sku} a ${nombre}${desdeGeneral ? ' desde el inventario general' : ''}.`
+          : `${etiquetaSalida}: ${piezas} de ${elegido.sku} en ${nombre}.`,
       );
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -112,8 +186,12 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
 
   return (
     <Modal
-      titulo="Movimiento en una sucursal"
-      nota="Registra compras, ajustes o mermas directamente en una sucursal. Para repartir existencia del inventario general usa Asignar a sucursal."
+      titulo={modo === 'entrada' ? 'Registrar entrada' : 'Registrar salida'}
+      nota={
+        modo === 'entrada'
+          ? 'Registra una compra o trae mercancia del inventario general a una sucursal.'
+          : 'Registra mermas, ajustes negativos o devoluciones a proveedor en una sucursal.'
+      }
       onCerrar={onCerrar}
     >
       <div className="formulario">
@@ -122,16 +200,13 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
             <div>
               <p className="panel__nota">{elegido.sku}</p>
               <p className="alta-inventario__nombre">{elegido.nombre}</p>
+              <p className="panel__nota">
+                {desdeGeneral
+                  ? `${elegido.stock} disponibles en el inventario general`
+                  : `${elegido.stock} disponibles en la sucursal`}
+              </p>
             </div>
-            <button
-              type="button"
-              className="boton"
-              onClick={() => {
-                setElegido(null);
-                setTexto('');
-                setError(null);
-              }}
-            >
+            <button type="button" className="boton" onClick={limpiarSeleccion}>
               Cambiar
             </button>
           </div>
@@ -153,8 +228,12 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
             {!buscando && resultados.length === 0 ? (
               <p className="panel__nota">
                 {texto.trim()
-                  ? 'Sin resultados. Revisa el nombre o crea el producto en Productos.'
-                  : 'Escribe para buscar un producto del catalogo.'}
+                  ? desdeGeneral
+                    ? 'Sin resultados con existencia en el inventario general.'
+                    : 'Sin resultados. Revisa el nombre o crea el producto en Productos.'
+                  : desdeGeneral
+                    ? 'Escribe para buscar un producto del inventario general.'
+                    : 'Escribe para buscar un producto del catalogo.'}
               </p>
             ) : null}
 
@@ -172,7 +251,10 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
                   >
                     <span className="alta-inventario__resultado-nombre">{producto.nombre}</span>
                     <span className="panel__nota">
-                      {producto.sku} · stock {producto.stock ?? 0}
+                      {producto.sku}
+                      {desdeGeneral
+                        ? ` · ${producto.stock} en general`
+                        : ` · stock ${producto.stock}`}
                     </span>
                   </button>
                 ))}
@@ -182,13 +264,13 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
         )}
 
         <label className="campo-ancho">
-          <span>Sucursal</span>
+          <span>{modo === 'entrada' ? 'Sucursal que recibe' : 'Sucursal'}</span>
           <select
             className="entrada"
             value={destino}
             onChange={(evento) => {
               setDestino(evento.target.value);
-              setElegido(null);
+              limpiarSeleccion();
             }}
           >
             {sesion.sucursales.map((opcion) => (
@@ -199,20 +281,37 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
           </select>
         </label>
 
-        <label className="campo-ancho">
-          <span>Tipo de movimiento</span>
-          <select
-            className="entrada"
-            value={tipo}
-            onChange={(evento) => setTipo(evento.target.value as TipoMovimiento)}
-          >
-            {TIPOS_MANUALES.map((opcion) => (
-              <option key={opcion.valor} value={opcion.valor}>
-                {opcion.etiqueta}
-              </option>
-            ))}
-          </select>
-        </label>
+        {modo === 'entrada' ? (
+          <label className="campo-ancho">
+            <span>Origen</span>
+            <select
+              className="entrada"
+              value={origen}
+              onChange={(evento) => {
+                setOrigen(evento.target.value as 'compra' | 'general');
+                limpiarSeleccion();
+              }}
+            >
+              <option value="compra">Compra / proveedor</option>
+              <option value="general">Inventario general</option>
+            </select>
+          </label>
+        ) : (
+          <label className="campo-ancho">
+            <span>Motivo de salida</span>
+            <select
+              className="entrada"
+              value={tipoSalida}
+              onChange={(evento) => setTipoSalida(evento.target.value as TipoMovimiento)}
+            >
+              {TIPOS_SALIDA.map((tipo) => (
+                <option key={tipo.valor} value={tipo.valor}>
+                  {tipo.etiqueta}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="campo-ancho">
           <span>Cantidad</span>
@@ -224,22 +323,28 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
           />
         </label>
 
-        <label className="campo-ancho">
-          <span>Costo unitario (opcional)</span>
-          <input
-            className="entrada entrada--numero"
-            inputMode="decimal"
-            placeholder="Como en la factura"
-            value={costo}
-            onChange={(evento) => setCosto(evento.target.value)}
-          />
-        </label>
+        {modo === 'entrada' && origen === 'compra' ? (
+          <label className="campo-ancho">
+            <span>Costo unitario (opcional)</span>
+            <input
+              className="entrada entrada--numero"
+              inputMode="decimal"
+              placeholder="Como en la factura"
+              value={costo}
+              onChange={(evento) => setCosto(evento.target.value)}
+            />
+          </label>
+        ) : null}
 
         <label className="campo-ancho campo-ancho--ancho">
-          <span>Motivo (queda en el kardex)</span>
+          <span>Motivo (queda en el historial)</span>
           <input
             className="entrada"
-            placeholder="Ej. Compra a proveedor, conteo fisico"
+            placeholder={
+              modo === 'entrada'
+                ? 'Ej. Compra a proveedor, reabasto'
+                : 'Ej. Producto vencido, conteo fisico'
+            }
             value={motivo}
             onChange={(evento) => setMotivo(evento.target.value)}
           />
@@ -262,7 +367,11 @@ export function AltaInventario({ sesion, sucursalId, onCerrar, onGuardado }: Pro
           onClick={() => void guardar()}
           disabled={guardando || !elegido}
         >
-          {guardando ? 'Guardando…' : 'Registrar movimiento'}
+          {guardando
+            ? 'Guardando…'
+            : modo === 'entrada'
+              ? 'Registrar entrada'
+              : 'Registrar salida'}
         </button>
       </div>
     </Modal>

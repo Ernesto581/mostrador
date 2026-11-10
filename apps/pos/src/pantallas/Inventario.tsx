@@ -6,10 +6,8 @@ import type {
   RepartoSucursal,
   Sesion,
   TipoMovimiento,
-  Transferencia,
 } from '../api/tipos';
 import { AltaInventario } from '../componentes/AltaInventario';
-import { AsignarInventario } from '../componentes/AsignarInventario';
 import { MenuAcciones } from '../componentes/MenuAcciones';
 import { NuevaTransferencia } from '../componentes/NuevaTransferencia';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
@@ -23,9 +21,9 @@ import {
 /**
  * Inventario general.
  *
- * En Productos se da de alta el catalogo (foto, codigos, costos y precios) y se
- * consultan los movimientos de cada producto. En Inventario se ven las existencias.
- * En Movimientos se agrega mercancia a cada sucursal y se manejan los traslados.
+ * En Productos se da de alta el catalogo (foto, codigos, costos y precios). En
+ * Inventario se ven las existencias. En Movimientos se registran entradas,
+ * salidas y traslados entre sucursales.
  */
 
 export type VistaMercancia = 'productos' | 'existencias' | 'movimientos';
@@ -56,14 +54,6 @@ interface FilaVista {
   reparto?: RepartoSucursal[];
 }
 
-const ETIQUETA_ESTADO: Record<string, string> = {
-  borrador: 'Borrador',
-  en_transito: 'En transito',
-  recibida: 'Recibida',
-  rechazada: 'Rechazada',
-  cancelada: 'Cancelada',
-};
-
 interface FormularioMovimiento {
   fila: FilaVista;
   sucursalId: string;
@@ -78,17 +68,6 @@ interface FormularioTransferencia {
   origenSucursalId: string;
   destinoSucursalId: string;
   cantidad: string;
-  motivo: string;
-}
-
-interface FormularioRecepcion {
-  transferencia: Transferencia;
-  /** Lo que realmente llego, por id de linea. Empieza igual a lo enviado. */
-  cantidades: Record<string, string>;
-}
-
-interface FormularioRechazo {
-  transferencia: Transferencia;
   motivo: string;
 }
 
@@ -177,11 +156,9 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [categoriaId, setCategoriaId] = useState('');
   const [formulario, setFormulario] = useState<FormularioMovimiento | null>(null);
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
-  const [recepcion, setRecepcion] = useState<FormularioRecepcion | null>(null);
-  const [rechazo, setRechazo] = useState<FormularioRechazo | null>(null);
   const [verMovimientos, setVerMovimientos] = useState(false);
-  const [altaAbierta, setAltaAbierta] = useState(false);
-  const [asignacionAbierta, setAsignacionAbierta] = useState(false);
+  const [entradaAbierta, setEntradaAbierta] = useState(false);
+  const [salidaAbierta, setSalidaAbierta] = useState(false);
   const [transferenciaAbierta, setTransferenciaAbierta] = useState(false);
   const [filtroSucursalId, setFiltroSucursalId] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
@@ -194,7 +171,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const verGlobal = general || enProductos;
   // El reparto solo tiene sentido viendo todas las sucursales desde Existencias.
   const mostrarReparto = verGlobal && !enProductos;
-  const [kardex, setKardex] = useState<FilaVista | null>(null);
   const [producto, setProducto] = useState<BorradorProducto | null>(null);
   const [porBorrar, setPorBorrar] = useState<FilaVista | null>(null);
   const [minimo, setMinimo] = useState<{ fila: FilaVista; valor: string } | null>(null);
@@ -226,23 +202,12 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     return { conAlerta: respuesta.conAlerta, filas: respuesta.stock as FilaVista[] };
   }, [verGlobal, buscar, categoriaId, soloBajoMinimo, soloAgotados, sucursalId]);
 
-  const { datos: datosKardex, cargando: cargandoKardex } = useCarga(
-    () =>
-      kardex
-        ? api.movimientos({ productoId: kardex.productoId, limite: 60 })
-        : Promise.resolve({ movimientos: [] as Movimiento[] }),
-    [kardex],
-  );
-
   const { datos: datosCategorias } = useCarga(
     () => api.categorias(),
     [],
   );
 
   const { datos: datosUbicaciones } = useCarga(() => api.ubicaciones(), []);
-
-  const { datos: datosTransferencias, cargando: cargandoTransferencias, recargar: recargarTransferencias } =
-    useCarga(() => api.transferencias({ limite: 100 }), []);
 
   const {
     datos: datosMovimientos,
@@ -289,8 +254,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     setOk(texto);
     setFormulario(null);
     setTransferencia(null);
-    setRecepcion(null);
-    setRechazo(null);
     setProducto(null);
     window.setTimeout(() => setOk(null), 4500);
   }
@@ -510,16 +473,16 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     setError(null);
 
     try {
-      const { transferencia: creada } = await api.crearTransferencia({
+      const { transferencia: realizada } = await api.transferirDirecto({
         origenUbicacionId,
         destinoUbicacionId,
         ...(transferencia.motivo.trim() ? { motivo: transferencia.motivo.trim() } : {}),
         lineas: [{ productoId: transferencia.fila.productoId, cantidad }],
       });
 
-      await Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
+      await Promise.all([recargar(), recargarMovimientos()]);
       cerrarConMensaje(
-        `Transferencia ${creada.folio} creada. Despachala desde Movimientos cuando salga la mercancia.`,
+        `Transferencia ${realizada.folio} realizada: la mercancia ya esta en el destino.`,
       );
     } catch (fallo) {
       setError(mensajeDe(fallo));
@@ -528,82 +491,28 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
     }
   }
 
-  /** Ejecuta una accion sobre una transferencia y refresca stock y lista. */
-  async function accionTransferencia(ejecutar: () => Promise<unknown>, texto: string): Promise<void> {
-    setGuardando(true);
-    setError(null);
-
-    try {
-      await ejecutar();
-      await Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
-      cerrarConMensaje(texto);
-    } catch (fallo) {
-      setError(mensajeDe(fallo));
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  async function confirmarRecepcion(): Promise<void> {
-    if (!recepcion) {
-      return;
-    }
-
-    const lineas = recepcion.transferencia.lineas.map((linea) => ({
-      lineaId: linea.id,
-      cantidadRecibida: Number(recepcion.cantidades[linea.id] ?? linea.enviada),
-    }));
-    if (lineas.some((linea) => !Number.isInteger(linea.cantidadRecibida) || linea.cantidadRecibida < 0)) {
-      setError('Escribe cantidades enteras, desde cero');
-      return;
-    }
-
-    const { id, folio } = recepcion.transferencia;
-    await accionTransferencia(
-      () => api.recibirTransferencia(id, lineas),
-      `Recepcion de ${folio} confirmada`,
-    );
-  }
-
-  async function confirmarRechazo(): Promise<void> {
-    if (!rechazo) {
-      return;
-    }
-    if (rechazo.motivo.trim().length < 3) {
-      setError('Escribe el motivo del rechazo');
-      return;
-    }
-
-    const { id, folio } = rechazo.transferencia;
-    await accionTransferencia(
-      () => api.rechazarTransferencia(id, rechazo.motivo.trim()),
-      `Transferencia ${folio} rechazada: la mercancia regreso al origen`,
-    );
-  }
-
-  /** Se guardo una entrada desde Movimientos: refresca stock y movimientos. */
-  function alGuardarMovimiento(texto: string): void {
-    setAltaAbierta(false);
-    setOk(texto);
-    window.setTimeout(() => setOk(null), 4500);
-    void recargar();
-    void recargarMovimientos();
-  }
-
-  /** Se asigno mercancia del inventario general a una sucursal. */
-  function alGuardarAsignacion(texto: string): void {
-    setAsignacionAbierta(false);
+  /** Se registro una entrada desde Movimientos: refresca stock y movimientos. */
+  function alGuardarEntrada(texto: string): void {
+    setEntradaAbierta(false);
     setOk(texto);
     window.setTimeout(() => setOk(null), 5000);
     void Promise.all([recargar(), recargarMovimientos()]);
   }
 
-  /** Se creo una transferencia desde Movimientos. */
+  /** Se registro una salida desde Movimientos: refresca stock y movimientos. */
+  function alGuardarSalida(texto: string): void {
+    setSalidaAbierta(false);
+    setOk(texto);
+    window.setTimeout(() => setOk(null), 5000);
+    void Promise.all([recargar(), recargarMovimientos()]);
+  }
+
+  /** Se realizo una transferencia desde Movimientos. */
   function alGuardarTransferencia(texto: string): void {
     setTransferenciaAbierta(false);
     setOk(texto);
     window.setTimeout(() => setOk(null), 5000);
-    void Promise.all([recargar(), recargarTransferencias(), recargarMovimientos()]);
+    void Promise.all([recargar(), recargarMovimientos()]);
   }
 
   function bajoMinimoDe(fila: FilaVista): boolean {
@@ -661,7 +570,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             {enProductos
               ? `Catalogo general de productos: foto, codigos, costos, precios y stock total. ${datos?.filas.length ?? 0} productos. El stock inicial entra al inventario general y se asigna a las sucursales desde Movimientos.`
               : enMovimientos
-                ? 'Asigna mercancia del inventario general a cada sucursal y controla los traslados entre sucursales.'
+                ? 'Registra entradas y salidas, y controla los traslados entre sucursales.'
                 : general
                   ? `Existencias de todas las sucursales y del inventario general. ${datos?.filas.length ?? 0} productos en total.`
                   : `Existencias por sucursal, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
@@ -669,7 +578,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </div>
 
         <div className="barra-filtros inventario__controles">
-          {!enProductos && sesion.sucursales.length > 1 ? (
+          {enExistencias && sesion.sucursales.length > 1 ? (
             <select
               className="selector"
               value={general ? 'todas' : sucursalId}
@@ -720,10 +629,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               className="boton boton--acento inventario__nuevo"
               onClick={() => {
                 setError(null);
-                setAsignacionAbierta(true);
+                setEntradaAbierta(true);
               }}
             >
-              Asignar a sucursal
+              Registrar entrada
             </button>
           ) : null}
 
@@ -733,10 +642,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               className="boton inventario__nuevo"
               onClick={() => {
                 setError(null);
-                setAltaAbierta(true);
+                setSalidaAbierta(true);
               }}
             >
-              Nuevo movimiento
+              Registrar salida
             </button>
           ) : null}
 
@@ -821,139 +730,11 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       {enMovimientos ? (
         <section className="inventario__seccion">
           <div className="inventario__seccion-cabecera">
-            <h2 className="inventario__seccion-titulo">Traslados entre sucursales</h2>
-            <p className="panel__nota">
-              Se despachan desde el origen y se reciben en el destino.
-            </p>
-          </div>
-          <div className="tabla-envoltura inventario__tabla-envoltura">
-            {cargandoTransferencias ? <p className="panel__nota">Cargando…</p> : null}
-            <table className="tabla">
-            <thead>
-              <tr>
-                <th>Folio</th>
-                <th>Desde</th>
-                <th>Hacia</th>
-                <th>Productos</th>
-                <th>Estado</th>
-                <th className="col-acciones">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(datosTransferencias?.transferencias ?? []).map((fila) => {
-                const puedeDespachar =
-                  fila.estado === 'borrador' &&
-                  sesion.sucursales.some((opcion) => opcion.id === fila.origen.sucursalId);
-                const puedeRecibir =
-                  fila.estado === 'en_transito' &&
-                  sesion.sucursales.some((opcion) => opcion.id === fila.destino.sucursalId);
-                const puedeCancelar =
-                  fila.estado === 'borrador' &&
-                  sesion.sucursales.some((opcion) => opcion.id === fila.origen.sucursalId);
-
-                return (
-                  <tr key={fila.id}>
-                    <td className="codigo">
-                      {fila.folio}
-                      {fila.hayIncidencia ? (
-                        <span className="insignia insignia--baja">Incidencia</span>
-                      ) : null}
-                    </td>
-                    <td>
-                      {fila.origen.sucursalNombre}
-                    </td>
-                    <td>
-                      {fila.destino.sucursalNombre}
-                    </td>
-                    <td>
-                      {fila.lineas
-                        .map((linea) => `${linea.nombre} × ${linea.enviada}`)
-                        .join(', ')}
-                      {fila.motivo ? <span className="panel__nota"> · {fila.motivo}</span> : null}
-                    </td>
-                    <td>{ETIQUETA_ESTADO[fila.estado] ?? fila.estado}</td>
-                    <td className="col-acciones">
-                      <div className="acciones-fila">
-                        {puedeDespachar ? (
-                          <button
-                            type="button"
-                            className="boton boton--acento"
-                            disabled={guardando}
-                            onClick={() =>
-                              void accionTransferencia(
-                                () => api.despacharTransferencia(fila.id),
-                                `${fila.folio} despachada: la mercancia salio del origen`,
-                              )
-                            }
-                          >
-                            Despachar
-                          </button>
-                        ) : null}
-                        {puedeRecibir ? (
-                          <button
-                            type="button"
-                            className="boton boton--acento"
-                            onClick={() => {
-                              setError(null);
-                              setRecepcion({
-                                transferencia: fila,
-                                cantidades: Object.fromEntries(
-                                  fila.lineas.map((linea) => [linea.id, String(linea.enviada)]),
-                                ),
-                              });
-                            }}
-                          >
-                            Recibir
-                          </button>
-                        ) : null}
-                        {puedeRecibir ? (
-                          <button
-                            type="button"
-                            className="boton"
-                            onClick={() => {
-                              setError(null);
-                              setRechazo({ transferencia: fila, motivo: '' });
-                            }}
-                          >
-                            Rechazar
-                          </button>
-                        ) : null}
-                        {puedeCancelar ? (
-                          <button
-                            type="button"
-                            className="boton"
-                            disabled={guardando}
-                            onClick={() =>
-                              void accionTransferencia(
-                                () => api.cancelarTransferencia(fila.id),
-                                `${fila.folio} cancelada`,
-                              )
-                            }
-                          >
-                            Cancelar
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {!cargandoTransferencias && (datosTransferencias?.transferencias.length ?? 0) === 0 ? (
-              <p className="vacio">Todavia no hay transferencias.</p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {enMovimientos ? (
-        <section className="inventario__seccion">
-          <div className="inventario__seccion-cabecera">
             <div>
-              <h2 className="inventario__seccion-titulo">Ultimos movimientos</h2>
+              <h2 className="inventario__seccion-titulo">Historial de movimientos</h2>
               <p className="panel__nota">
-                Entradas, salidas, mermas y ajustes de todas las sucursales.
+                Entradas, salidas, mermas, ajustes y transferencias. Filtra por sucursal para ver
+                solo lo de ese local.
               </p>
             </div>
             <div className="barra-filtros">
@@ -1011,8 +792,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           {!cargandoMovimientos && movimientos.length === 0 ? (
             <div className="tarjeta">
               <p className="vacio">
-                No hay movimientos con esos filtros. Usa Nuevo movimiento para registrar una
-                entrada, una merma o un ajuste.
+                No hay movimientos con esos filtros. Usa Registrar entrada, Registrar salida o
+                Nueva transferencia para empezar.
               </p>
             </div>
           ) : null}
@@ -1178,16 +959,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                           }}
                         >
                           Editar
-                        </button>
-                      ) : null}
-
-                      {enProductos ? (
-                        <button
-                          type="button"
-                          className="boton"
-                          onClick={() => setKardex(fila)}
-                        >
-                          Movimientos
                         </button>
                       ) : null}
 
@@ -1755,147 +1526,25 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
         </Modal>
       ) : null}
 
-      {/* ---------- Recepcion de una transferencia ---------- */}
-      {recepcion ? (
-        <Modal
-          titulo="Recibir transferencia"
-          nota={`${recepcion.transferencia.folio} · escribe lo que realmente llego. Si llega menos, queda marcada como incidencia.`}
-          onCerrar={() => setRecepcion(null)}
-        >
-          <div className="formulario">
-            {recepcion.transferencia.lineas.map((linea) => (
-              <label className="campo-ancho" key={linea.id}>
-                <span>
-                  {linea.sku} · {linea.nombre} (enviadas {linea.enviada})
-                </span>
-                <input
-                  className="entrada entrada--numero"
-                  inputMode="numeric"
-                  value={recepcion.cantidades[linea.id] ?? ''}
-                  onChange={(evento) =>
-                    setRecepcion({
-                      ...recepcion,
-                      cantidades: { ...recepcion.cantidades, [linea.id]: evento.target.value },
-                    })
-                  }
-                />
-              </label>
-            ))}
-          </div>
-
-          <div className="modal__acciones">
-            <button type="button" className="boton" onClick={() => setRecepcion(null)}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="boton boton--acento"
-              onClick={() => void confirmarRecepcion()}
-              disabled={guardando}
-            >
-              {guardando ? 'Guardando…' : 'Confirmar recepcion'}
-            </button>
-          </div>
-        </Modal>
-      ) : null}
-
-      {/* ---------- Rechazo de una transferencia ---------- */}
-      {rechazo ? (
-        <Modal
-          titulo="Rechazar transferencia"
-          nota={`${rechazo.transferencia.folio} · la mercancia regresa completa a ${rechazo.transferencia.origen.sucursalNombre}`}
-          onCerrar={() => setRechazo(null)}
-        >
-          <div className="formulario">
-            <label className="campo-ancho">
-              <span>Motivo</span>
-              <input
-                className="entrada"
-                value={rechazo.motivo}
-                onChange={(evento) => setRechazo({ ...rechazo, motivo: evento.target.value })}
-              />
-            </label>
-          </div>
-
-          <div className="modal__acciones">
-            <button type="button" className="boton" onClick={() => setRechazo(null)}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="boton boton--acento"
-              onClick={() => void confirmarRechazo()}
-              disabled={guardando}
-            >
-              {guardando ? 'Guardando…' : 'Rechazar'}
-            </button>
-          </div>
-        </Modal>
-      ) : null}
-
-      {/* ---------- Movimientos del producto (solo desde Productos) ---------- */}
-      {kardex ? (
-        <Modal
-          titulo="Movimientos del producto"
-          nota={`${kardex.sku} · ${kardex.nombre} · todo lo que entro y salio`}
-          onCerrar={() => setKardex(null)}
-        >
-          {cargandoKardex ? <p className="panel__nota">Cargando…</p> : null}
-
-          {(datosKardex?.movimientos ?? []).length === 0 && !cargandoKardex ? (
-            <p className="vacio">Este producto todavia no tiene movimientos.</p>
-          ) : null}
-
-          {(datosKardex?.movimientos ?? []).length > 0 ? (
-            <div className="tabla-envoltura">
-              <table className="tabla">
-                <thead>
-                  <tr>
-                    <th>Cuando</th>
-                    <th>Sucursal</th>
-                    <th>Movimiento</th>
-                    <th className="numero">Cantidad</th>
-                    <th>Motivo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(datosKardex?.movimientos ?? []).map((movimiento) => (
-                    <tr key={movimiento.id}>
-                      <td>{fechaLarga(movimiento.ocurridoEn)}</td>
-                      <td>{movimiento.sucursalNombre}</td>
-                      <td>{ETIQUETA_MOVIMIENTO[movimiento.tipo] ?? movimiento.tipo}</td>
-                      <td className="numero">
-                        {MOVIMIENTOS_QUE_RESTAN.has(movimiento.tipo)
-                          ? `−${movimiento.cantidad}`
-                          : `+${movimiento.cantidad}`}
-                      </td>
-                      <td>{movimiento.motivo ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </Modal>
-      ) : null}
-
-      {/* ---------- Asignar inventario general a una sucursal ---------- */}
-      {asignacionAbierta ? (
-        <AsignarInventario
-          sesion={sesion}
-          sucursalId={sucursalId}
-          onCerrar={() => setAsignacionAbierta(false)}
-          onGuardado={alGuardarAsignacion}
-        />
-      ) : null}
-
-      {/* ---------- Nuevo movimiento de inventario ---------- */}
-      {altaAbierta ? (
+      {/* ---------- Entrada de inventario ---------- */}
+      {entradaAbierta ? (
         <AltaInventario
           sesion={sesion}
           sucursalId={sucursalId}
-          onCerrar={() => setAltaAbierta(false)}
-          onGuardado={alGuardarMovimiento}
+          modo="entrada"
+          onCerrar={() => setEntradaAbierta(false)}
+          onGuardado={alGuardarEntrada}
+        />
+      ) : null}
+
+      {/* ---------- Salida de inventario ---------- */}
+      {salidaAbierta ? (
+        <AltaInventario
+          sesion={sesion}
+          sucursalId={sucursalId}
+          modo="salida"
+          onCerrar={() => setSalidaAbierta(false)}
+          onGuardado={alGuardarSalida}
         />
       ) : null}
 
