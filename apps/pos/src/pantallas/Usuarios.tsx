@@ -40,8 +40,8 @@ export function Usuarios() {
   const { datos: datosRoles } = useCarga(() => api.roles(), []);
   const { datos: datosSucursales } = useCarga(() => api.sucursales(), []);
 
-  const usuarios = datos?.usuarios ?? [];
-  const roles: Rol[] = datosRoles?.roles ?? [];
+  const usuarios = (datos?.usuarios ?? []).filter((usuario) => !usuario.roles.includes('administrador'));
+  const roles: Rol[] = (datosRoles?.roles ?? []).filter((rol) => rol.codigo === 'cajero');
   const sucursales = datosSucursales?.sucursales ?? [];
 
   function terminarCon(texto: string): void {
@@ -78,13 +78,11 @@ export function Usuarios() {
       return;
     }
 
-    const esAdmin = borrador.rol === 'administrador';
-
     if (borrador.nombre.trim().length === 0) {
       setError('Escribe el nombre completo');
       return;
     }
-    if (!esAdmin && borrador.sucursalIds.length === 0) {
+    if (borrador.sucursalIds.length === 0) {
       setError('Asigna al menos una sucursal al cajero');
       return;
     }
@@ -92,8 +90,6 @@ export function Usuarios() {
       setError('El usuario necesita 3 letras y la contrasena al menos 8');
       return;
     }
-
-    const sucursalIds = esAdmin ? [] : borrador.sucursalIds;
 
     setGuardando(true);
     setError(null);
@@ -105,7 +101,7 @@ export function Usuarios() {
           ...(borrador.email.trim() ? { email: borrador.email.trim() } : {}),
           activo: borrador.activo,
           rol: borrador.rol,
-          sucursalIds,
+          sucursalIds: borrador.sucursalIds,
         });
         terminarCon('Usuario actualizado.');
       } else {
@@ -115,7 +111,7 @@ export function Usuarios() {
           password: borrador.password,
           ...(borrador.email.trim() ? { email: borrador.email.trim() } : {}),
           rol: borrador.rol,
-          sucursalIds,
+          sucursalIds: borrador.sucursalIds,
         });
         terminarCon('Usuario creado. Ya puede entrar con su usuario y contrasena.');
       }
@@ -307,23 +303,9 @@ export function Usuarios() {
               />
             </label>
 
-            <label className="campo-ancho">
-              <span>Rol</span>
-              <select
-                className="entrada"
-                value={borrador.rol}
-                onChange={(evento) => setBorrador({ ...borrador, rol: evento.target.value })}
-              >
-                {roles.map((rol) => (
-                  <option key={rol.id} value={rol.codigo}>
-                    {rol.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-
             <p className="panel__nota campo-ancho campo-ancho--ancho">
-              Solo puede existir un administrador. Los cajeros se asignan a una sucursal.
+              Esta sección es para crear y administrar cajeros. El administrador es la cuenta
+              principal del negocio.
             </p>
 
             {borrador.id ? (
@@ -337,34 +319,28 @@ export function Usuarios() {
               </label>
             ) : null}
 
-            {borrador.rol === 'administrador' ? (
-              <p className="panel__nota campo-ancho campo-ancho--ancho">
-                El administrador tiene acceso a todas las sucursales del negocio.
-              </p>
-            ) : (
-              <div className="campo-ancho campo-ancho--ancho">
-                <span>Sucursales donde trabaja</span>
-                <div className="opciones-lista">
-                  {sucursales.map((sucursal) => (
-                    <label className="opcion-casilla" key={sucursal.id}>
-                      <input
-                        type="checkbox"
-                        checked={borrador.sucursalIds.includes(sucursal.id)}
-                        onChange={(evento) =>
-                          setBorrador({
-                            ...borrador,
-                            sucursalIds: evento.target.checked
-                              ? [...borrador.sucursalIds, sucursal.id]
-                              : borrador.sucursalIds.filter((id) => id !== sucursal.id),
-                          })
-                        }
-                      />
-                      {sucursal.nombre}
-                    </label>
-                  ))}
-                </div>
+            <div className="campo-ancho campo-ancho--ancho">
+              <span>Sucursales donde trabaja</span>
+              <div className="opciones-lista">
+                {sucursales.map((sucursal) => (
+                  <label className="opcion-casilla" key={sucursal.id}>
+                    <input
+                      type="checkbox"
+                      checked={borrador.sucursalIds.includes(sucursal.id)}
+                      onChange={(evento) =>
+                        setBorrador({
+                          ...borrador,
+                          sucursalIds: evento.target.checked
+                            ? [...borrador.sucursalIds, sucursal.id]
+                            : borrador.sucursalIds.filter((id) => id !== sucursal.id),
+                        })
+                      }
+                    />
+                    {sucursal.nombre}
+                  </label>
+                ))}
               </div>
-            )}
+            </div>
           </div>
 
           <Aviso error={error} ok={null} />

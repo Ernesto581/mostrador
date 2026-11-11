@@ -50,15 +50,14 @@ async function crearVendedor(username = 'vendedor1'): Promise<string> {
 }
 
 describe('usuarios', () => {
-  it('lista el administrador de la semilla con su rol y su sucursal', async () => {
+  it('lista solo las cuentas de cajero y excluye al administrador', async () => {
     const respuesta = await app.inject({ method: 'GET', url: '/api/v1/users', headers: auth() });
 
     expect(respuesta.statusCode).toBe(200);
     const { usuarios } = respuesta.json();
     const admin = usuarios.find((usuario: { username: string }) => usuario.username === 'ernesto');
 
-    expect(admin.roles).toContain('administrador');
-    expect(admin.sucursales.length).toBe(2);
+    expect(admin).toBeUndefined();
     expect(JSON.stringify(usuarios)).not.toContain('scrypt');
   });
 
@@ -182,33 +181,15 @@ describe('usuarios', () => {
     expect(sesion.statusCode).toBe(401);
   });
 
-  it('no deja a la empresa sin una cuenta administradora', async () => {
+  it('mantiene al administrador fuera de la gestion de cajeros', async () => {
     const lista = await app.inject({ method: 'GET', url: '/api/v1/users', headers: auth() });
     const admin = (lista.json().usuarios as { id: string; username: string }[]).find(
       (usuario) => usuario.username === 'ernesto',
     );
-    expect(admin).toBeDefined();
-
-    const degradar = await app.inject({
-      method: 'PATCH',
-      url: `/api/v1/users/${admin!.id}`,
-      headers: auth(),
-      payload: { rol: 'cajero' },
-    });
-    expect(degradar.statusCode).toBe(409);
-    expect(degradar.json().error.codigo).toBe('ULTIMO_ADMINISTRADOR');
-
-    const desactivar = await app.inject({
-      method: 'PATCH',
-      url: `/api/v1/users/${admin!.id}`,
-      headers: auth(),
-      payload: { activo: false },
-    });
-    expect(desactivar.statusCode).toBe(409);
-    expect(desactivar.json().error.codigo).toBe('ULTIMO_ADMINISTRADOR');
+    expect(admin).toBeUndefined();
   });
 
-  it('permite crear solo un administrador y no le exige sucursales', async () => {
+  it('no permite crear administradores desde este apartado', async () => {
     const creado = await app.inject({
       method: 'POST',
       url: '/api/v1/users',
@@ -221,8 +202,8 @@ describe('usuarios', () => {
       },
     });
 
-    expect(creado.statusCode).toBe(409);
-    expect(creado.json().error.codigo).toBe('ADMINISTRADOR_UNICO');
+    expect(creado.statusCode).toBe(422);
+    expect(creado.json().error.codigo).toBe('ROL_INVALIDO');
   });
 
   it('exige al menos una sucursal a los cajeros', async () => {
@@ -242,12 +223,12 @@ describe('usuarios', () => {
     expect(respuesta.json().error.codigo).toBe('SUCURSAL_REQUERIDA');
   });
 
-  it('entrega solo los roles administrador y cajero', async () => {
+  it('entrega solo el rol cajero', async () => {
     const listaRoles = await app.inject({ method: 'GET', url: '/api/v1/roles', headers: auth() });
     const listaSucursales = await app.inject({ method: 'GET', url: '/api/v1/branches', headers: auth() });
 
     const codigos = (listaRoles.json().roles as { codigo: string }[]).map((rol) => rol.codigo);
-    expect(codigos.sort()).toEqual(['administrador', 'cajero']);
+    expect(codigos).toEqual(['cajero']);
     expect(listaSucursales.json().sucursales).toHaveLength(2);
   });
 

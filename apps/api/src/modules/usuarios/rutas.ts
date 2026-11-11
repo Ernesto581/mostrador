@@ -8,8 +8,8 @@ import { asegurarPermiso, asegurarSucursal, exigirSesion, sesionDe } from '../..
 import { ErrorDeAplicacion, ErrorNoEncontrado, validar } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
 
-/** Por ahora el sistema solo maneja estos dos roles. */
-const ROLES_DISPONIBLES = ['administrador', 'cajero'] as const;
+/** El administrador es la cuenta dueña; este apartado solo gestiona cajeros. */
+const ROLES_DISPONIBLES = ['cajero'] as const;
 
 const esquemaCrear = z.object({
   username: z.string().trim().min(3, 'El usuario necesita al menos 3 caracteres').max(40),
@@ -93,18 +93,6 @@ export async function rutasUsuarios(app: FastifyInstance) {
       .innerJoin(branches, eq(branches.id, userBranchAccess.branchId))
       .where(eq(branches.companyId, sesion.empresaId));
 
-    const todasLasSucursales = await app.db
-      .select({ id: branches.id, codigo: branches.code, nombre: branches.name })
-      .from(branches)
-      .where(
-        and(
-          eq(branches.companyId, sesion.empresaId),
-          isNull(branches.deletedAt),
-          eq(branches.active, true),
-        ),
-      )
-      .orderBy(asc(branches.code));
-
     const sucursalesPorUsuario = new Map<string, { id: string; codigo: string; nombre: string }[]>();
     for (const acceso of accesos) {
       const lista = sucursalesPorUsuario.get(acceso.userId) ?? [];
@@ -141,12 +129,12 @@ export async function rutasUsuarios(app: FastifyInstance) {
     }
 
     return {
-      usuarios: [...porUsuario.values()].map((usuario) => ({
-        ...usuario,
-        sucursales: usuario.roles.includes('administrador')
-          ? todasLasSucursales
-          : (sucursalesPorUsuario.get(usuario.id) ?? []),
-      })),
+      usuarios: [...porUsuario.values()]
+        .filter((usuario) => !usuario.roles.includes('administrador'))
+        .map((usuario) => ({
+          ...usuario,
+          sucursales: sucursalesPorUsuario.get(usuario.id) ?? [],
+        })),
     };
   });
 
