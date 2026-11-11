@@ -2637,6 +2637,26 @@ button {
     color: var(--texto);
   }
 
+  .barra-lateral__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .barra-lateral__campo > span {
+    font-family: var(--fuente-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--texto-tenue);
+  }
+
+  .barra-lateral__campo .selector {
+    width: 100%;
+    max-width: none;
+  }
+
   .barra-lateral__pie .boton--fantasma {
     width: 100%;
     justify-content: center;

@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type { MetodoPago } from '../api/tipos';
 import type { PagoLocal } from '../tipos';
 import { aCentavos, cifra, dinero } from '../util/dinero';
@@ -9,8 +8,8 @@ const ETIQUETAS: Record<MetodoPago, string> = {
   transferencia: 'Transferencia',
 };
 
-const METODOS: MetodoPago[] = ['efectivo', 'tarjeta', 'transferencia'];
-const DENOMINACIONES = [50_00, 100_00, 200_00, 500_00];
+const METODOS: MetodoPago[] = ['efectivo', 'transferencia'];
+const DENOMINACIONES = [50_00, 100_00, 200_00, 500_00, 1000_00];
 
 interface Props {
   total: number;
@@ -36,20 +35,6 @@ export function PanelCobro({
   onFijarEfectivo,
   onCobrar,
 }: Props) {
-  const entrada = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const alPresionar = (evento: KeyboardEvent): void => {
-      if (evento.key === 'F4') {
-        evento.preventDefault();
-        entrada.current?.focus();
-        entrada.current?.select();
-      }
-    };
-    window.addEventListener('keydown', alPresionar);
-    return () => window.removeEventListener('keydown', alPresionar);
-  }, []);
-
   const pagado = pagos.reduce((suma, pago) => suma + aCentavos(pago.monto), 0);
   const falta = Math.max(0, total - pagado);
   const cambio = Math.max(0, pagado - total);
@@ -83,7 +68,6 @@ export function PanelCobro({
         <div className="pago" key={`${pago.metodo}-${indice}`}>
           <span className="pago__etiqueta">{ETIQUETAS[pago.metodo]}</span>
           <input
-            ref={indice === 0 ? entrada : undefined}
             className="pago__entrada"
             inputMode="decimal"
             value={pago.monto}
@@ -104,16 +88,13 @@ export function PanelCobro({
 
       {pagos.length > 0 ? (
         <div className="rapidos">
-          <button type="button" className="rapido" onClick={() => onFijarEfectivo(total)}>
-            Exacto
-          </button>
           <button
             type="button"
             className="rapido"
-            onClick={() => onFijarEfectivo(pagado + falta)}
+            onClick={() => onFijarEfectivo(Math.max(0, total - noEfectivo))}
             disabled={falta <= 0}
           >
-            Cubrir faltante
+            Exacto
           </button>
           {DENOMINACIONES.map((denominacion) => (
             <button
@@ -141,7 +122,7 @@ export function PanelCobro({
 
       {!cambioPosible ? (
         <p className="cobro__ayuda" style={{ color: '#7d2019' }}>
-          El cambio solo se entrega en efectivo: baja el pago con tarjeta o transferencia.
+          El cambio solo se entrega en efectivo: baja el pago con transferencia.
         </p>
       ) : null}
 
@@ -153,8 +134,6 @@ export function PanelCobro({
       <button type="button" className="cobrar" onClick={onCobrar} disabled={!puedeCobrarAhora}>
         {procesando ? 'Cobrando...' : 'Cobrar'}
       </button>
-
-      <p className="cobro__ayuda">F4 cobra rapido · Enter confirma · Esc limpia</p>
     </div>
   );
 }

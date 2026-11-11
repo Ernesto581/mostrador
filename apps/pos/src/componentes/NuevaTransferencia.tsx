@@ -39,6 +39,7 @@ export function NuevaTransferencia({
   const [buscando, setBuscando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const disponibles = resultados.filter((producto) => (producto.stock ?? 0) > 0);
 
   useEffect(() => {
     let vigente = true;
@@ -47,7 +48,7 @@ export function NuevaTransferencia({
         void (async () => {
           setBuscando(true);
           try {
-            const { productos } = await api.buscarProductos(texto.trim(), origenSucursalId, 8);
+            const { productos } = await api.buscarProductos(texto.trim(), origenSucursalId, 20);
             if (vigente) {
               setResultados(productos);
               setError(null);
@@ -241,9 +242,13 @@ export function NuevaTransferencia({
 
         {buscando ? <p className="panel__nota">Buscando…</p> : null}
 
-        {!buscando && resultados.length > 0 ? (
+        {!buscando && disponibles.length === 0 ? (
+          <p className="panel__nota">No hay productos con existencia en la sucursal de origen.</p>
+        ) : null}
+
+        {!buscando && disponibles.length > 0 ? (
           <div className="alta-inventario__resultados transferencia__resultados">
-            {resultados.map((producto) => (
+            {disponibles.map((producto) => (
               <button
                 key={producto.id}
                 type="button"

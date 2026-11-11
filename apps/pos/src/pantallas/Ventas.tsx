@@ -361,7 +361,6 @@ export function Ventas({ sesion, sucursalId }: Props) {
                     onChange={(evento) => setReembolso(evento.target.value as MetodoPago)}
                   >
                     <option value="efectivo">Efectivo</option>
-                    <option value="tarjeta">Tarjeta</option>
                     <option value="transferencia">Transferencia</option>
                   </select>
                 </label>

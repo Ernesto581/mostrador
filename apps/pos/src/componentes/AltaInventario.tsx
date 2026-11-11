@@ -53,6 +53,11 @@ export function AltaInventario({
   const [error, setError] = useState<string | null>(null);
 
   const desdeGeneral = modo === 'entrada' && origen === 'general';
+  // En una salida o al traer del general solo interesa lo que realmente hay.
+  const visibles =
+    modo === 'salida' || desdeGeneral
+      ? resultados.filter((producto) => producto.stock > 0)
+      : resultados;
 
   // Busca mientras se escribe. Al elegir un producto se deja de buscar para que
   // la lista no tape el formulario.
@@ -68,7 +73,7 @@ export function AltaInventario({
           setBuscando(true);
           try {
             if (desdeGeneral) {
-              const { stock } = await api.stockEnGeneral(texto.trim(), 8);
+              const { stock } = await api.stockEnGeneral(texto.trim(), 20);
               if (vigente) {
                 setResultados(
                   stock.map((fila) => ({
@@ -80,7 +85,7 @@ export function AltaInventario({
                 );
               }
             } else {
-              const { productos } = await api.buscarProductos(texto.trim(), destino, 8);
+              const { productos } = await api.buscarProductos(texto.trim(), destino, 20);
               if (vigente) {
                 setResultados(
                   productos.map((producto) => ({
@@ -195,74 +200,6 @@ export function AltaInventario({
       onCerrar={onCerrar}
     >
       <div className="formulario">
-        {elegido ? (
-          <div className="alta-inventario__elegido campo-ancho campo-ancho--ancho">
-            <div>
-              <p className="panel__nota">{elegido.sku}</p>
-              <p className="alta-inventario__nombre">{elegido.nombre}</p>
-              <p className="panel__nota">
-                {desdeGeneral
-                  ? `${elegido.stock} disponibles en el inventario general`
-                  : `${elegido.stock} disponibles en la sucursal`}
-              </p>
-            </div>
-            <button type="button" className="boton" onClick={limpiarSeleccion}>
-              Cambiar
-            </button>
-          </div>
-        ) : (
-          <>
-            <label className="campo-ancho campo-ancho--ancho">
-              <span>Producto</span>
-              <input
-                className="entrada"
-                placeholder="Busca por nombre, SKU o codigo de barras"
-                value={texto}
-                onChange={(evento) => setTexto(evento.target.value)}
-                autoFocus
-              />
-            </label>
-
-            {buscando ? <p className="panel__nota">Buscando…</p> : null}
-
-            {!buscando && resultados.length === 0 ? (
-              <p className="panel__nota">
-                {texto.trim()
-                  ? desdeGeneral
-                    ? 'Sin resultados con existencia en el inventario general.'
-                    : 'Sin resultados. Revisa el nombre o crea el producto en Productos.'
-                  : desdeGeneral
-                    ? 'Escribe para buscar un producto del inventario general.'
-                    : 'Escribe para buscar un producto del catalogo.'}
-              </p>
-            ) : null}
-
-            {resultados.length > 0 ? (
-              <div className="alta-inventario__resultados campo-ancho campo-ancho--ancho">
-                {resultados.map((producto) => (
-                  <button
-                    key={producto.id}
-                    type="button"
-                    className="alta-inventario__resultado"
-                    onClick={() => {
-                      setElegido(producto);
-                      setError(null);
-                    }}
-                  >
-                    <span className="alta-inventario__resultado-nombre">{producto.nombre}</span>
-                    <span className="panel__nota">
-                      {producto.sku}
-                      {desdeGeneral
-                        ? ` · ${producto.stock} en general`
-                        : ` · stock ${producto.stock}`}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </>
-        )}
-
         <label className="campo-ancho">
           <span>{modo === 'entrada' ? 'Sucursal que recibe' : 'Sucursal'}</span>
           <select
@@ -311,6 +248,78 @@ export function AltaInventario({
               ))}
             </select>
           </label>
+        )}
+
+        {elegido ? (
+          <div className="alta-inventario__elegido campo-ancho campo-ancho--ancho">
+            <div>
+              <p className="panel__nota">{elegido.sku}</p>
+              <p className="alta-inventario__nombre">{elegido.nombre}</p>
+              <p className="panel__nota">
+                {desdeGeneral
+                  ? `${elegido.stock} disponibles en el inventario general`
+                  : `${elegido.stock} disponibles en la sucursal`}
+              </p>
+            </div>
+            <button type="button" className="boton" onClick={limpiarSeleccion}>
+              Cambiar
+            </button>
+          </div>
+        ) : (
+          <>
+            <label className="campo-ancho campo-ancho--ancho">
+              <span>Producto</span>
+              <input
+                className="entrada"
+                placeholder="Busca por nombre, SKU o codigo de barras"
+                value={texto}
+                onChange={(evento) => setTexto(evento.target.value)}
+                autoFocus
+              />
+            </label>
+
+            {buscando ? <p className="panel__nota">Buscando…</p> : null}
+
+            {!buscando && visibles.length === 0 ? (
+              <p className="panel__nota">
+                {texto.trim()
+                  ? desdeGeneral
+                    ? 'Sin resultados con existencia en el inventario general.'
+                    : modo === 'salida'
+                      ? 'Sin resultados con existencia en la sucursal.'
+                      : 'Sin resultados. Revisa el nombre o crea el producto en Productos.'
+                  : desdeGeneral
+                    ? 'Escribe para buscar un producto del inventario general.'
+                    : modo === 'salida'
+                      ? 'Escribe para buscar un producto con existencia en la sucursal.'
+                      : 'Escribe para buscar un producto del catalogo.'}
+              </p>
+            ) : null}
+
+            {visibles.length > 0 ? (
+              <div className="alta-inventario__resultados campo-ancho campo-ancho--ancho">
+                {visibles.map((producto) => (
+                  <button
+                    key={producto.id}
+                    type="button"
+                    className="alta-inventario__resultado"
+                    onClick={() => {
+                      setElegido(producto);
+                      setError(null);
+                    }}
+                  >
+                    <span className="alta-inventario__resultado-nombre">{producto.nombre}</span>
+                    <span className="panel__nota">
+                      {producto.sku}
+                      {desdeGeneral
+                        ? ` · ${producto.stock} en general`
+                        : ` · stock ${producto.stock}`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </>
         )}
 
         <label className="campo-ancho">

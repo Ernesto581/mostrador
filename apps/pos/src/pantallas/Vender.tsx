@@ -150,14 +150,9 @@ export function Vender({ sesion, sucursalId }: Props) {
 
   useEffect(() => {
     const alPresionar = (evento: KeyboardEvent): void => {
-      if (evento.key !== 'Escape') {
-        return;
-      }
-      if (venta) {
+      if (evento.key === 'Escape' && venta) {
         setVenta(null);
-        return;
       }
-      setPagos([]);
     };
     window.addEventListener('keydown', alPresionar);
     return () => window.removeEventListener('keydown', alPresionar);
