@@ -5,7 +5,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-
 import type { BaseDatos } from '../../db/tipos.js';
 import { ErrorDeAplicacion, ErrorNoEncontrado } from '../../errors.js';
 import { nuevoId } from '../../util/id.js';
-import { obtenerSucursalGeneral } from './general.js';
+import { CODIGO_SUCURSAL_GENERAL, obtenerSucursalGeneral } from './general.js';
 
 export interface EntradaMovimiento {
   empresaId: string;
@@ -744,15 +744,18 @@ export async function stockGeneral(
     const cantidades = cantidadesPorProducto.get(producto.id) ?? new Map<string, number>();
     const reparto: RepartoSucursal[] = sucursales.map((sucursal) => {
       const cantidad = cantidades.get(sucursal.id) ?? 0;
+      const esInventarioGeneral = sucursal.codigo === CODIGO_SUCURSAL_GENERAL;
       const minimo =
-        minimos.get(`${producto.id}:${sucursal.id}`) ?? producto.stockMinimo;
+        esInventarioGeneral
+          ? 0
+          : (minimos.get(`${producto.id}:${sucursal.id}`) ?? producto.stockMinimo);
       return {
         sucursalId: sucursal.id,
         codigo: sucursal.codigo,
         nombre: sucursal.nombre,
         cantidad,
         minimo,
-        bajoMinimo: minimo > 0 && cantidad <= minimo,
+        bajoMinimo: !esInventarioGeneral && minimo > 0 && cantidad <= minimo,
       };
     });
     const stock = reparto.reduce((total, parte) => total + parte.cantidad, 0);

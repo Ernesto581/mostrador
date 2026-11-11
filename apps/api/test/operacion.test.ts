@@ -211,6 +211,51 @@ describe('catalogo', () => {
     expect(await stockEnGeneral('ASI-001')).toBe(6);
   });
 
+  it('trata el inventario general como reserva y no como sucursal bajo minimo', async () => {
+    const creado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: auth(),
+      payload: {
+        sku: 'RES-001',
+        nombre: 'Producto de reserva',
+        precioCosto: 500,
+        precioVenta: 900,
+        stockMinimo: 10,
+        stockInicial: 20,
+      },
+    });
+    const productoId = creado.json().producto.id as string;
+
+    const asignado = await app.inject({
+      method: 'POST',
+      url: '/api/v1/inventory/assign',
+      headers: auth(),
+      payload: { productoId, sucursalId: semilla.sucursalId, cantidad: 20 },
+    });
+    expect(asignado.statusCode).toBe(201);
+
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: '/api/v1/inventory/stock-general?buscar=RES-001',
+      headers: auth(),
+    });
+    const fila = respuesta.json().stock[0] as {
+      reparto: {
+        sucursalId: string;
+        codigo: string;
+        cantidad: number;
+        minimo: number;
+        bajoMinimo: boolean;
+      }[];
+    };
+    const reserva = fila.reparto.find((parte) => parte.codigo === 'GENERAL');
+    const sucursal = fila.reparto.find((parte) => parte.sucursalId === semilla.sucursalId);
+
+    expect(reserva).toMatchObject({ cantidad: 0, minimo: 0, bajoMinimo: false });
+    expect(sucursal).toMatchObject({ cantidad: 20 });
+  });
+
   it('transfiere de inmediato entre sucursales', async () => {
     const creado = await app.inject({
       method: 'POST',

@@ -572,7 +572,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               : enMovimientos
                 ? 'Registra entradas y salidas, y controla los traslados entre sucursales.'
                 : general
-                  ? `Existencias de todas las sucursales y del inventario general. ${datos?.filas.length ?? 0} productos en total.`
+                  ? `Existencias por sucursal y reserva general. El total incluye la mercancia aun no asignada. ${datos?.filas.length ?? 0} productos.`
                   : `Existencias por sucursal, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
           </p>
         </div>

@@ -150,17 +150,6 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
           },
         ]
       : []),
-    ...(permisos.has('sale.void')
-      ? [
-          {
-            id: 'ventas' as const,
-            etiqueta: 'Ventas',
-            etiquetaCorta: 'Ventas',
-            descripcion: 'Historial de ventas, cancelaciones y devoluciones.',
-            grupo: 'principal' as const,
-          },
-        ]
-      : []),
     ...(permisos.has('sale.void') || permisos.has('report.profit')
       ? [
           {
@@ -496,24 +485,7 @@ export function Marco({ sesion, onActualizarSesion, onSalir }: Props) {
 
         <div className="barra-lateral__pie">
           <IndicadorConexion />
-          {sesion.sucursales.length > 1 ? (
-            <label className="barra-lateral__campo">
-              <span>Sucursal</span>
-              <select
-                className="selector"
-                value={sucursalId}
-                onChange={(evento) => setSucursalId(evento.target.value)}
-              >
-                {sesion.sucursales.map((opcion) => (
-                  <option key={opcion.id} value={opcion.id}>
-                    {opcion.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <span className="vendedor">{sucursal?.nombre}</span>
-          )}
+          <span className="vendedor">{sucursal?.nombre}</span>
           <span className="vendedor">{sesion.usuario.nombre}</span>
           <button type="button" className="boton boton--fantasma barra__salir" onClick={onSalir}>
             Salir
@@ -588,24 +560,7 @@ export function Marco({ sesion, onActualizarSesion, onSalir }: Props) {
         </nav>
 
         <div className="menu-lateral__pie">
-          {sesion.sucursales.length > 1 ? (
-            <label className="menu-lateral__campo">
-              <span>Sucursal</span>
-              <select
-                className="selector"
-                value={sucursalId}
-                onChange={(evento) => setSucursalId(evento.target.value)}
-              >
-                {sesion.sucursales.map((opcion) => (
-                  <option key={opcion.id} value={opcion.id}>
-                    {opcion.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <span className="vendedor">{sucursal?.nombre}</span>
-          )}
+          <span className="vendedor">{sucursal?.nombre}</span>
 
           <span className="vendedor">{sesion.usuario.nombre}</span>
 
