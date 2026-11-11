@@ -48,10 +48,14 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
   // otras sucursales son de supervision.
   const puedeVerHistorial =
     sesion.permisos.includes('sale.void') || sesion.permisos.includes('report.profit');
+  const esAdministracion = !puedeAbrir;
 
   const { datos, cargando, error: errorLista, recargar } = useCarga(
-    () => api.turnoActual(sucursalId),
-    [sucursalId],
+    () =>
+      puedeAbrir
+        ? api.turnoActual(sucursalId)
+        : Promise.resolve({ turno: null, resumen: null }),
+    [puedeAbrir, sucursalId],
   );
 
   const { datos: datosCierres, recargar: recargarCierres } = useCarga(
@@ -204,8 +208,11 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
         <div>
           <h1 className="panel__titulo">{titulo ?? 'Caja'}</h1>
           <p className="panel__nota">
-            Sucursal {sucursal?.nombre ?? '—'} ·{' '}
-            {turno ? 'turno abierto' : 'sin turno abierto'}
+            {esAdministracion
+              ? `Todas las sucursales · ${(datosAbiertos?.turnos ?? []).length} turnos abiertos`
+              : `Sucursal ${sucursal?.nombre ?? '—'} · ${
+                  turno ? 'turno abierto' : 'sin turno abierto'
+                }`}
           </p>
         </div>
 
@@ -329,7 +336,7 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
         </>
       ) : null}
 
-      {!cargando && !turno ? (
+      {!cargando && !turno && !esAdministracion ? (
         <div className="tarjeta">
           <p className="vacio">
             No hay turno abierto en esta sucursal.
@@ -367,6 +374,12 @@ export function Caja({ sesion, sucursalId, titulo }: Props) {
               <span className="numero">{dinero(otro.fondoInicial)}</span>
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {esAdministracion && datosAbiertos && datosAbiertos.turnos.length === 0 ? (
+        <div className="tarjeta">
+          <p className="vacio">No hay turnos abiertos en ninguna sucursal.</p>
         </div>
       ) : null}
 

@@ -485,7 +485,7 @@ export function Marco({ sesion, onActualizarSesion, onSalir }: Props) {
 
         <div className="barra-lateral__pie">
           <IndicadorConexion />
-          <span className="vendedor">{sucursal?.nombre}</span>
+          <span className="vendedor">{admin ? 'Todas las sucursales' : sucursal?.nombre}</span>
           <span className="vendedor">{sesion.usuario.nombre}</span>
           <button type="button" className="boton boton--fantasma barra__salir" onClick={onSalir}>
             Salir
@@ -560,7 +560,7 @@ export function Marco({ sesion, onActualizarSesion, onSalir }: Props) {
         </nav>
 
         <div className="menu-lateral__pie">
-          <span className="vendedor">{sucursal?.nombre}</span>
+          <span className="vendedor">{admin ? 'Todas las sucursales' : sucursal?.nombre}</span>
 
           <span className="vendedor">{sesion.usuario.nombre}</span>
 
