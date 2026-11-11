@@ -3438,3 +3438,271 @@ button {
   opacity: 0;
   cursor: pointer;
 }
+
+/* ============================================================
+   Capa final de uso en telefono
+   Los paneles comparten este ritmo: una columna, controles tactiles y nada que
+   dependa de un ancho minimo de escritorio.
+   ============================================================ */
+@media (max-width: 1023px) {
+  .panel,
+  .mostrador,
+  .barra {
+    min-width: 0;
+  }
+
+  .panel__cabecera > *,
+  .panel__cabecera > div,
+  .barra-filtros,
+  .tabla-envoltura,
+  .tarjeta {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .panel__titulo,
+  .panel__nota,
+  .modal__nota,
+  .fila-dato > span:first-child {
+    overflow-wrap: anywhere;
+  }
+
+  .rejilla-tarjetas,
+  .columnas-dos,
+  .rejilla-dos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .formulario {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .campo-ancho--ancho {
+    grid-column: auto;
+  }
+
+  .tabla-envoltura {
+    width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    min-width: 0;
+  }
+
+  .barra {
+    min-height: 56px;
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+  }
+
+  .barra__marca {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .barra__datos {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  .barra__datos .conexion {
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .panel,
+  .mostrador {
+    width: 100%;
+    padding: 0.85rem 0.7rem calc(1.15rem + env(safe-area-inset-bottom));
+    gap: 1rem;
+  }
+
+  .panel__cabecera {
+    align-items: stretch;
+    gap: 0.7rem;
+  }
+
+  .panel__cabecera > * {
+    width: 100%;
+  }
+
+  .panel__titulo {
+    font-size: 1.12rem;
+    line-height: 1.25;
+  }
+
+  .panel__nota {
+    line-height: 1.45;
+  }
+
+  .barra-filtros {
+    width: 100%;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .barra-filtros > .boton,
+  .barra-filtros > .selector,
+  .barra-filtros > label {
+    min-width: 0;
+  }
+
+  .barra-filtros > .boton {
+    min-height: 44px;
+  }
+
+  .tarjeta {
+    padding: 0.85rem;
+    overflow: hidden;
+  }
+
+  .rejilla-tarjetas,
+  .columnas-dos,
+  .rejilla-dos {
+    gap: 0.65rem;
+  }
+
+  .cifra-grande {
+    font-size: clamp(1.25rem, 7vw, 1.5rem);
+  }
+
+  .fila-dato {
+    align-items: flex-start;
+    gap: 0.75rem;
+    line-height: 1.4;
+  }
+
+  .fila-dato > span:first-child {
+    min-width: 0;
+  }
+
+  .fila-dato > span:last-child {
+    flex: 0 0 auto;
+  }
+
+  .formulario {
+    gap: 0.65rem;
+  }
+
+  .entrada,
+  .selector,
+  .campo__entrada {
+    min-height: 44px;
+  }
+
+  .opciones-lista {
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .opcion-casilla {
+    min-height: 42px;
+  }
+
+  .modal {
+    border-radius: 10px;
+    padding: 0.9rem;
+  }
+
+  .modal__acciones {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .modal__acciones .boton {
+    width: 100%;
+  }
+
+  .menu-lateral {
+    width: min(21rem, 90vw);
+  }
+
+  .menu-lateral__pie .vendedor {
+    overflow-wrap: anywhere;
+  }
+
+  .mostrador {
+    gap: 0.85rem;
+  }
+
+  .columna-ticket {
+    min-width: 0;
+  }
+
+  .ticket__cuerpo {
+    padding: 0.95rem 0.85rem 1.05rem;
+  }
+
+  .metodos {
+    gap: 0.35rem;
+  }
+
+  .metodo {
+    min-height: 44px;
+    padding-inline: 0.25rem;
+  }
+
+  .pago {
+    grid-template-columns: minmax(0, 1fr) minmax(6rem, 8rem) auto;
+  }
+
+  .pago__etiqueta {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .total-gran__valor {
+    font-size: clamp(1.35rem, 7vw, 1.65rem);
+  }
+
+  .producto-foto__cuerpo {
+    gap: 0.75rem;
+  }
+
+  .producto-foto__vista {
+    width: 7rem;
+    height: 7rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .panel,
+  .mostrador {
+    padding-inline: 0.6rem;
+  }
+
+  .barra {
+    gap: 0.35rem;
+    padding-inline: 0.55rem;
+  }
+
+  .marca {
+    font-size: 0.8rem;
+  }
+
+  .barra__datos .conexion {
+    max-width: 7.5rem;
+    padding-inline: 0.5rem;
+  }
+
+  .pago {
+    grid-template-columns: minmax(0, 1fr) minmax(5rem, 6rem) auto;
+    gap: 0.3rem;
+  }
+
+  .linea__importe {
+    font-size: 0.86rem;
+  }
+
+  .ticket__titulo {
+    letter-spacing: 0.16em;
+  }
+
+  .tabla--responsive td {
+    grid-template-columns: minmax(4.5rem, 0.7fr) minmax(0, 1.3fr);
+    gap: 0.45rem;
+  }
+}
