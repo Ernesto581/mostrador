@@ -9,12 +9,10 @@ import type { TipoMovimiento } from '../api/tipos';
 
 /** Tipos que se pueden registrar a mano desde el panel. */
 export const TIPOS_MANUALES: { valor: TipoMovimiento; etiqueta: string }[] = [
-  { valor: 'entrada_compra', etiqueta: 'Entrada por compra' },
   { valor: 'merma', etiqueta: 'Merma (se perdio o se rompio)' },
   { valor: 'ajuste_positivo', etiqueta: 'Ajuste que suma' },
   { valor: 'ajuste_negativo', etiqueta: 'Ajuste que resta' },
   { valor: 'devolucion_proveedor', etiqueta: 'Devolucion a proveedor' },
-  { valor: 'inventario_inicial', etiqueta: 'Inventario inicial' },
 ];
 
 export const ETIQUETA_MOVIMIENTO: Record<string, string> = {

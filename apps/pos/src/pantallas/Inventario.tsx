@@ -11,7 +11,7 @@ import { AltaInventario } from '../componentes/AltaInventario';
 import { MenuAcciones } from '../componentes/MenuAcciones';
 import { NuevaTransferencia } from '../componentes/NuevaTransferencia';
 import { Aviso, Modal, mensajeDe, useCarga } from '../util/pantalla';
-import { aCentavos, aTextoCaptura, dinero, fechaLarga } from '../util/dinero';
+import { aCentavos, dinero, fechaLarga } from '../util/dinero';
 import {
   ETIQUETA_MOVIMIENTO,
   MOVIMIENTOS_QUE_RESTAN,
@@ -77,11 +77,8 @@ interface BorradorProducto {
   sku: string;
   nombre: string;
   categoriaId: string;
-  precioCosto: string;
-  precioVenta: string;
   stockMinimo: string;
   codigos: string;
-  stockInicial: string;
   imagenUrl: string;
 }
 
@@ -91,11 +88,8 @@ function borradorVacioDeProducto(): BorradorProducto {
     sku: '',
     nombre: '',
     categoriaId: '',
-    precioCosto: '',
-    precioVenta: '',
     stockMinimo: '0',
     codigos: '',
-    stockInicial: '0',
     imagenUrl: '',
   };
 }
@@ -158,6 +152,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
   const [verMovimientos, setVerMovimientos] = useState(false);
   const [entradaAbierta, setEntradaAbierta] = useState(false);
+  const [entradaOrigen, setEntradaOrigen] = useState<'compra' | 'general'>('compra');
   const [salidaAbierta, setSalidaAbierta] = useState(false);
   const [transferenciaAbierta, setTransferenciaAbierta] = useState(false);
   const [filtroSucursalId, setFiltroSucursalId] = useState('');
@@ -286,8 +281,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
       return;
     }
 
-    const inicial = Number(producto.stockInicial) || 0;
-
     setGuardando(true);
     setError(null);
 
@@ -303,8 +296,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           sku: producto.sku.trim(),
           nombre: producto.nombre.trim(),
           ...(producto.categoriaId ? { categoriaId: producto.categoriaId } : {}),
-          precioCosto: aCentavos(producto.precioCosto),
-          precioVenta: aCentavos(producto.precioVenta),
           stockMinimo: Number(producto.stockMinimo) || 0,
           imagenUrl,
         });
@@ -320,19 +311,14 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           sku: producto.sku.trim(),
           nombre: producto.nombre.trim(),
           ...(producto.categoriaId ? { categoriaId: producto.categoriaId } : {}),
-          precioCosto: aCentavos(producto.precioCosto),
-          precioVenta: aCentavos(producto.precioVenta),
           stockMinimo: Number(producto.stockMinimo) || 0,
           codigosBarras: codigos,
-          stockInicial: inicial,
           imagenUrl,
         });
 
         await recargar();
         cerrarConMensaje(
-          inicial > 0
-            ? `Producto creado con ${inicial} piezas en el inventario general. Asignalas a una sucursal desde Movimientos.`
-            : 'Producto creado. Todavia sin existencia: registra una entrada cuando llegue.',
+          'Producto creado. Registra una compra desde Movimientos cuando llegue la mercancia.',
         );
       }
     } catch (fallo) {
@@ -568,9 +554,9 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           </h1>
           <p className="panel__nota">
             {enProductos
-              ? `Catalogo general de productos: foto, codigos, costos, precios y stock total. ${datos?.filas.length ?? 0} productos. El stock inicial entra al inventario general y se asigna a las sucursales desde Movimientos.`
+              ? `Catalogo general de productos: foto, codigos y stock minimo. ${datos?.filas.length ?? 0} productos. Las compras y precios se registran desde Movimientos.`
               : enMovimientos
-                ? 'Registra entradas y salidas, y controla los traslados entre sucursales.'
+                ? 'Registra compras en GENERAL, asignaciones a sucursales, salidas y traslados.'
                 : general
                   ? `Existencias por sucursal y reserva general. El total incluye la mercancia aun no asignada. ${datos?.filas.length ?? 0} productos.`
                   : `Existencias por sucursal, entradas, salidas, mermas y stock mínimo. ${datos?.conAlerta ?? 0} productos por debajo del minimo.`}
@@ -629,10 +615,25 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               className="boton boton--acento inventario__nuevo"
               onClick={() => {
                 setError(null);
+                setEntradaOrigen('compra');
                 setEntradaAbierta(true);
               }}
             >
-              Registrar entrada
+              Nueva compra
+            </button>
+          ) : null}
+
+          {enMovimientos && puedeMover ? (
+            <button
+              type="button"
+              className="boton inventario__nuevo"
+              onClick={() => {
+                setError(null);
+                setEntradaOrigen('general');
+                setEntradaAbierta(true);
+              }}
+            >
+              Desde GENERAL
             </button>
           ) : null}
 
@@ -792,7 +793,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           {!cargandoMovimientos && movimientos.length === 0 ? (
             <div className="tarjeta">
               <p className="vacio">
-                No hay movimientos con esos filtros. Usa Registrar entrada, Registrar salida o
+                No hay movimientos con esos filtros. Usa Nueva compra, Desde GENERAL, Registrar salida o
                 Nueva transferencia para empezar.
               </p>
             </div>
@@ -867,8 +868,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                   <th className="numero col-minimo">
                     {mostrarReparto ? 'Mínimos' : 'Minimo'}
                   </th>
-                  <th className="numero col-costo">Costo</th>
-                  <th className="numero col-venta">Venta</th>
+                  {!enProductos ? <th className="numero col-costo">Costo</th> : null}
+                  {!enProductos ? <th className="numero col-venta">Venta</th> : null}
                   <th className="col-categoria">Categoria</th>
                   <th className="col-acciones">Acciones</th>
                 </tr>
@@ -928,11 +929,13 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                         </>
                       )}
                     </td>
-                    <td className="numero col-costo">
-                      <span className="solo-angosto">Costo </span>
-                      {dinero(fila.precioCosto)}
-                    </td>
-                    <td className="numero col-venta">{dinero(fila.precioVenta)}</td>
+                    {!enProductos ? (
+                      <td className="numero col-costo">
+                        <span className="solo-angosto">Costo </span>
+                        {dinero(fila.precioCosto)}
+                      </td>
+                    ) : null}
+                    {!enProductos ? <td className="numero col-venta">{dinero(fila.precioVenta)}</td> : null}
                     <td className="col-categoria">
                       {fila.categoriaId ? nombrePorCategoria.get(fila.categoriaId) ?? '—' : '—'}
                     </td>
@@ -949,11 +952,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                               sku: fila.sku,
                               nombre: fila.nombre,
                               categoriaId: fila.categoriaId ?? '',
-                              precioCosto: aTextoCaptura(fila.precioCosto),
-                              precioVenta: aTextoCaptura(fila.precioVenta),
                               stockMinimo: String(fila.stockMinimoGeneral ?? fila.stockMinimo),
                               codigos: '',
-                              stockInicial: '0',
                               imagenUrl: fila.imagenUrl ?? '',
                             });
                           }}
@@ -997,7 +997,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                             setFormulario({
                               fila,
                               sucursalId,
-                              tipo: 'entrada_compra',
+                              tipo: 'ajuste_positivo',
                               cantidad: '',
                               costo: '',
                               motivo: '',
@@ -1059,7 +1059,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
                               setFormulario({
                                 fila,
                                 sucursalId,
-                                tipo: 'entrada_compra',
+                                tipo: 'ajuste_positivo',
                                 cantidad: '',
                                 costo: '',
                                 motivo: '',
@@ -1242,26 +1242,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </label>
 
             <label className="campo-ancho">
-              <span>Precio de costo</span>
-              <input
-                className="entrada entrada--numero"
-                inputMode="decimal"
-                value={producto.precioCosto}
-                onChange={(evento) => setProducto({ ...producto, precioCosto: evento.target.value })}
-              />
-            </label>
-
-            <label className="campo-ancho">
-              <span>Precio de venta</span>
-              <input
-                className="entrada entrada--numero"
-                inputMode="decimal"
-                value={producto.precioVenta}
-                onChange={(evento) => setProducto({ ...producto, precioVenta: evento.target.value })}
-              />
-            </label>
-
-            <label className="campo-ancho">
               <span>Stock minimo general</span>
               <input
                 className="entrada entrada--numero"
@@ -1281,22 +1261,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               />
             </label>
 
-            {!producto.id ? (
-              <label className="campo-ancho">
-                <span>Stock inicial</span>
-                <input
-                  className="entrada entrada--numero"
-                  inputMode="numeric"
-                  value={producto.stockInicial}
-                  onChange={(evento) =>
-                    setProducto({ ...producto, stockInicial: evento.target.value })
-                  }
-                />
-                <span className="panel__nota">
-                  Entra al inventario general; luego lo asignas a una sucursal.
-                </span>
-              </label>
-            ) : null}
           </div>
 
           {error ? (
@@ -1532,6 +1496,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           sesion={sesion}
           sucursalId={sucursalId}
           modo="entrada"
+          entradaOrigen={entradaOrigen}
           onCerrar={() => setEntradaAbierta(false)}
           onGuardado={alGuardarEntrada}
         />

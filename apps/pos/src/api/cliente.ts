@@ -252,11 +252,11 @@ export const api = {
     descripcion?: string;
     categoriaId?: string;
     esServicio?: boolean;
-    precioCosto: number;
-    precioVenta: number;
-    stockMinimo: number;
+    precioCosto?: number;
+    precioVenta?: number;
+    stockMinimo?: number;
     codigosBarras: string[];
-    stockInicial: number;
+    stockInicial?: number;
     imagenUrl?: string | null;
   }) => pedir<{ producto: { id: string; sku: string; nombre: string } }>('/products', {
     metodo: 'POST',
@@ -365,6 +365,8 @@ export const api = {
     tipo: string;
     cantidad: number;
     costoUnitario?: number;
+    precioVenta?: number;
+    origenGeneral?: boolean;
     motivo?: string;
   }) => pedir<{ movimiento: unknown }>('/inventory/movements', { metodo: 'POST', cuerpo }),
 

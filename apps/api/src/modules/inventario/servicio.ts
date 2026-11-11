@@ -16,6 +16,7 @@ export interface EntradaMovimiento {
   /** Cantidad siempre positiva: el tipo determina el signo. */
   cantidad: number;
   costoUnitario?: Centavos | undefined;
+  precioVenta?: Centavos | undefined;
   motivo?: string | undefined;
   usuarioId?: string | undefined;
   dispositivoId?: string | undefined;
@@ -231,6 +232,28 @@ export async function aplicarMovimiento(
         updatedAt: new Date(),
       },
     });
+
+  if (entrada.precioVenta !== undefined) {
+    await base
+      .update(schema.products)
+      .set({
+        salePrice: entrada.precioVenta,
+        ...(entrada.costoUnitario !== undefined
+          ? {
+              costPrice: entrada.costoUnitario,
+              averageCost: entrada.costoUnitario,
+            }
+          : {}),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.products.id, entrada.productoId),
+          eq(schema.products.companyId, entrada.empresaId),
+          isNull(schema.products.deletedAt),
+        ),
+      );
+  }
 
   const [saldo] = await base
     .select({ cantidad: schema.stockBalances.quantity })

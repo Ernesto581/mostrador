@@ -8,6 +8,7 @@ interface Props {
   sesion: Sesion;
   sucursalId: string;
   modo: 'entrada' | 'salida';
+  entradaOrigen?: 'compra' | 'general';
   onCerrar: () => void;
   onGuardado: (mensaje: string) => void;
 }
@@ -36,6 +37,7 @@ export function AltaInventario({
   sesion,
   sucursalId,
   modo,
+  entradaOrigen = 'compra',
   onCerrar,
   onGuardado,
 }: Props) {
@@ -44,15 +46,15 @@ export function AltaInventario({
   const [buscando, setBuscando] = useState(false);
   const [elegido, setElegido] = useState<ProductoElegido | null>(null);
   const [destino, setDestino] = useState(sucursalId);
-  const [origen, setOrigen] = useState<'compra' | 'general'>('compra');
   const [tipoSalida, setTipoSalida] = useState<TipoMovimiento>('merma');
   const [cantidad, setCantidad] = useState('');
   const [costo, setCosto] = useState('');
+  const [precioVenta, setPrecioVenta] = useState('');
   const [motivo, setMotivo] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const desdeGeneral = modo === 'entrada' && origen === 'general';
+  const desdeGeneral = modo === 'entrada' && entradaOrigen === 'general';
   // En una salida o al traer del general solo interesa lo que realmente hay.
   const visibles =
     modo === 'salida' || desdeGeneral
@@ -148,6 +150,19 @@ export function AltaInventario({
       return;
     }
 
+    if (modo === 'entrada' && entradaOrigen === 'compra') {
+      const costoNumerico = Number(costo.replace(',', '.'));
+      const ventaNumerica = Number(precioVenta.replace(',', '.'));
+      if (!costo.trim() || !Number.isFinite(costoNumerico) || costoNumerico < 0) {
+        setError('Indica el precio de compra del producto');
+        return;
+      }
+      if (!precioVenta.trim() || !Number.isFinite(ventaNumerica) || ventaNumerica <= 0) {
+        setError('Indica el precio de venta que usara el POS');
+        return;
+      }
+    }
+
     setGuardando(true);
     setError(null);
 
@@ -168,6 +183,10 @@ export function AltaInventario({
           ...(modo === 'entrada' && costo.trim()
             ? { costoUnitario: aCentavos(costo) }
             : {}),
+          ...(modo === 'entrada' && entradaOrigen === 'compra' && precioVenta.trim()
+            ? { precioVenta: aCentavos(precioVenta) }
+            : {}),
+          ...(modo === 'entrada' && entradaOrigen === 'compra' ? { origenGeneral: true } : {}),
           ...(motivo.trim() ? { motivo: motivo.trim() } : {}),
         });
       }
@@ -179,7 +198,9 @@ export function AltaInventario({
 
       onGuardado(
         modo === 'entrada'
-          ? `Entrada: ${piezas} de ${elegido.sku} a ${nombre}${desdeGeneral ? ' desde el inventario general' : ''}.`
+          ? desdeGeneral
+            ? `Asignacion: ${piezas} de ${elegido.sku} desde el inventario general a ${nombre}.`
+            : `Compra: ${piezas} de ${elegido.sku} al inventario general.`
           : `${etiquetaSalida}: ${piezas} de ${elegido.sku} en ${nombre}.`,
       );
     } catch (fallo) {
@@ -191,17 +212,26 @@ export function AltaInventario({
 
   return (
     <Modal
-      titulo={modo === 'entrada' ? 'Registrar entrada' : 'Registrar salida'}
+      titulo={
+        modo === 'salida'
+          ? 'Registrar salida'
+          : desdeGeneral
+            ? 'Asignar desde GENERAL'
+            : 'Nueva compra'
+      }
       nota={
-        modo === 'entrada'
-          ? 'Registra una compra o trae mercancia del inventario general a una sucursal.'
-          : 'Registra mermas, ajustes negativos o devoluciones a proveedor en una sucursal.'
+        modo === 'salida'
+          ? 'Registra mermas, ajustes negativos o devoluciones a proveedor en una sucursal.'
+          : desdeGeneral
+            ? 'Mueve productos comprados desde GENERAL hacia una sucursal.'
+            : 'Registra la compra y deja la mercancia en el inventario GENERAL.'
       }
       onCerrar={onCerrar}
     >
       <div className="formulario">
+        {modo === 'salida' || desdeGeneral ? (
         <label className="campo-ancho">
-          <span>{modo === 'entrada' ? 'Sucursal que recibe' : 'Sucursal'}</span>
+          <span>{desdeGeneral ? 'Sucursal que recibe' : 'Sucursal'}</span>
           <select
             className="entrada"
             value={destino}
@@ -217,23 +247,9 @@ export function AltaInventario({
             ))}
           </select>
         </label>
+        ) : null}
 
-        {modo === 'entrada' ? (
-          <label className="campo-ancho">
-            <span>Origen</span>
-            <select
-              className="entrada"
-              value={origen}
-              onChange={(evento) => {
-                setOrigen(evento.target.value as 'compra' | 'general');
-                limpiarSeleccion();
-              }}
-            >
-              <option value="compra">Compra / proveedor</option>
-              <option value="general">Inventario general</option>
-            </select>
-          </label>
-        ) : (
+        {modo === 'salida' ? (
           <label className="campo-ancho">
             <span>Motivo de salida</span>
             <select
@@ -248,7 +264,7 @@ export function AltaInventario({
               ))}
             </select>
           </label>
-        )}
+        ) : null}
 
         {elegido ? (
           <div className="alta-inventario__elegido campo-ancho campo-ancho--ancho">
@@ -332,17 +348,29 @@ export function AltaInventario({
           />
         </label>
 
-        {modo === 'entrada' && origen === 'compra' ? (
-          <label className="campo-ancho">
-            <span>Costo unitario (opcional)</span>
-            <input
-              className="entrada entrada--numero"
-              inputMode="decimal"
-              placeholder="Como en la factura"
-              value={costo}
-              onChange={(evento) => setCosto(evento.target.value)}
-            />
-          </label>
+        {modo === 'entrada' && entradaOrigen === 'compra' ? (
+          <>
+            <label className="campo-ancho">
+              <span>Precio de compra / costo unitario</span>
+              <input
+                className="entrada entrada--numero"
+                inputMode="decimal"
+                placeholder="Como en la factura"
+                value={costo}
+                onChange={(evento) => setCosto(evento.target.value)}
+              />
+            </label>
+            <label className="campo-ancho">
+              <span>Precio de venta</span>
+              <input
+                className="entrada entrada--numero"
+                inputMode="decimal"
+                placeholder="Precio que usara el POS"
+                value={precioVenta}
+                onChange={(evento) => setPrecioVenta(evento.target.value)}
+              />
+            </label>
+          </>
         ) : null}
 
         <label className="campo-ancho campo-ancho--ancho">
@@ -378,9 +406,11 @@ export function AltaInventario({
         >
           {guardando
             ? 'Guardando…'
-            : modo === 'entrada'
-              ? 'Registrar entrada'
-              : 'Registrar salida'}
+            : modo === 'salida'
+              ? 'Registrar salida'
+              : desdeGeneral
+                ? 'Asignar a sucursal'
+                : 'Registrar compra'}
         </button>
       </div>
     </Modal>

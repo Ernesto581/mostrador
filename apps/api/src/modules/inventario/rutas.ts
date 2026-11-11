@@ -100,6 +100,8 @@ const esquemaMovimiento = z.object({
   tipo: z.enum(TIPOS_MANUALES),
   cantidad: z.number().int().min(1),
   costoUnitario: z.number().int().min(0).optional(),
+  precioVenta: z.number().int().min(0).optional(),
+  origenGeneral: z.boolean().optional(),
   motivo: z.string().max(200).optional(),
 });
 
@@ -349,16 +351,24 @@ export async function rutasInventario(app: FastifyInstance) {
     const sesion = sesionDe(request);
     asegurarPermiso(sesion, PERMISOS.AJUSTAR_INVENTARIO);
     const datos = validar(esquemaMovimiento, request.body);
-    asegurarSucursal(sesion, datos.sucursalId);
+    const esCompra = datos.tipo === 'entrada_compra' && datos.origenGeneral === true;
+    if (!esCompra) {
+      asegurarSucursal(sesion, datos.sucursalId);
+    }
+
+    const sucursalMovimiento = esCompra
+      ? await obtenerSucursalGeneral(app.db, sesion.empresaId)
+      : undefined;
 
     const aplicado = await registrarMovimiento(app.db, {
       empresaId: sesion.empresaId,
-      sucursalId: datos.sucursalId,
-      almacenId: datos.almacenId,
+      sucursalId: sucursalMovimiento?.sucursalId ?? datos.sucursalId,
+      almacenId: sucursalMovimiento?.almacenId ?? datos.almacenId,
       productoId: datos.productoId,
       tipo: datos.tipo as TipoMovimientoInventario,
       cantidad: datos.cantidad,
       costoUnitario: datos.costoUnitario !== undefined ? centavos(datos.costoUnitario) : undefined,
+      precioVenta: datos.precioVenta !== undefined ? centavos(datos.precioVenta) : undefined,
       motivo: datos.motivo,
       usuarioId: sesion.usuarioId,
       documentoTipo: 'ajuste',
