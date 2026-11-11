@@ -150,6 +150,17 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
           },
         ]
       : []),
+    ...(permisos.has('sale.void')
+      ? [
+          {
+            id: 'ventas' as const,
+            etiqueta: 'Ventas',
+            etiquetaCorta: 'Ventas',
+            descripcion: 'Historial de ventas, cancelaciones y devoluciones.',
+            grupo: 'principal' as const,
+          },
+        ]
+      : []),
     ...(permisos.has('sale.void') || permisos.has('report.profit')
       ? [
           {
