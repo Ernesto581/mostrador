@@ -381,6 +381,21 @@ export const api = {
       cuerpo,
     }),
 
+  /* ---------- Actualizaciones de la app ---------- */
+
+  /** La app solo ve la version que el desarrollador publico. */
+  actualizacionActual: () =>
+    pedir<{
+      actualizacion: {
+        id: string;
+        versionCode: number;
+        versionName: string;
+        notas: string | null;
+        url: string;
+        publicadoEn: string | null;
+      } | null;
+    }>('/app-releases/actual'),
+
   /* ---------- Ventas ---------- */
 
   ventas: (filtros: { sucursalId?: string; desde?: string; hasta?: string; limite?: number }) =>

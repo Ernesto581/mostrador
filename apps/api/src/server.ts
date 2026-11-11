@@ -8,6 +8,7 @@ import { cargarConfig } from './config.js';
 import { pluginBaseDeDatos } from './db/plugin.js';
 import { ErrorDeAplicacion, ErrorDeValidacion, codigoDePostgres } from './errors.js';
 import { rutasCatalogo } from './modules/catalogo/rutas.js';
+import { rutasActualizaciones } from './modules/actualizaciones/rutas.js';
 import { rutasInventario } from './modules/inventario/rutas.js';
 import { rutasReportes } from './modules/reportes/rutas.js';
 import { rutasVentas } from './modules/ventas/rutas.js';
@@ -115,6 +116,7 @@ export async function construirServidor() {
   await app.register(rutasSync, { prefix: '/api/v1' });
   await app.register(rutasReportes, { prefix: '/api/v1' });
   await app.register(rutasSubidas, { prefix: '/api/v1' });
+  await app.register(rutasActualizaciones, { prefix: '/api/v1' });
 
   return app;
 }

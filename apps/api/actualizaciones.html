@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mostrador · Panel del desarrollador</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=Azeret+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --tinta: #16120f;
+        --papel: #f5ede0;
+        --acento: #e4572e;
+        --dinero: #2f8060;
+        --borde: #e3d5c2;
+        --tenue: #7a6a58;
+        --peligro: #b0342a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 1.4rem;
+        background:
+          radial-gradient(900px 500px at 12% -12%, rgba(228, 87, 46, 0.16), transparent 62%),
+          var(--tinta);
+        color: var(--papel);
+        font-family: 'Archivo', system-ui, sans-serif;
+      }
+      .panel-dev { width: min(1040px, 100%); margin: 0 auto; }
+      .cabecera {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem;
+      }
+      .marca { display: flex; flex-direction: column; gap: 0.25rem; }
+      .marca strong {
+        font-size: 1.25rem; letter-spacing: 0.18em; text-transform: uppercase;
+      }
+      .marca span {
+        font-family: 'Azeret Mono', monospace; font-size: 0.7rem;
+        letter-spacing: 0.14em; text-transform: uppercase; color: var(--acento);
+      }
+      .enlace {
+        font-family: 'Azeret Mono', monospace; font-size: 0.8rem;
+        color: var(--papel); text-decoration: none;
+        border-bottom: 1px solid currentColor; padding-bottom: 2px;
+      }
+      .caja {
+        background: var(--papel); color: #221c17; border-radius: 14px;
+        padding: 1.6rem; box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.9);
+      }
+      .caja h1 { margin: 0 0 0.5rem; font-size: 1.15rem; letter-spacing: 0.04em; }
+      .caja p { margin: 0 0 1rem; color: var(--tenue); font-size: 0.9rem; line-height: 1.5; }
+      input, textarea, select, button { font: inherit; }
+      .campo { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.9rem; }
+      .campo span { font-family: 'Azeret Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tenue); }
+      .entrada {
+        border: 1px solid var(--borde); border-radius: 8px; padding: 0.6rem 0.7rem;
+        background: #fffdf8; color: #221c17; font-size: 0.9rem;
+      }
+      .entrada:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+      textarea.entrada { resize: vertical; min-height: 70px; }
+      .boton {
+        border: 1px solid var(--borde); border-radius: 8px; padding: 0.55rem 0.9rem;
+        background: #fffdf8; color: #221c17; cursor: pointer; font-size: 0.85rem;
+      }
+      .boton:hover { border-color: var(--acento); }
+      .boton--acento { background: var(--acento); border-color: var(--acento); color: #fff; font-weight: 700; }
+      .boton--acento:hover { filter: brightness(1.06); }
+      .boton--fantasma { background: transparent; }
+      .panel-dev > .acciones-fila .boton--fantasma,
+      .panel-dev #salir { color: var(--papel); border-color: var(--borde); }
+      .modal .boton--fantasma { color: #221c17; }
+      .boton:disabled { opacity: 0.55; cursor: default; }
+      .error { color: var(--peligro); font-size: 0.85rem; margin: 0.6rem 0 0; }
+      .ok { color: var(--dinero); font-size: 0.85rem; margin: 0.6rem 0 0; }
+      .tabs {
+        display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap;
+      }
+      .tab {
+        border: 1px solid var(--borde); border-radius: 999px; padding: 0.45rem 1rem;
+        background: transparent; color: var(--papel); cursor: pointer; font-size: 0.85rem;
+      }
+      .tab--activa { background: var(--acento); border-color: var(--acento); color: #fff; font-weight: 700; }
+      .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+      .tarjeta { background: var(--papel); color: #221c17; border-radius: 12px; padding: 0.9rem 1rem; }
+      .tarjeta__titulo { margin: 0 0 0.3rem; font-family: 'Azeret Mono', monospace; font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tenue); }
+      .tarjeta__valor { margin: 0; font-size: 1.15rem; font-weight: 800; }
+      .tarjeta__nota { margin: 0.3rem 0 0; font-size: 0.78rem; color: var(--tenue); }
+      .tabla-envoltura { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--borde); vertical-align: top; }
+      th { font-family: 'Azeret Mono', monospace; font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tenue); }
+      td.acciones { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+      .insignia { display: inline-block; border-radius: 999px; padding: 0.15rem 0.55rem; font-family: 'Azeret Mono', monospace; font-size: 0.7rem; font-weight: 700; }
+      .insignia--ok { background: rgba(47, 128, 96, 0.14); color: var(--dinero); }
+      .insignia--baja { background: rgba(228, 87, 46, 0.14); color: var(--acento); }
+      pre {
+        margin: 0.8rem 0 0; padding: 0.8rem; border-radius: 8px;
+        background: rgba(34, 28, 23, 0.06); overflow-x: auto;
+        font-family: 'Azeret Mono', monospace; font-size: 0.72rem; line-height: 1.6;
+      }
+      .velo {
+        position: fixed; inset: 0; background: rgba(22, 18, 15, 0.72);
+        display: grid; place-items: center; padding: 1rem; z-index: 20;
+      }
+      .velo[hidden] { display: none; }
+      .modal { width: min(520px, 100%); background: var(--papel); color: #221c17; border-radius: 14px; padding: 1.5rem; }
+      .modal h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+      .modal p { color: var(--tenue); font-size: 0.85rem; }
+      .acciones-fila { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; flex-wrap: wrap; }
+      .oculto { display: none !important; }
+      .casilla { display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; margin-top: 0.4rem; }
+    </style>
+  </head>
+  <body>
+    <main class="panel-dev">
+      <header class="cabecera">
+        <div class="marca">
+          <strong>Mostrador</strong>
+          <span>Panel del desarrollador</span>
+        </div>
+        <a class="enlace" href="/">Ir al punto de venta</a>
+      </header>
+
+      <section id="login" class="caja">
+        <h1>Clave de desarrollador</h1>
+        <p>
+          Este panel es del programador de la app, no del administrador del negocio. Escribe la
+          clave de desarrollador configurada en el servidor.
+        </p>
+        <form id="form-login">
+          <label class="campo">
+            <span>Clave</span>
+            <input class="entrada" id="token" type="password" autocomplete="current-password" autofocus />
+          </label>
+          <button class="boton boton--acento" type="submit">Entrar</button>
+        </form>
+        <p class="error" id="error-login"></p>
+      </section>
+
+      <div id="app" class="oculto">
+        <nav class="tabs">
+          <button class="tab tab--activa" data-tab="estado" type="button">Estado</button>
+          <button class="tab" data-tab="actualizaciones" type="button">Actualizaciones</button>
+        </nav>
+
+        <section id="seccion-estado">
+          <div class="tarjetas">
+            <div class="tarjeta">
+              <p class="tarjeta__titulo">Servicio</p>
+              <p class="tarjeta__valor" id="estado-servicio">Revisando…</p>
+              <p class="tarjeta__nota" id="estado-motor"></p>
+            </div>
+            <div class="tarjeta">
+              <p class="tarjeta__titulo">Base de datos</p>
+              <p class="tarjeta__valor" id="estado-base">…</p>
+              <p class="tarjeta__nota">Conexion del API</p>
+            </div>
+            <div class="tarjeta">
+              <p class="tarjeta__titulo">Version que ven los telefonos</p>
+              <p class="tarjeta__valor" id="version-publicada">…</p>
+              <p class="tarjeta__nota" id="version-publicada-nota"></p>
+            </div>
+          </div>
+          <div class="caja">
+            <p>Detalle del API</p>
+            <pre id="detalle">Consultando /api/v1/health…</pre>
+            <p style="margin-top: 0.8rem; margin-bottom: 0">
+              <a class="enlace" href="/estado.html">Ver la pagina de estado publica</a>
+            </p>
+          </div>
+        </section>
+
+        <section id="seccion-actualizaciones" class="oculto">
+          <div class="tarjetas">
+            <div class="tarjeta">
+              <p class="tarjeta__titulo">Actualizacion activa</p>
+              <p class="tarjeta__valor" id="activa-valor">Ninguna</p>
+              <p class="tarjeta__nota" id="activa-nota">No hay ninguna version publicada.</p>
+            </div>
+            <div class="tarjeta">
+              <p class="tarjeta__titulo">Historial</p>
+              <p class="tarjeta__valor" id="historial-valor">0</p>
+              <p class="tarjeta__nota">Versiones registradas en total.</p>
+            </div>
+          </div>
+
+          <div class="acciones-fila" style="justify-content: flex-start">
+            <button class="boton boton--acento" id="nueva" type="button">Nueva actualizacion</button>
+            <button class="boton boton--fantasma" id="salir" type="button">Salir del panel</button>
+          </div>
+
+          <p class="error" id="error-app"></p>
+          <p class="ok" id="ok-app"></p>
+
+          <div class="caja tabla-envoltura" style="margin-top: 1rem">
+            <table>
+              <thead>
+                <tr>
+                  <th>Version</th>
+                  <th>Nombre</th>
+                  <th>Notas</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="filas"></tbody>
+            </table>
+            <p id="vacio" class="tarjeta__nota" style="padding: 0.8rem 0.2rem">
+              Todavia no hay actualizaciones registradas.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div class="velo" id="velo" hidden>
+      <div class="modal">
+        <h2 id="modal-titulo">Nueva actualizacion</h2>
+        <p>Solo al publicarla los telefonos veran el aviso.</p>
+        <form id="form-modal">
+          <label class="campo">
+            <span>Numero de version</span>
+            <input class="entrada" id="campo-code" type="number" min="1" step="1" required />
+            <small style="color: var(--tenue); font-size: 0.75rem">
+              Debe coincidir con el versionCode del APK compilado.
+            </small>
+          </label>
+          <label class="campo">
+            <span>Nombre de la version</span>
+            <input class="entrada" id="campo-nombre" placeholder="1.4" required />
+          </label>
+          <label class="campo">
+            <span>Notas (que cambio)</span>
+            <textarea class="entrada" id="campo-notas"></textarea>
+          </label>
+          <label class="campo">
+            <span>Direccion del APK</span>
+            <input class="entrada" id="campo-url" type="url" required />
+          </label>
+          <label class="casilla">
+            <input type="checkbox" id="campo-publicada" />
+            Publicar de inmediato (mandar a los telefonos)
+          </label>
+          <p class="error" id="error-modal"></p>
+          <div class="acciones-fila">
+            <button class="boton boton--fantasma" type="button" id="cancelar-modal">Cancelar</button>
+            <button class="boton boton--acento" type="submit" id="guardar-modal">Registrar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const API = '/api/v1';
+      const URL_APK =
+        'https://github.com/Ernesto581/mostrador/releases/latest/download/mostrador.apk';
+      const CLAVE = 'mostrador.dev.token';
+
+      let token = sessionStorage.getItem(CLAVE) || '';
+      let filas = [];
+      let editandoId = null;
+      let pendienteBorrado = null;
+
+      const $ = (id) => document.getElementById(id);
+
+      function escapar(texto) {
+        return String(texto ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function fecha(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleString('es-MX', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      }
+
+      function salir() {
+        token = '';
+        sessionStorage.removeItem(CLAVE);
+        $('app').classList.add('oculto');
+        $('login').classList.remove('oculto');
+      }
+
+      async function llamar(metodo, ruta, cuerpo) {
+        const respuesta = await fetch(API + ruta, {
+          method: metodo,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-developer-token': token,
+          },
+          body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+        });
+
+        if (respuesta.status === 401) {
+          salir();
+          throw new Error('La clave de desarrollador no es valida.');
+        }
+
+        const datos = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok) {
+          const mensaje =
+            datos?.error?.mensaje ||
+            (respuesta.status === 503
+              ? 'El panel del desarrollador no esta configurado en el servidor.'
+              : 'No se pudo completar la operacion.');
+          throw new Error(mensaje);
+        }
+        return datos;
+      }
+
+      async function cargarEstado() {
+        const salud = await fetch(API + '/health').then((r) => r.json().catch(() => ({})));
+        const estado = salud.estado === 'ok' ? 'Funcionando' : salud.estado === 'degradado' ? 'Con problemas' : 'Sin respuesta';
+        const base = salud.baseDeDatos || 'desconocida';
+        $('estado-servicio').textContent = estado;
+        $('estado-servicio').style.color = estado === 'Funcionando' ? 'var(--dinero)' : 'var(--peligro)';
+        $('estado-motor').textContent = (salud.motor || 'API') + (salud.migraAlArrancar ? ' · migra al arrancar' : '');
+        $('estado-base').textContent = base;
+        $('estado-base').style.color = base === 'conectada' ? 'var(--dinero)' : 'var(--peligro)';
+        $('detalle').textContent = JSON.stringify(salud, null, 2);
+
+        try {
+          const { actualizacion } = await llamar('GET', '/developer/app-releases/actual');
+          $('version-publicada').textContent = actualizacion
+            ? `v${actualizacion.versionCode} · ${actualizacion.versionName}`
+            : 'Ninguna';
+          $('version-publicada-nota').textContent = actualizacion
+            ? `Mandada ${fecha(actualizacion.publicadoEn)}`
+            : 'No hay ninguna version publicada.';
+        } catch (error) {
+          $('version-publicada').textContent = 'Sin respuesta';
+          $('version-publicada-nota').textContent = String(error.message);
+        }
+      }
+
+      async function cargarActualizaciones() {
+        const datos = await llamar('GET', '/developer/app-releases');
+        filas = datos.actualizaciones || [];
+        renderFilas();
+      }
+
+      function renderFilas() {
+        const cuerpo = $('filas');
+        $('vacio').classList.toggle('oculto', filas.length > 0);
+        $('historial-valor').textContent = String(filas.length);
+
+        const activa = filas.find((fila) => fila.publicada);
+        $('activa-valor').textContent = activa ? `v${activa.versionCode} · ${activa.versionName}` : 'Ninguna';
+        $('activa-nota').textContent = activa
+          ? `Mandada ${fecha(activa.publicadoEn)}`
+          : 'No hay ninguna version publicada.';
+
+        cuerpo.innerHTML = filas
+          .map((fila) => {
+            const botonPublicar = fila.publicada
+              ? `<button class="boton boton--fantasma" data-accion="retirar" data-id="${fila.id}" data-nombre="${escapar(fila.versionName)}">Retirar</button>`
+              : `<button class="boton boton--acento" data-accion="publicar" data-id="${fila.id}" data-nombre="${escapar(fila.versionName)}">Publicar</button>`;
+            const botonBorrar = pendienteBorrado === fila.id
+              ? `<button class="boton boton--acento" data-accion="confirmar-borrar" data-id="${fila.id}" data-nombre="${escapar(fila.versionName)}">Confirmar</button>`
+              : `<button class="boton" data-accion="borrar" data-id="${fila.id}" data-nombre="${escapar(fila.versionName)}">Borrar</button>`;
+
+            return `<tr>
+              <td><strong>v${fila.versionCode}</strong></td>
+              <td>${escapar(fila.versionName)}</td>
+              <td>${escapar(fila.notas || '—')}</td>
+              <td>${fecha(fila.publicadoEn || fila.creadoEn)}</td>
+              <td><span class="insignia ${fila.publicada ? 'insignia--ok' : 'insignia--baja'}">${fila.publicada ? 'Publicada' : 'Borrador'}</span></td>
+              <td class="acciones">
+                <button class="boton" data-accion="editar" data-id="${fila.id}">Editar</button>
+                ${botonPublicar}
+                ${botonBorrar}
+              </td>
+            </tr>`;
+          })
+          .join('');
+      }
+
+      function mostrarError(texto) {
+        $('error-app').textContent = texto || '';
+      }
+
+      function mostrarOk(texto) {
+        $('ok-app').textContent = texto || '';
+        if (texto) {
+          window.setTimeout(() => {
+            if ($('ok-app').textContent === texto) $('ok-app').textContent = '';
+          }, 5000);
+        }
+      }
+
+      async function entrar() {
+        if (!token) return;
+        try {
+          await cargarEstado();
+          await cargarActualizaciones();
+          $('login').classList.add('oculto');
+          $('app').classList.remove('oculto');
+          mostrarError('');
+        } catch (error) {
+          $('error-login').textContent = String(error.message);
+        }
+      }
+
+      function abrirModal(fila) {
+        editandoId = fila ? fila.id : null;
+        $('modal-titulo').textContent = fila ? `Editar v${fila.versionCode}` : 'Nueva actualizacion';
+        $('guardar-modal').textContent = fila ? 'Guardar' : 'Registrar';
+        $('campo-code').value = fila ? fila.versionCode : Math.max(0, ...filas.map((f) => f.versionCode)) + 1;
+        $('campo-nombre').value = fila ? fila.versionName : '';
+        $('campo-notas').value = fila ? fila.notas || '' : '';
+        $('campo-url').value = fila ? fila.url : URL_APK;
+        $('campo-publicada').checked = fila ? fila.publicada : false;
+        $('error-modal').textContent = '';
+        $('velo').hidden = false;
+      }
+
+      function cerrarModal() {
+        $('velo').hidden = true;
+        editandoId = null;
+      }
+
+      async function guardarModal(evento) {
+        evento.preventDefault();
+        const cuerpo = {
+          versionCode: Number($('campo-code').value),
+          versionName: $('campo-nombre').value.trim(),
+          notas: $('campo-notas').value.trim() || undefined,
+          url: $('campo-url').value.trim(),
+          publicada: $('campo-publicada').checked,
+        };
+
+        if (!Number.isInteger(cuerpo.versionCode) || cuerpo.versionCode <= 0) {
+          $('error-modal').textContent = 'Escribe un numero de version entero mayor a cero.';
+          return;
+        }
+        if (!cuerpo.versionName) {
+          $('error-modal').textContent = 'Escribe el nombre de la version.';
+          return;
+        }
+        if (!cuerpo.url) {
+          $('error-modal').textContent = 'Escribe la direccion del APK.';
+          return;
+        }
+
+        try {
+          if (editandoId) {
+            await llamar('PATCH', `/developer/app-releases/${editandoId}`, cuerpo);
+            mostrarOk(
+              cuerpo.publicada
+                ? `Se mando la actualizacion ${cuerpo.versionName} a los telefonos.`
+                : 'Actualizacion guardada.',
+            );
+          } else {
+            await llamar('POST', '/developer/app-releases', cuerpo);
+            mostrarOk(
+              cuerpo.publicada
+                ? `Se registro y se mando la actualizacion ${cuerpo.versionName} a los telefonos.`
+                : 'Actualizacion registrada. Publica cuando quieras mandarla.',
+            );
+          }
+          cerrarModal();
+          await Promise.all([cargarEstado(), cargarActualizaciones()]);
+        } catch (error) {
+          $('error-modal').textContent = String(error.message);
+        }
+      }
+
+      async function accion(evento) {
+        const boton = evento.target.closest('button[data-accion]');
+        if (!boton) return;
+        const { accion: nombre, id, nombre: versionNombre } = boton.dataset;
+
+        try {
+          if (nombre === 'editar') {
+            const fila = filas.find((candidata) => candidata.id === id);
+            if (fila) abrirModal(fila);
+            return;
+          }
+
+          if (nombre === 'publicar') {
+            await llamar('PATCH', `/developer/app-releases/${id}`, { publicada: true });
+            mostrarOk(`Se mando la actualizacion ${versionNombre} a los telefonos.`);
+            await Promise.all([cargarEstado(), cargarActualizaciones()]);
+            return;
+          }
+
+          if (nombre === 'retirar') {
+            await llamar('PATCH', `/developer/app-releases/${id}`, { publicada: false });
+            mostrarOk(`La actualizacion ${versionNombre} se retiro.`);
+            await Promise.all([cargarEstado(), cargarActualizaciones()]);
+            return;
+          }
+
+          if (nombre === 'borrar') {
+            pendienteBorrado = id;
+            renderFilas();
+            return;
+          }
+
+          if (nombre === 'confirmar-borrar') {
+            await llamar('DELETE', `/developer/app-releases/${id}`);
+            pendienteBorrado = null;
+            mostrarOk(`Se quito ${versionNombre} del historial.`);
+            await Promise.all([cargarEstado(), cargarActualizaciones()]);
+          }
+        } catch (error) {
+          mostrarError(String(error.message));
+        }
+      }
+
+      // Eventos
+      $('form-login').addEventListener('submit', async (evento) => {
+        evento.preventDefault();
+        token = $('token').value;
+        if (token) sessionStorage.setItem(CLAVE, token);
+        await entrar();
+      });
+
+      $('salir').addEventListener('click', salir);
+      $('nueva').addEventListener('click', () => abrirModal(null));
+      $('cancelar-modal').addEventListener('click', cerrarModal);
+      $('form-modal').addEventListener('submit', guardarModal);
+      $('filas').addEventListener('click', accion);
+
+      document.querySelectorAll('.tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach((otra) => otra.classList.remove('tab--activa'));
+          tab.classList.add('tab--activa');
+          const nombre = tab.dataset.tab;
+          $('seccion-estado').classList.toggle('oculto', nombre !== 'estado');
+          $('seccion-actualizaciones').classList.toggle('oculto', nombre !== 'actualizaciones');
+          if (nombre === 'estado') void cargarEstado();
+        });
+      });
+
+      // Si ya habia una clave guardada en esta pestaña, entra solo.
+      if (token) {
+        void entrar();
+      }
+    </script>
+  </body>
+</html>

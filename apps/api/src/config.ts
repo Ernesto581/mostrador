@@ -32,6 +32,19 @@ const EsquemaConfig = z.object({
     .transform((valor) => valor.trim().toLowerCase() === 'true'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres').optional(),
   JWT_EXPIRA: z.string().min(1).default('12h'),
+  /**
+   * Clave del panel del desarrollador (/actualizaciones).
+   * No es la del administrador del negocio: es la del programador de la app.
+   */
+  DEVELOPER_TOKEN: z.preprocess(
+    (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
+    z.string().min(16, 'DEVELOPER_TOKEN debe tener al menos 16 caracteres').optional(),
+  ),
+  /** Empresa sobre la que trabaja el panel del desarrollador. Si falta, la primera. */
+  DEVELOPER_COMPANY_ID: z.preprocess(
+    (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
+    z.string().min(1).optional(),
+  ),
   /** Supabase Storage para las fotos de productos. Solo se usa en el servidor. */
   SUPABASE_URL: z.string().url().optional(),
   /** Clave nueva (sb_secret_...). Es la recomendada. */
@@ -52,6 +65,8 @@ export interface Config {
   MIGRAR_AL_ARRANCAR: boolean;
   JWT_SECRET: string;
   JWT_EXPIRA: string;
+  DEVELOPER_TOKEN?: string;
+  DEVELOPER_COMPANY_ID?: string;
   SUPABASE_URL?: string;
   SUPABASE_SECRET_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -84,6 +99,10 @@ export function cargarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     MIGRAR_AL_ARRANCAR: datos.MIGRAR_AL_ARRANCAR,
     JWT_SECRET: secreto,
     JWT_EXPIRA: datos.JWT_EXPIRA,
+    ...(datos.DEVELOPER_TOKEN !== undefined ? { DEVELOPER_TOKEN: datos.DEVELOPER_TOKEN } : {}),
+    ...(datos.DEVELOPER_COMPANY_ID !== undefined
+      ? { DEVELOPER_COMPANY_ID: datos.DEVELOPER_COMPANY_ID }
+      : {}),
     ...(datos.HOST !== undefined ? { HOST: datos.HOST } : {}),
     ...(datos.DATABASE_URL !== undefined ? { DATABASE_URL: datos.DATABASE_URL } : {}),
     ...(datos.PGLITE_DIR !== undefined ? { PGLITE_DIR: datos.PGLITE_DIR } : {}),
