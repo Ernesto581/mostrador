@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { columnasSync, importe, piezas, porcentaje } from './comun.js';
 import { customers, products } from './catalogo.js';
+import { inventoryLots } from './inventario.js';
 import { branches, companies, devices, users } from './organizacion.js';
 
 export type EstadoVenta = 'completada' | 'cancelada';
@@ -110,6 +111,24 @@ export const saleLines = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (tabla) => [index('sale_lines_sale_idx').on(tabla.saleId)],
+);
+
+/** Desglose de lotes consumidos por cada línea de venta. */
+export const saleLineLots = pgTable(
+  'sale_line_lots',
+  {
+    id: text().primaryKey(),
+    saleLineId: text()
+      .notNull()
+      .references(() => saleLines.id),
+    lotId: text()
+      .notNull()
+      .references(() => inventoryLots.id),
+    quantity: piezas().notNull(),
+    unitCost: importe().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (tabla) => [index('sale_line_lots_line_idx').on(tabla.saleLineId)],
 );
 
 /** Pago de una venta. Varios pagos = cobro mixto. */

@@ -188,18 +188,19 @@ describe('stock por sucursal', () => {
     expect(despues.total).toBe(antes.total - cantidad);
   });
 
-  it('una venta descuenta primero del piso y luego del almacen', async () => {
+  it('una venta no toma directamente del almacen', async () => {
     await entrarAlAlmacen('BEB-004', 5);
     const antes = await existencias('BEB-004');
     const cantidad = antes.piso + 2;
 
     const respuesta = await vender('BEB-004', cantidad);
-    expect(respuesta.statusCode).toBe(201);
+    expect(respuesta.statusCode).toBe(409);
+    expect(respuesta.json().error.codigo).toBe('SIN_EXISTENCIA');
 
     const despues = await existencias('BEB-004');
-    expect(despues.piso).toBe(0);
-    expect(despues.almacen).toBe(antes.almacen - 2);
-    expect(despues.total).toBe(antes.total - cantidad);
+    expect(despues.piso).toBe(antes.piso);
+    expect(despues.almacen).toBe(antes.almacen);
+    expect(despues.total).toBe(antes.total);
   });
 
   it('no vende mas que el stock total de la sucursal', async () => {

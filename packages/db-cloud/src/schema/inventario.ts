@@ -29,6 +29,34 @@ export type TipoMovimientoInventario =
   | 'transferencia_entrada'
   | 'transferencia_salida';
 
+/** Lote inmutable creado por cada compra o inventario inicial. */
+export const inventoryLots = pgTable(
+  'inventory_lots',
+  {
+    id: text().primaryKey(),
+    companyId: text()
+      .notNull()
+      .references(() => companies.id),
+    productId: text()
+      .notNull()
+      .references(() => products.id),
+    supplierId: text(),
+    documentType: text(),
+    documentId: text(),
+    documentFolio: text(),
+    unitCost: importe().notNull(),
+    initialQuantity: piezas().notNull(),
+    receivedAt: timestamp({ withTimezone: true }).notNull(),
+    expirationAt: timestamp({ withTimezone: true }),
+    createdByUserId: text().references(() => users.id),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (tabla) => [
+    index('inventory_lots_product_received_idx').on(tabla.productId, tabla.receivedAt),
+    index('inventory_lots_document_idx').on(tabla.documentType, tabla.documentId),
+  ],
+);
+
 /**
  * Kardex: el libro de movimientos.
  *
@@ -50,6 +78,7 @@ export const inventoryMovements = pgTable(
     productId: text()
       .notNull()
       .references(() => products.id),
+    lotId: text().references(() => inventoryLots.id),
     type: text().$type<TipoMovimientoInventario>().notNull(),
     /** Cantidad siempre positiva; el signo lo determina el tipo. */
     quantity: piezas().notNull(),
@@ -89,6 +118,29 @@ export const stockBalances = pgTable(
     primaryKey({ columns: [tabla.productId, tabla.branchId, tabla.warehouseId] }),
     // El stock NUNCA puede quedar en negativo: lo garantiza la propia base de datos.
     check('stock_balances_no_negativo', sql`${tabla.quantity} >= 0`),
+  ],
+);
+
+/** Saldo de cada lote por ubicación. El total de stock es la suma de esta tabla. */
+export const stockLotBalances = pgTable(
+  'stock_lot_balances',
+  {
+    lotId: text()
+      .notNull()
+      .references(() => inventoryLots.id),
+    branchId: text()
+      .notNull()
+      .references(() => branches.id),
+    warehouseId: text()
+      .notNull()
+      .references(() => warehouses.id),
+    quantity: piezas().notNull().default(0),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (tabla) => [
+    primaryKey({ columns: [tabla.lotId, tabla.branchId, tabla.warehouseId] }),
+    check('stock_lot_balances_no_negativo', sql`${tabla.quantity} >= 0`),
+    index('stock_lot_balances_branch_product_idx').on(tabla.branchId, tabla.warehouseId),
   ],
 );
 

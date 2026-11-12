@@ -12,6 +12,7 @@ export interface EntradaMovimiento {
   sucursalId: string;
   almacenId?: string | undefined;
   productoId: string;
+  loteId?: string | undefined;
   tipo: TipoMovimientoInventario;
   /** Cantidad siempre positiva: el tipo determina el signo. */
   cantidad: number;
@@ -33,6 +34,67 @@ export interface MovimientoAplicado {
   cantidad: number;
   cantidadConSigno: number;
   saldoResultante: number;
+  loteId?: string | undefined;
+}
+
+export interface AsignacionLote {
+  loteId: string;
+  cantidad: number;
+  costoUnitario: number;
+}
+
+async function crearLoteParaEntrada(
+  base: BaseDatos,
+  entrada: EntradaMovimiento,
+): Promise<string> {
+  const producto = await productoExiste(base, entrada.empresaId, entrada.productoId);
+  if (!producto) {
+    throw new ErrorNoEncontrado('El producto no existe');
+  }
+  const loteId = nuevoId();
+  await base.insert(schema.inventoryLots).values({
+    id: loteId,
+    companyId: entrada.empresaId,
+    productId: entrada.productoId,
+    unitCost: entrada.costoUnitario ?? producto.costoPromedio,
+    initialQuantity: entrada.cantidad,
+    documentType: entrada.documentoTipo ?? entrada.tipo,
+    documentId: entrada.documentoId ?? null,
+    documentFolio: entrada.documentoFolio ?? null,
+    receivedAt: entrada.ocurridoEn ?? new Date(),
+    createdByUserId: entrada.usuarioId ?? null,
+  });
+  return loteId;
+}
+
+export async function lotesDisponiblesFIFO(
+  base: BaseDatos,
+  sucursalId: string,
+  productoId: string,
+  almacenId: string,
+): Promise<AsignacionLote[]> {
+  const filas = await base
+    .select({
+      loteId: schema.stockLotBalances.lotId,
+      cantidad: schema.stockLotBalances.quantity,
+      costoUnitario: schema.inventoryLots.unitCost,
+    })
+    .from(schema.stockLotBalances)
+    .innerJoin(schema.inventoryLots, eq(schema.inventoryLots.id, schema.stockLotBalances.lotId))
+    .where(
+      and(
+        eq(schema.stockLotBalances.branchId, sucursalId),
+        eq(schema.stockLotBalances.warehouseId, almacenId),
+        eq(schema.inventoryLots.productId, productoId),
+        sql`${schema.stockLotBalances.quantity} > 0`,
+      ),
+    )
+    .orderBy(asc(schema.inventoryLots.receivedAt), asc(schema.inventoryLots.createdAt));
+  return filas.map((fila) => ({
+    loteId: fila.loteId,
+    cantidad: Number(fila.cantidad),
+    costoUnitario: Number(fila.costoUnitario),
+  }));
 }
 
 /** Saldo actual de un producto en un almacen concreto. */
@@ -178,6 +240,22 @@ export async function aplicarMovimiento(
   const signo = signoMovimiento(entrada.tipo as TipoMovimiento);
   const cantidadConSigno = signo * entrada.cantidad;
   const id = nuevoId();
+  let loteId = entrada.loteId;
+
+  if (!loteId && cantidadConSigno > 0 && !['transferencia_entrada', 'devolucion_cliente'].includes(entrada.tipo)) {
+    loteId = await crearLoteParaEntrada(base, entrada);
+  }
+
+  if (loteId) {
+    const [lote] = await base
+      .select({ id: schema.inventoryLots.id, productoId: schema.inventoryLots.productId })
+      .from(schema.inventoryLots)
+      .where(eq(schema.inventoryLots.id, loteId))
+      .limit(1);
+    if (!lote || lote.productoId !== entrada.productoId) {
+      throw new ErrorNoEncontrado('El lote no pertenece al producto indicado');
+    }
+  }
 
   // Nada puede quedar en negativo: si el movimiento resta, se comprueba antes.
   if (cantidadConSigno < 0) {
@@ -189,6 +267,26 @@ export async function aplicarMovimiento(
         'SIN_EXISTENCIA',
       );
     }
+    if (loteId) {
+      const [saldoLote] = await base
+        .select({ cantidad: schema.stockLotBalances.quantity })
+        .from(schema.stockLotBalances)
+        .where(
+          and(
+            eq(schema.stockLotBalances.lotId, loteId),
+            eq(schema.stockLotBalances.branchId, entrada.sucursalId),
+            eq(schema.stockLotBalances.warehouseId, almacenId),
+          ),
+        )
+        .limit(1);
+      if (Number(saldoLote?.cantidad ?? 0) < entrada.cantidad) {
+        throw new ErrorDeAplicacion(
+          `No hay suficiente existencia del lote: hay ${Number(saldoLote?.cantidad ?? 0)} y se intentan mover ${entrada.cantidad}`,
+          409,
+          'SIN_EXISTENCIA_LOTE',
+        );
+      }
+    }
   }
 
   await base.insert(schema.inventoryMovements).values({
@@ -197,6 +295,7 @@ export async function aplicarMovimiento(
     branchId: entrada.sucursalId,
     warehouseId: almacenId,
     productId: entrada.productoId,
+    lotId: loteId ?? null,
     type: entrada.tipo,
     quantity: entrada.cantidad,
     unitCost: entrada.costoUnitario ?? null,
@@ -232,6 +331,28 @@ export async function aplicarMovimiento(
         updatedAt: new Date(),
       },
     });
+
+  if (loteId) {
+    await base
+      .insert(schema.stockLotBalances)
+      .values({
+        lotId: loteId,
+        branchId: entrada.sucursalId,
+        warehouseId: almacenId,
+        quantity: cantidadConSigno > 0 ? cantidadConSigno : 0,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.stockLotBalances.lotId,
+          schema.stockLotBalances.branchId,
+          schema.stockLotBalances.warehouseId,
+        ],
+        set: {
+          quantity: sql`${schema.stockLotBalances.quantity} + ${cantidadConSigno}`,
+          updatedAt: new Date(),
+        },
+      });
+  }
 
   if (entrada.precioVenta !== undefined) {
     await base
@@ -274,6 +395,7 @@ export async function aplicarMovimiento(
     cantidad: entrada.cantidad,
     cantidadConSigno,
     saldoResultante: Number(saldo?.cantidad ?? 0),
+    loteId,
   };
 }
 
@@ -289,11 +411,11 @@ export async function registrarMovimiento(
   entrada: EntradaMovimiento,
 ): Promise<MovimientoAplicado> {
   return db.transaction(async (tx) => {
-    if (entrada.almacenId) {
+    const signo = signoMovimiento(entrada.tipo as TipoMovimiento);
+    if (entrada.almacenId && (signo >= 0 || entrada.loteId)) {
       return aplicarMovimiento(tx, entrada);
     }
 
-    const signo = signoMovimiento(entrada.tipo as TipoMovimiento);
     if (signo >= 0) {
       return aplicarMovimiento(tx, {
         ...entrada,
@@ -312,6 +434,7 @@ export async function registrarMovimiento(
         and(
           eq(schema.stockBalances.branchId, entrada.sucursalId),
           eq(schema.stockBalances.productId, entrada.productoId),
+          ...(entrada.almacenId ? [eq(schema.stockBalances.warehouseId, entrada.almacenId)] : []),
           eq(schema.warehouses.active, true),
           isNull(schema.warehouses.deletedAt),
           sql`${schema.stockBalances.quantity} > 0`,
@@ -334,13 +457,34 @@ export async function registrarMovimiento(
       if (restante === 0) {
         break;
       }
-      const cantidad = Math.min(restante, Number(saldo.cantidad));
-      aplicado = await aplicarMovimiento(tx, {
-        ...entrada,
-        almacenId: saldo.almacenId,
-        cantidad,
-      });
-      restante -= cantidad;
+      const lotes = await lotesDisponiblesFIFO(
+        tx,
+        entrada.sucursalId,
+        entrada.productoId,
+        saldo.almacenId,
+      );
+      for (const lote of lotes) {
+        if (restante === 0) {
+          break;
+        }
+        const cantidad = Math.min(restante, lote.cantidad);
+        aplicado = await aplicarMovimiento(tx, {
+          ...entrada,
+          almacenId: saldo.almacenId,
+          loteId: lote.loteId,
+          cantidad,
+          costoUnitario: entrada.costoUnitario ?? centavos(lote.costoUnitario),
+        });
+        restante -= cantidad;
+      }
+    }
+
+    if (restante > 0) {
+      throw new ErrorDeAplicacion(
+        `No hay suficiente existencia por lote: faltan ${restante} unidades`,
+        409,
+        'SIN_EXISTENCIA_LOTE',
+      );
     }
 
     return aplicado!;

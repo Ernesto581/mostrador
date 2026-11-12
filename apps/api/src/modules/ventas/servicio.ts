@@ -17,6 +17,7 @@ import { nuevoId } from '../../util/id.js';
 import {
   aplicarMovimiento,
   existenciasDeProductos,
+  lotesDisponiblesFIFO,
   ubicacionDeSucursal,
   ubicacionPrincipalDeSucursal,
 } from '../inventario/servicio.js';
@@ -217,20 +218,33 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
 
     // No se vende mas de lo que hay: el inventario nunca queda en negativo.
     // El stock es de la sucursal completa, sin separar piso de venta y almacen.
-    const existencias = await existenciasDeProductos(tx, entrada.sucursalId, idsProductos);
+    const pisoId = await ubicacionDeSucursal(tx, entrada.sucursalId, 'piso_venta');
+    const asignacionesPorLinea = new Map<string, { loteId: string; cantidad: number; costoUnitario: number }[]>();
     const faltantes: string[] = [];
     for (const linea of totales.lineas) {
       const producto = porId.get(linea.productoId)!;
       if (producto.esServicio) {
         continue;
       }
-      const existencia = existencias.get(linea.productoId) ?? { piso: 0, almacen: 0 };
-      const disponible = existencia.piso + existencia.almacen;
-      if (disponible < linea.cantidad) {
+      const lotes = await lotesDisponiblesFIFO(tx, entrada.sucursalId, linea.productoId, pisoId);
+      const disponiblePiso = lotes.reduce((total, lote) => total + lote.cantidad, 0);
+      if (disponiblePiso < linea.cantidad) {
+        const existencias = await existenciasDeProductos(tx, entrada.sucursalId, [linea.productoId]);
+        const existencia = existencias.get(linea.productoId) ?? { piso: 0, almacen: 0 };
         faltantes.push(
-          `${producto.nombre}: hay ${disponible} y se intentan vender ${linea.cantidad}`,
+          `${producto.nombre}: hay ${disponiblePiso} en piso y ${existencia.almacen} en almacen; se intentan vender ${linea.cantidad}`,
         );
+        continue;
       }
+      let restante = linea.cantidad;
+      const asignaciones: { loteId: string; cantidad: number; costoUnitario: number }[] = [];
+      for (const lote of lotes) {
+        if (restante <= 0) break;
+        const cantidad = Math.min(restante, lote.cantidad);
+        asignaciones.push({ loteId: lote.loteId, cantidad, costoUnitario: lote.costoUnitario });
+        restante -= cantidad;
+      }
+      asignacionesPorLinea.set(linea.productoId, asignaciones);
     }
 
     if (faltantes.length > 0) {
@@ -272,6 +286,11 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
 
     const lineasRegistradas: LineaRegistrada[] = totales.lineas.map((linea) => {
       const producto = porId.get(linea.productoId)!;
+      const asignaciones = asignacionesPorLinea.get(linea.productoId) ?? [];
+      const costoTotal = asignaciones.reduce(
+        (total, asignacion) => total + asignacion.cantidad * asignacion.costoUnitario,
+        0,
+      );
       return {
         productoId: linea.productoId,
         nombre: linea.nombre,
@@ -280,15 +299,23 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
         descuento: linea.descuento,
         impuesto: linea.impuesto,
         total: linea.total,
-        costoUnitario: producto.costoPromedio,
+        costoUnitario: asignaciones.length > 0 ? Math.round(costoTotal / linea.cantidad) : producto.costoPromedio,
       };
     });
 
+    const idsLineas = new Map<string, string>();
     await tx.insert(schema.saleLines).values(
       totales.lineas.map((linea, indice) => {
         const producto = porId.get(linea.productoId)!;
+        const id = nuevoId();
+        idsLineas.set(linea.productoId, id);
+        const asignaciones = asignacionesPorLinea.get(linea.productoId) ?? [];
+        const costoTotal = asignaciones.reduce(
+          (total, asignacion) => total + asignacion.cantidad * asignacion.costoUnitario,
+          0,
+        );
         return {
-          id: nuevoId(),
+          id,
           saleId: ventaId,
           productId: linea.productoId,
           lineNumber: indice + 1,
@@ -301,10 +328,25 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
           baseAmount: linea.base,
           taxAmount: linea.impuesto,
           total: linea.total,
-          unitCost: producto.costoPromedio,
+          unitCost: asignaciones.length > 0 ? Math.round(costoTotal / linea.cantidad) : producto.costoPromedio,
         };
       }),
     );
+
+    const lotesVendidos = totales.lineas.flatMap((linea) => {
+      const saleLineId = idsLineas.get(linea.productoId);
+      if (!saleLineId) return [];
+      return (asignacionesPorLinea.get(linea.productoId) ?? []).map((asignacion) => ({
+        id: nuevoId(),
+        saleLineId,
+        lotId: asignacion.loteId,
+        quantity: asignacion.cantidad,
+        unitCost: asignacion.costoUnitario,
+      }));
+    });
+    if (lotesVendidos.length > 0) {
+      await tx.insert(schema.saleLineLots).values(lotesVendidos);
+    }
 
     await tx.insert(schema.salePayments).values(
       entrada.pagos.map((pago) => ({
@@ -316,30 +358,21 @@ export async function registrarVenta(db: Db, entrada: EntradaVenta): Promise<Ven
       })),
     );
 
-    // La salida toma primero del piso de venta y el resto del almacen, pero el
-    // inventario se descuenta a nivel de sucursal.
-    const restantePiso = new Map([...existencias].map(([id, existencia]) => [id, existencia.piso]));
     for (const linea of totales.lineas) {
       const producto = porId.get(linea.productoId)!;
       if (producto.esServicio) {
         continue;
       }
-      const desdePiso = Math.min(linea.cantidad, restantePiso.get(linea.productoId) ?? 0);
-      restantePiso.set(linea.productoId, (restantePiso.get(linea.productoId) ?? 0) - desdePiso);
-      const partes = [
-        { tipo: 'piso_venta' as const, cantidad: desdePiso },
-        { tipo: 'almacen' as const, cantidad: linea.cantidad - desdePiso },
-      ].filter((parte) => parte.cantidad > 0);
-
-      for (const parte of partes) {
+      for (const asignacion of asignacionesPorLinea.get(linea.productoId) ?? []) {
         await aplicarMovimiento(tx, {
           empresaId: entrada.empresaId,
           sucursalId: entrada.sucursalId,
-          almacenId: await ubicacionDeSucursal(tx, entrada.sucursalId, parte.tipo),
+          almacenId: pisoId,
           productoId: linea.productoId,
+          loteId: asignacion.loteId,
           tipo: 'salida_venta',
-          cantidad: parte.cantidad,
-          costoUnitario: centavos(producto.costoPromedio),
+          cantidad: asignacion.cantidad,
+          costoUnitario: centavos(asignacion.costoUnitario),
           usuarioId: entrada.usuarioId,
           dispositivoId: entrada.dispositivoId,
           documentoTipo: 'venta',

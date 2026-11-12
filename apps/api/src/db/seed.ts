@@ -34,6 +34,7 @@ export interface ResultadoSemilla {
   pisoId: string;
   almacenId: string;
   sucursalSecundariaId: string;
+  pisoSecundariaId: string;
   almacenSecundariaId: string;
   usuarioId: string;
   usuario: string;
@@ -99,6 +100,7 @@ export async function sembrarDatosIniciales(
   const pisoId = nuevoId();
   const almacenId = nuevoId();
   const sucursalSecundariaId = nuevoId();
+  const pisoSecundariaId = nuevoId();
   const almacenSecundariaId = nuevoId();
   const usuarioId = nuevoId();
   const cajeroId = nuevoId();
@@ -125,6 +127,13 @@ export async function sembrarDatosIniciales(
   await db.insert(schema.warehouses).values([
     { id: pisoId, branchId: sucursalId, code: 'PISO', name: 'Piso de venta', kind: 'piso_venta' },
     { id: almacenId, branchId: sucursalId, code: 'ALM', name: 'Almacen', kind: 'almacen' },
+    {
+      id: pisoSecundariaId,
+      branchId: sucursalSecundariaId,
+      code: 'PISO',
+      name: 'Piso de venta',
+      kind: 'piso_venta',
+    },
     {
       id: almacenSecundariaId,
       branchId: sucursalSecundariaId,
@@ -243,6 +252,7 @@ export async function sembrarDatosIniciales(
     pisoId,
     almacenId,
     sucursalSecundariaId,
+    pisoSecundariaId,
     almacenSecundariaId,
     usuarioId,
     usuario,
