@@ -68,12 +68,6 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
       ...(permisos.has('catalog.manage')
         ? [
             {
-              id: 'productos' as const,
-              etiqueta: 'Productos',
-              etiquetaCorta: 'Productos',
-              grupo: 'mostrador' as const,
-            },
-            {
               id: 'categorias' as const,
               etiqueta: 'Categorias',
               etiquetaCorta: 'Categorias',
@@ -113,17 +107,10 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
     ...(permisos.has('catalog.manage')
       ? [
           {
-            id: 'productos' as const,
-            etiqueta: 'Productos',
-            etiquetaCorta: 'Productos',
-            descripcion: 'Catalogo: foto, codigos de barras, costo, precio y stock minimo.',
-            grupo: 'principal' as const,
-          },
-          {
             id: 'categorias' as const,
             etiqueta: 'Categorias',
             etiquetaCorta: 'Categorias',
-            descripcion: 'Agrupa los productos del catalogo.',
+            descripcion: 'Agrupa los productos del inventario.',
             grupo: 'principal' as const,
           },
         ]
@@ -135,17 +122,6 @@ function opcionesDe(sesion: Sesion): OpcionMenu[] {
             etiqueta: 'Inventario',
             etiquetaCorta: 'Inventario',
             descripcion: 'Existencias por sucursal, entradas, salidas, mermas y stock mínimo.',
-            grupo: 'principal' as const,
-          },
-        ]
-      : []),
-    ...(permisos.has('inventory.transfer')
-      ? [
-          {
-            id: 'movimientos' as const,
-            etiqueta: 'Movimientos',
-            etiquetaCorta: 'Movimientos',
-            descripcion: 'Entradas de mercancia y traslados entre sucursales.',
             grupo: 'principal' as const,
           },
         ]
@@ -605,19 +581,9 @@ export function Marco({ sesion, onActualizarSesion, onSalir }: Props) {
       {seccion?.id === 'cajas' ? (
         <Caja sesion={sesion} sucursalId={sucursalId} titulo="Cajas y turnos" />
       ) : null}
-      {seccion?.id === 'productos' ? (
-        <Inventario sesion={sesion} sucursalId={sucursalId} vista="productos" />
-      ) : null}
       {seccion?.id === 'categorias' ? <Categorias /> : null}
       {seccion?.id === 'inventario' ? (
-        <Inventario
-          sesion={sesion}
-          sucursalId={sucursalId}
-          {...(admin ? { vista: 'existencias' as const } : {})}
-        />
-      ) : null}
-      {seccion?.id === 'movimientos' ? (
-        <Inventario sesion={sesion} sucursalId={sucursalId} vista="movimientos" />
+        <Inventario sesion={sesion} sucursalId={sucursalId} />
       ) : null}
       {seccion?.id === 'informes' ? <Informes sesion={sesion} sucursalId={sucursalId} /> : null}
       {seccion?.id === 'ventas' ? <Ventas sesion={sesion} sucursalId={sucursalId} /> : null}

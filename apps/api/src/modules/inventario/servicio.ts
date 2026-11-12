@@ -532,36 +532,60 @@ export async function asignarASucursal(
     }
 
     const documentoId = nuevoId();
-    const comun = {
-      empresaId: datos.empresaId,
-      productoId: datos.productoId,
-      cantidad: datos.cantidad,
-      costoUnitario: centavos(producto.costoPromedio),
-      motivo: datos.motivo ?? 'Asignacion a sucursal',
-      usuarioId: datos.usuarioId,
-      documentoTipo: 'asignacion_inventario',
-      documentoId,
-    };
+    const destinoAlmacenId = await ubicacionDeSucursal(tx, datos.sucursalId, 'almacen');
+    const lotes = await lotesDisponiblesFIFO(
+      tx,
+      general.sucursalId,
+      datos.productoId,
+      general.almacenId,
+    );
+    const disponible = lotes.reduce((total, lote) => total + lote.cantidad, 0);
+    if (disponible < datos.cantidad) {
+      throw new ErrorDeAplicacion(
+        `Solo hay ${disponible} unidades disponibles en GENERAL`,
+        409,
+        'SIN_EXISTENCIA',
+      );
+    }
 
-    const salida = await aplicarMovimiento(tx, {
-      ...comun,
-      sucursalId: general.sucursalId,
-      almacenId: general.almacenId,
-      tipo: 'transferencia_salida',
-    });
-
-    const entrada = await aplicarMovimiento(tx, {
-      ...comun,
-      sucursalId: datos.sucursalId,
-      tipo: 'transferencia_entrada',
-    });
+    let restante = datos.cantidad;
+    let salida: MovimientoAplicado | undefined;
+    let entrada: MovimientoAplicado | undefined;
+    for (const lote of lotes) {
+      if (restante <= 0) break;
+      const cantidad = Math.min(restante, lote.cantidad);
+      const comun = {
+        empresaId: datos.empresaId,
+        productoId: datos.productoId,
+        loteId: lote.loteId,
+        cantidad,
+        costoUnitario: centavos(lote.costoUnitario),
+        motivo: datos.motivo ?? 'Asignacion a sucursal',
+        usuarioId: datos.usuarioId,
+        documentoTipo: 'asignacion_inventario',
+        documentoId,
+      };
+      salida = await aplicarMovimiento(tx, {
+        ...comun,
+        sucursalId: general.sucursalId,
+        almacenId: general.almacenId,
+        tipo: 'transferencia_salida',
+      });
+      entrada = await aplicarMovimiento(tx, {
+        ...comun,
+        sucursalId: datos.sucursalId,
+        almacenId: destinoAlmacenId,
+        tipo: 'transferencia_entrada',
+      });
+      restante -= cantidad;
+    }
 
     return {
       productoId: datos.productoId,
       sucursalId: datos.sucursalId,
       cantidad: datos.cantidad,
-      salida,
-      entrada,
+      salida: salida!,
+      entrada: entrada!,
     };
   });
 }

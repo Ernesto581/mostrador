@@ -139,7 +139,7 @@ async function prepararImagen(archivo: File): Promise<File> {
 
 export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busquedaExterna, alCambiarBusqueda }: Props) {
   const [sucursalId, setSucursalId] = useState(sucursalInicial);
-  const [general, setGeneral] = useState(false);
+  const [general, setGeneral] = useState(!sesion.permisos.includes('sale.sell'));
   const [busquedaInterna, setBusquedaInterna] = useState('');
   const buscar = busquedaExterna ?? busquedaInterna;
   const setBuscar = alCambiarBusqueda ?? setBusquedaInterna;
@@ -152,7 +152,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
   const [transferencia, setTransferencia] = useState<FormularioTransferencia | null>(null);
   const [verMovimientos, setVerMovimientos] = useState(false);
   const [entradaAbierta, setEntradaAbierta] = useState(false);
-  const [entradaOrigen, setEntradaOrigen] = useState<'compra' | 'general'>('compra');
   const [salidaAbierta, setSalidaAbierta] = useState(false);
   const [transferenciaAbierta, setTransferenciaAbierta] = useState(false);
   const [filtroSucursalId, setFiltroSucursalId] = useState('');
@@ -615,25 +614,10 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
               className="boton boton--acento inventario__nuevo"
               onClick={() => {
                 setError(null);
-                setEntradaOrigen('compra');
                 setEntradaAbierta(true);
               }}
             >
-              Nueva compra
-            </button>
-          ) : null}
-
-          {enMovimientos && puedeMover ? (
-            <button
-              type="button"
-              className="boton inventario__nuevo"
-              onClick={() => {
-                setError(null);
-                setEntradaOrigen('general');
-                setEntradaAbierta(true);
-              }}
-            >
-              Desde GENERAL
+              Registrar entrada
             </button>
           ) : null}
 
@@ -663,7 +647,7 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
             </button>
           ) : null}
 
-          {enProductos && puedeCatalogo ? (
+          {!enMovimientos && puedeCatalogo ? (
             <button
               type="button"
               className="boton boton--acento inventario__nuevo"
@@ -793,8 +777,8 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           {!cargandoMovimientos && movimientos.length === 0 ? (
             <div className="tarjeta">
               <p className="vacio">
-                No hay movimientos con esos filtros. Usa Nueva compra, Desde GENERAL, Registrar salida o
-                Nueva transferencia para empezar.
+                No hay movimientos con esos filtros. Usa Registrar entrada, Registrar salida o Nueva
+                transferencia para empezar.
               </p>
             </div>
           ) : null}
@@ -1496,7 +1480,6 @@ export function Inventario({ sesion, sucursalId: sucursalInicial, vista, busqued
           sesion={sesion}
           sucursalId={sucursalId}
           modo="entrada"
-          entradaOrigen={entradaOrigen}
           onCerrar={() => setEntradaAbierta(false)}
           onGuardado={alGuardarEntrada}
         />
